@@ -100,24 +100,45 @@ def enrich_existing_diary_labor(project: Project, items: list[dict]) -> list[dic
     if not project or not items:
         return items
     ensure_project_labor_catalog(project)
-    by_name = {}
-    by_source_cargo = {}
+    by_name_category: dict[tuple[str, str], ProjectLaborItem] = {}
+    by_source_cargo_category: dict[tuple[int, str], ProjectLaborItem] = {}
     for proj_item in ProjectLaborItem.objects.filter(
         project=project,
         is_active=True,
-    ).select_related('source_labor_cargo'):
-        key = str(proj_item.name or '').strip().casefold()
-        if key and key not in by_name:
-            by_name[key] = proj_item
-        if proj_item.source_labor_cargo_id:
-            by_source_cargo[proj_item.source_labor_cargo_id] = proj_item
+    ).select_related('source_labor_cargo', 'category'):
+        name_key = str(proj_item.name or '').strip().casefold()
+        cat_slug = proj_item.category.slug if proj_item.category_id else ''
+        if name_key and cat_slug:
+            by_name_category.setdefault((name_key, cat_slug), proj_item)
+        if proj_item.source_labor_cargo_id and cat_slug:
+            by_source_cargo_category.setdefault((proj_item.source_labor_cargo_id, cat_slug), proj_item)
     for item in items:
+        company = (item.get('company') or '').strip()
+        explicit_slug = (item.get('category_slug') or '').strip()
+        cargo_slug = explicit_slug or ('terceirizada' if company else '')
+        if not cargo_slug and item.get('cargo_id'):
+            from .models import LaborCargo
+
+            cargo = (
+                LaborCargo.objects.filter(pk=item['cargo_id'])
+                .select_related('category')
+                .only('id', 'category__slug')
+                .first()
+            )
+            if cargo and cargo.category_id:
+                cargo_slug = cargo.category.slug
+        if company:
+            cargo_slug = 'terceirizada'
+        if cargo_slug:
+            item['category_slug'] = cargo_slug
         cargo_id = item.get('cargo_id')
-        if cargo_id and cargo_id in by_source_cargo:
-            item['project_labor_item_id'] = by_source_cargo[cargo_id].pk
+        if cargo_id and cargo_slug:
+            proj_item = by_source_cargo_category.get((cargo_id, cargo_slug))
+            if proj_item:
+                item['project_labor_item_id'] = proj_item.pk
         name = (item.get('cargo_name') or '').strip()
-        if name:
-            proj_item = by_name.get(name.casefold())
+        if name and cargo_slug and not item.get('project_labor_item_id'):
+            proj_item = by_name_category.get((name.casefold(), cargo_slug))
             if proj_item:
                 item['project_labor_item_id'] = proj_item.pk
                 if proj_item.source_labor_cargo_id and not item.get('cargo_id'):

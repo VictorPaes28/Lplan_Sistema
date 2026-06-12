@@ -1,6 +1,8 @@
 from django.db import migrations
 
-from recursos_humanos.fix_ricardo_docs import fix_ricardo_docs, unfix_ricardo_docs
+
+def noop(apps, schema_editor):
+    pass
 
 
 class Migration(migrations.Migration):
@@ -10,5 +12,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(fix_ricardo_docs, unfix_ricardo_docs),
+        migrations.RunPython(noop, noop),
     ]

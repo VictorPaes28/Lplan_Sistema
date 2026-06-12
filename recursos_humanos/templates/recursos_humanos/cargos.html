@@ -1,0 +1,62 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Cargos RH</span>
+</nav>
+{% endblock %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Cargos RH</h1>
+      <p class="rh-subtitle">Cadastre cargos para filtrar documentos por «Aplica-se a: Por Cargo»</p>
+    </div>
+  </div>
+
+  <div class="rh-card rh-pad" style="max-width: 28rem; margin-bottom: 1.25rem;">
+    <h3 class="rh-card-title">Novo cargo</h3>
+    <form method="post" class="rh-inline-form">
+      {% csrf_token %}
+      <div class="rh-form-field" style="flex:1; min-width: 200px;">
+        <label for="{{ form_cargo.nome.id_for_label }}">Nome do cargo</label>
+        {{ form_cargo.nome }}
+      </div>
+      <button type="submit" class="rh-btn rh-btn-primary" style="align-self: flex-end;">
+        <i class="fas fa-plus" aria-hidden="true"></i> Adicionar
+      </button>
+    </form>
+  </div>
+
+  <div class="rh-card rh-table-wrap">
+    <table class="rh-table">
+      <thead>
+        <tr>
+          <th>Cargo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cargo in cargos %}
+        <tr>
+          <td>{{ cargo.nome }}</td>
+          <td>
+            <form method="post" action="{% url 'recursos_humanos:cargo_excluir' cargo.pk %}" onsubmit="return confirm('Excluir o cargo «{{ cargo.nome }}»?');">
+              {% csrf_token %}
+              <button type="submit" class="rh-icon-btn rh-icon-btn--danger" title="Excluir">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2" class="rh-empty">Nenhum cargo cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

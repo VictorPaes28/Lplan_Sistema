@@ -4,7 +4,7 @@
 {% block back_url %}{% url 'recursos_humanos:colaboradores' %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=34">
 {% endblock %}
 
 {% block title %}DP / RH — LPLAN{% endblock %}
@@ -32,10 +32,16 @@
       <i class="fas fa-cog" aria-hidden="true"></i>
       Config. Documentos
     </a>
+    <a href="{% url 'recursos_humanos:cargos' %}" class="tab {% if request.resolver_match.url_name == 'cargos' %}active{% endif %}">
+      <i class="fas fa-briefcase" aria-hidden="true"></i>
+      Cargos
+    </a>
   </div>
 
   <div class="rh-content">
+    {% block rh_breadcrumb %}{% endblock %}
     {% block rh_content %}{% endblock %}
   </div>
 </div>
+{% include "recursos_humanos/includes/admissao_nova_modal.html" %}
 {% endblock %}

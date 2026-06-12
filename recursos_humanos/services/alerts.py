@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from recursos_humanos.models import Colaborador, DocumentoColaborador
+from recursos_humanos.services.alertas_config import limite_dias_antecedencia_doc, obter_configuracao_alertas
 
 
 @dataclass
@@ -45,7 +46,7 @@ def _url_admissao(pk: int) -> str:
     return f"{reverse('recursos_humanos:admissao')}?id={pk}"
 
 
-def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int) -> bool:
+def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int, config) -> bool:
     """Regras de negócio: ativos/admissão para vencimentos futuros; vencidos para todos."""
     if doc.vencimento is None:
         return False
@@ -53,7 +54,8 @@ def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int) -> bool:
         return True
     if doc.colaborador.status == Colaborador.Status.DESLIGADO:
         return False
-    if doc.status == DocumentoColaborador.Status.RECEBIDO and dias > 30:
+    limite = limite_dias_antecedencia_doc(doc.tipo.nome, config)
+    if doc.status == DocumentoColaborador.Status.RECEBIDO and dias > limite:
         return False
     return doc.colaborador.status in (
         Colaborador.Status.ATIVO,
@@ -63,6 +65,7 @@ def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int) -> bool:
 
 def gerar_alertas() -> list[AlertaRH]:
     hoje = timezone.localdate()
+    config = obter_configuracao_alertas()
     alertas: list[AlertaRH] = []
 
     docs = DocumentoColaborador.objects.select_related('colaborador', 'tipo').exclude(
@@ -70,7 +73,7 @@ def gerar_alertas() -> list[AlertaRH]:
     )
     for doc in docs:
         dias = (doc.vencimento - hoje).days
-        if not _doc_deve_gerar_alerta(doc, hoje, dias):
+        if not _doc_deve_gerar_alerta(doc, hoje, dias, config):
             continue
 
         if doc.status == DocumentoColaborador.Status.RECEBIDO and dias >= 0:
@@ -154,23 +157,29 @@ def contar_alertas() -> int:
     return len(gerar_alertas())
 
 
-def resumo_alertas(alertas: list[AlertaRH]) -> dict:
+def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
     hoje = timezone.localdate()
-    vencendo_7 = sum(
-        1 for a in alertas if a.tipo == 'Documento vencendo' and 0 <= a.dias_restantes <= 7
+    cfg = config or obter_configuracao_alertas()
+    limite_doc = cfg.dias_documento_vencendo
+    vencendo = sum(
+        1 for a in alertas if a.tipo == 'Documento vencendo' and 0 <= a.dias_restantes <= limite_doc
     )
     vencidos = sum(1 for a in alertas if a.tipo == 'Documento vencido')
     admissoes = sum(1 for a in alertas if a.tipo == 'Admissão em andamento')
     treinamentos = sum(
-        1
-        for a in alertas
-        if 'NR-' in a.detalhe and a.tipo == 'Documento vencendo' and a.dias_restantes > 7
+        1 for a in alertas
+        if a.tipo == 'Documento vencendo'
+        and (
+            'nr' in a.detalhe.lower()
+            or 'treinamento' in a.detalhe.lower()
+        )
     )
     return {
-        'vencendo_7': vencendo_7,
+        'vencendo': vencendo,
         'vencidos': vencidos,
         'treinamentos': treinamentos,
         'admissoes': admissoes,
+        'dias_documento_vencendo': limite_doc,
         'total': len(alertas),
         'hoje': hoje,
     }

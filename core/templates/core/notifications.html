@@ -325,6 +325,9 @@
 .notif-icon.pedido-reenviado { background: #fffbeb; color: #d97706; }
 .notif-icon.pedido-atualizado { background: #f0f9ff; color: #0284c7; }
 .notif-icon.pedido-exclusao-sol { background: #fffbeb; color: #ca8a04; }
+.notif-icon.rh { background: #eff6ff; color: #2563eb; }
+.notif-icon.rh-urgente { background: #fef2f2; color: #dc2626; }
+.notif-icon.rh-ok { background: #f0fdf4; color: #16a34a; }
 
 .notif-title {
   grid-column: 2;
@@ -652,7 +655,7 @@
     {% for notification in day.list %}
     {% with t=notification.notification_type %}
     <div class="notif-row{% if t != 'pedido_exclusao_solicitada' and not notification.is_read %} unread{% endif %}">
-      <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% else %}sistema{% endif %}">
+      <div class="notif-icon {% if t == 'pedido_criado' or t == 'pedido_comentario' %}pedido{% elif t == 'pedido_reenviado' %}pedido-reenviado{% elif t == 'pedido_atualizado' %}pedido-atualizado{% elif t == 'pedido_exclusao_solicitada' %}pedido-exclusao-sol{% elif t == 'pedido_aprovado' or t == 'rdo_aprovado' or t == 'pedido_exclusao_aprovada' %}aprovado{% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' or t == 'pedido_exclusao_rejeitada' or t == 'rh_requisicao_reprovada' %}reprovado{% elif t == 'rdo_pendente' %}rdo{% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}trackhub{% elif t == 'rh_documentacao_pronta' %}rh-ok{% elif t == 'rh_documento_vencendo' %}rh-urgente{% elif t|slice:':3' == 'rh_' %}rh{% else %}sistema{% endif %}">
         {% if t == 'pedido_criado' %}<i class="fas fa-file-alt" aria-hidden="true"></i>
         {% elif t == 'pedido_reenviado' %}<i class="fas fa-redo-alt" aria-hidden="true"></i>
         {% elif t == 'pedido_atualizado' %}<i class="fas fa-pen-to-square" aria-hidden="true"></i>
@@ -664,6 +667,13 @@
         {% elif t == 'pedido_reprovado' or t == 'rdo_reprovado' %}<i class="fas fa-times" aria-hidden="true"></i>
         {% elif t == 'rdo_pendente' %}<i class="fas fa-file-lines" aria-hidden="true"></i>
         {% elif t == 'trackhub_etapa_concluida' or t == 'trackhub_prazo' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
+        {% elif t == 'rh_requisicao_pendente' %}<i class="fas fa-user-check" aria-hidden="true"></i>
+        {% elif t == 'rh_requisicao_reprovada' %}<i class="fas fa-user-times" aria-hidden="true"></i>
+        {% elif t == 'rh_coleta_docs' %}<i class="fas fa-folder-open" aria-hidden="true"></i>
+        {% elif t == 'rh_documento_recebido' %}<i class="fas fa-file-upload" aria-hidden="true"></i>
+        {% elif t == 'rh_documentacao_pronta' %}<i class="fas fa-clipboard-check" aria-hidden="true"></i>
+        {% elif t == 'rh_admissao_pendente' %}<i class="fas fa-user-clock" aria-hidden="true"></i>
+        {% elif t == 'rh_documento_vencendo' %}<i class="fas fa-calendar-times" aria-hidden="true"></i>
         {% else %}<i class="fas fa-bell" aria-hidden="true"></i>{% endif %}
       </div>
 

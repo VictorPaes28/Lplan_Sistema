@@ -198,18 +198,23 @@ STATIC_URL = '/static/'
 LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260520')
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+
+def _staticfiles_storage_backend():
+    """Evita 500 em {% static %} quando DEBUG=False sem collectstatic (comum em dev local)."""
+    if DEBUG:
+        return 'django.contrib.staticfiles.storage.StaticFilesStorage'
+    if (STATIC_ROOT / 'staticfiles.json').is_file():
+        return 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    return 'whitenoise.storage.CompressedStaticFilesStorage'
+
+
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     },
-    # Produção: CompressedManifestStaticFilesStorage (hashes nos nomes → cache agressivo em /static/ é seguro).
-    # DEBUG: StaticFilesStorage sem manifest (collectstatic opcional em dev).
+    # Produção: CompressedManifestStaticFilesStorage após collectstatic (hashes → cache seguro).
     'staticfiles': {
-        'BACKEND': (
-            'whitenoise.storage.CompressedManifestStaticFilesStorage'
-            if not DEBUG
-            else 'django.contrib.staticfiles.storage.StaticFilesStorage'
-        ),
+        'BACKEND': _staticfiles_storage_backend(),
     },
 }
 WHITENOISE_MAX_AGE = 31536000  # 1 ano de cache para arquivos com hash
@@ -507,6 +512,11 @@ WHATSAPP_VERIFY_TOKEN = os.environ.get('WHATSAPP_VERIFY_TOKEN', '')
 WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN', '')
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '')
 WHATSAPP_BUSINESS_ACCOUNT_ID = os.environ.get('WHATSAPP_BUSINESS_ACCOUNT_ID', '')
+
+# RH/DP: telefone para notificações WhatsApp
+# Formato E.164: +5581999999999
+RH_WHATSAPP_NOTIFICACAO = os.environ.get('RH_WHATSAPP_NOTIFICACAO', '')
+
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 

@@ -1,0 +1,42 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">{{ colaborador.nome }}</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Desligar</span>
+</nav>
+{% endblock %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}" class="rh-back">
+    <i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar ao perfil
+  </a>
+
+  <div class="rh-card rh-pad" style="max-width: 36rem;">
+    <h1 class="rh-title">Desligar colaborador</h1>
+    <p class="rh-subtitle">Registre o desligamento de <strong>{{ colaborador.nome }}</strong>.</p>
+
+    <form method="post" class="rh-form-grid" style="margin-top: 1.25rem;">
+      {% csrf_token %}
+      <div class="rh-form-field">
+        <label for="data_desligamento">Data de desligamento</label>
+        <input type="date" name="data_desligamento" id="data_desligamento" class="rh-input" required max="{% now 'Y-m-d' %}" value="{% if data_desligamento %}{{ data_desligamento }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+      </div>
+      <div class="rh-form-field rh-form-field-full">
+        <label for="motivo">Motivo do desligamento <span class="rh-required">*</span></label>
+        <textarea name="motivo" id="motivo" class="rh-input rh-textarea" rows="3" required minlength="10" placeholder="Descreva o motivo do desligamento (mín. 10 caracteres)...">{{ motivo|default:'' }}</textarea>
+      </div>
+      <div class="rh-form-field-full rh-form-actions">
+        <button type="submit" class="rh-btn rh-btn-danger-outline">
+          <i class="fas fa-user-times" aria-hidden="true"></i> Confirmar desligamento
+        </button>
+        <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}" class="rh-btn rh-btn-outline">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

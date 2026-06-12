@@ -1,6 +1,8 @@
 from django.db import migrations
 
-from recursos_humanos.seed_mvp_data import seed_rh_demo, unseed_rh_demo
+
+def noop(apps, schema_editor):
+    pass
 
 
 class Migration(migrations.Migration):
@@ -10,5 +12,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(seed_rh_demo, unseed_rh_demo),
+        migrations.RunPython(noop, noop),
     ]

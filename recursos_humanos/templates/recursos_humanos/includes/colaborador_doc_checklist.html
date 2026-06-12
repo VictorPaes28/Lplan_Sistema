@@ -1,0 +1,113 @@
+{% with recebidos=colaborador.documentos_recebidos total=colaborador.documentos_total %}
+<div class="rh-doc-checklist-head">
+  <h3 class="rh-card-title rh-card-title--tight">Checklist de Documentos</h3>
+  <div class="rh-doc-checklist-progress">
+    <div class="rh-progress-bar rh-progress-bar--lg">
+      <div class="rh-progress-fill {% if total and recebidos == total %}ok{% elif total and recebidos >= total|add:-2 %}warn{% else %}bad{% endif %}"
+           style="width: {% if total %}{% widthratio recebidos total 100 %}{% else %}0{% endif %}%"></div>
+    </div>
+    <span class="rh-progress-label {% if total and recebidos == total %}ok{% elif total and recebidos >= total|add:-2 %}warn{% else %}bad{% endif %}">
+      {{ recebidos }}/{{ total }}
+    </span>
+  </div>
+</div>
+
+<div class="rh-doc-grupos">
+  {# Documentos Pessoais #}
+  <div class="rh-doc-grupo rh-doc-grupo--blue">
+    <div class="rh-doc-grupo-header">
+      <div class="rh-doc-grupo-title">
+        <i class="fas fa-user rh-doc-grupo-icon rh-tone-blue" aria-hidden="true"></i>
+        <span>Documentos Pessoais</span>
+      </div>
+    </div>
+    <div class="rh-doc-grupo-body">
+      {% for doc in documentos %}
+      {% with n=doc.tipo.nome|lower %}
+      {% if 'aso' not in n and 'saúde' not in n and 'saude' not in n and 'nr-' not in n and 'comprovante' not in n and 'fgts' not in n and 'banc' not in n %}
+      {% if 'rg' in n or 'cpf' in n or 'título' in n or 'titulo' in n or 'certidão' in n or 'certidao' in n or 'pis' in n or 'ctps' in n or 'filhos' in n or 'escolaridade' in n %}
+      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% endif %}
+      {% endif %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Comprovantes #}
+  <div class="rh-doc-grupo rh-doc-grupo--purple">
+    <div class="rh-doc-grupo-header">
+      <div class="rh-doc-grupo-title">
+        <i class="fas fa-building rh-doc-grupo-icon rh-tone-purple" aria-hidden="true"></i>
+        <span>Comprovantes</span>
+      </div>
+    </div>
+    <div class="rh-doc-grupo-body">
+      {% for doc in documentos %}
+      {% with n=doc.tipo.nome|lower %}
+      {% if 'comprovante' in n or 'fgts' in n or 'banc' in n %}
+      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% endif %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Saúde e Segurança #}
+  <div class="rh-doc-grupo rh-doc-grupo--red">
+    <div class="rh-doc-grupo-header">
+      <div class="rh-doc-grupo-title">
+        <i class="fas fa-stethoscope rh-doc-grupo-icon rh-tone-red" aria-hidden="true"></i>
+        <span>Saúde e Segurança</span>
+      </div>
+    </div>
+    <div class="rh-doc-grupo-body">
+      {% for doc in documentos %}
+      {% with n=doc.tipo.nome|lower %}
+      {% if 'aso' in n or 'saúde' in n or 'saude' in n %}
+      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% endif %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Treinamentos e NRs #}
+  <div class="rh-doc-grupo rh-doc-grupo--green">
+    <div class="rh-doc-grupo-header">
+      <div class="rh-doc-grupo-title">
+        <i class="fas fa-book rh-doc-grupo-icon rh-tone-green" aria-hidden="true"></i>
+        <span>Treinamentos e NRs</span>
+      </div>
+    </div>
+    <div class="rh-doc-grupo-body">
+      {% for doc in documentos %}
+      {% with n=doc.tipo.nome|lower %}
+      {% if 'nr-' in n or 'nr ' in n %}
+      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% endif %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Outros #}
+  <div class="rh-doc-grupo rh-doc-grupo--gray">
+    <div class="rh-doc-grupo-header">
+      <div class="rh-doc-grupo-title">
+        <i class="fas fa-folder rh-doc-grupo-icon rh-tone-gray" aria-hidden="true"></i>
+        <span>Outros documentos</span>
+      </div>
+    </div>
+    <div class="rh-doc-grupo-body">
+      {% for doc in documentos %}
+      {% with n=doc.tipo.nome|lower %}
+      {% if 'aso' not in n and 'saúde' not in n and 'saude' not in n and 'nr-' not in n and 'nr ' not in n and 'comprovante' not in n and 'fgts' not in n and 'banc' not in n and 'rg' not in n and 'cpf' not in n and 'título' not in n and 'titulo' not in n and 'certidão' not in n and 'certidao' not in n and 'pis' not in n and 'ctps' not in n and 'filhos' not in n and 'escolaridade' not in n %}
+      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% endif %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endwith %}

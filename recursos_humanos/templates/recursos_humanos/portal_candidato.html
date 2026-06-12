@@ -1,0 +1,492 @@
+{% load static %}
+
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+
+  <meta charset="utf-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Envio de documentos — Lplan</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+
+  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}">
+
+</head>
+
+<body class="portal-body">
+
+  <div class="portal-wrap">
+
+    <header class="portal-header">
+
+      <div class="portal-logo">Lplan</div>
+
+      <h1 class="portal-greeting">Olá, {{ colaborador.nome }}!</h1>
+
+      <p class="portal-sub">Complete seus dados e envie os documentos para finalizar sua admissão.</p>
+
+    </header>
+
+
+
+    {% if messages %}
+
+    <div class="portal-messages">
+
+      {% for message in messages %}
+
+      <div class="portal-message {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+
+      {% endfor %}
+
+    </div>
+
+    {% endif %}
+
+
+
+    <section class="portal-dados-card">
+
+      <div class="portal-dados-head">
+
+        <div>
+
+          <h2 class="portal-section-title">Seus dados pessoais</h2>
+
+          <p class="portal-section-sub">Informações que o RH precisa para concluir seu cadastro.</p>
+
+        </div>
+
+        {% if dados_completos %}
+
+        <span class="portal-dados-badge portal-dados-badge--ok"><i class="fas fa-check" aria-hidden="true"></i> Preenchido</span>
+
+        {% else %}
+
+        <span class="portal-dados-badge portal-dados-badge--pending">Pendente</span>
+
+        {% endif %}
+
+      </div>
+
+
+
+      <form method="post" class="portal-dados-form" novalidate>
+
+        {% csrf_token %}
+
+        <input type="hidden" name="acao" value="salvar_dados">
+
+
+
+        <div class="portal-dados-grid">
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.rg.id_for_label }}">RG <span class="portal-required">*</span></label>
+
+            {{ dados_form.rg }}
+
+            {% if dados_form.rg.errors %}<p class="portal-field-error">{{ dados_form.rg.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.data_nascimento.id_for_label }}">Data de nascimento <span class="portal-required">*</span></label>
+
+            {{ dados_form.data_nascimento }}
+
+            {% if dados_form.data_nascimento.errors %}<p class="portal-field-error">{{ dados_form.data_nascimento.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.pis.id_for_label }}">PIS/PASEP</label>
+
+            {{ dados_form.pis }}
+
+            {% if dados_form.pis.errors %}<p class="portal-field-error">{{ dados_form.pis.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.escolaridade.id_for_label }}">Escolaridade <span class="portal-required">*</span></label>
+
+            {{ dados_form.escolaridade }}
+
+            {% if dados_form.escolaridade.errors %}<p class="portal-field-error">{{ dados_form.escolaridade.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field portal-field--full">
+
+            <label for="{{ dados_form.endereco.id_for_label }}">Endereço completo <span class="portal-required">*</span></label>
+
+            {{ dados_form.endereco }}
+
+            {% if dados_form.endereco.errors %}<p class="portal-field-error">{{ dados_form.endereco.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field portal-field--full">
+
+            <label for="{{ dados_form.dados_bancarios.id_for_label }}">Conta bancária <span class="portal-required">*</span></label>
+
+            {{ dados_form.dados_bancarios }}
+
+            {% if dados_form.dados_bancarios.errors %}<p class="portal-field-error">{{ dados_form.dados_bancarios.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.tamanho_camisa.id_for_label }}">Tamanho da camisa <span class="portal-required">*</span></label>
+
+            {{ dados_form.tamanho_camisa }}
+
+            {% if dados_form.tamanho_camisa.errors %}<p class="portal-field-error">{{ dados_form.tamanho_camisa.errors.0 }}</p>{% endif %}
+
+          </div>
+
+          <div class="portal-field">
+
+            <label for="{{ dados_form.tamanho_bota.id_for_label }}">Tamanho da bota <span class="portal-required">*</span></label>
+
+            {{ dados_form.tamanho_bota }}
+
+            {% if dados_form.tamanho_bota.errors %}<p class="portal-field-error">{{ dados_form.tamanho_bota.errors.0 }}</p>{% endif %}
+
+          </div>
+
+        </div>
+
+
+
+        <button type="submit" class="portal-save-btn">
+
+          <i class="fas fa-save" aria-hidden="true"></i> Salvar meus dados
+
+        </button>
+
+      </form>
+
+    </section>
+
+
+
+    <div class="portal-progress-card">
+
+      <div class="portal-progress-label">
+
+        <span>Progresso geral</span>
+
+        <strong>{{ recebidos_docs }}/{{ total_docs }} documentos</strong>
+
+      </div>
+
+      <div class="portal-progress-bar" role="progressbar" aria-valuenow="{{ progresso_pct }}" aria-valuemin="0" aria-valuemax="100">
+
+        <div class="portal-progress-fill" style="width: {{ progresso_pct }}%"></div>
+
+      </div>
+
+    </div>
+
+
+
+    <h2 class="portal-section-title portal-section-title--docs">Documentos solicitados</h2>
+
+
+
+    <div class="portal-doc-list">
+
+      {% for doc in documentos %}
+
+      <div class="portal-doc-item">
+
+        {% if doc.status == 'received' %}
+
+        <div class="portal-doc-icon done" aria-hidden="true"><i class="fas fa-check"></i></div>
+
+        <div class="portal-doc-body">
+
+          <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+
+          <p class="portal-doc-status">Aprovado pelo RH</p>
+
+        </div>
+
+        {% if doc.portal_arquivo %}
+
+        <div class="portal-doc-file-actions">
+
+          <a href="{{ doc.portal_arquivo.url }}" class="portal-file-thumb-link" target="_blank" rel="noopener" title="Visualizar {{ doc.portal_arquivo.nome }}">
+
+            {% if doc.portal_arquivo.is_image %}
+
+            <img src="{{ doc.portal_arquivo.url }}" alt="{{ doc.portal_arquivo.nome }}" class="portal-file-thumb">
+
+            {% elif doc.portal_arquivo.is_pdf %}
+
+            <span class="portal-file-thumb portal-file-thumb--pdf">
+
+              <iframe src="{{ doc.portal_arquivo.url }}" title="{{ doc.portal_arquivo.nome }}" tabindex="-1"></iframe>
+
+            </span>
+
+            {% else %}
+
+            <span class="portal-file-thumb portal-file-thumb--icon">
+
+              <i class="fas {{ doc.portal_arquivo.icon }}" aria-hidden="true"></i>
+
+            </span>
+
+            {% endif %}
+
+          </a>
+
+          <form method="post" action="{% url 'recursos_humanos:portal_remover' token doc.pk %}" class="portal-file-remove-form" onsubmit="return confirm('Remover este arquivo?');">
+
+            {% csrf_token %}
+
+            <button type="submit" class="portal-file-remove" aria-label="Remover arquivo" title="Remover">
+
+              <i class="fas fa-times" aria-hidden="true"></i>
+
+            </button>
+
+          </form>
+
+        </div>
+
+        {% endif %}
+
+        {% elif doc.portal_arquivo %}
+
+        <div class="portal-doc-icon pending" aria-hidden="true"><i class="fas fa-clock"></i></div>
+
+        <div class="portal-doc-body">
+
+          <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+
+          <p class="portal-doc-status">Aguardando aprovação{% if doc.tipo.obrigatorio %} · Obrigatório{% endif %}</p>
+
+        </div>
+
+        <div class="portal-doc-file-actions">
+
+          <a href="{{ doc.portal_arquivo.url }}" class="portal-file-thumb-link" target="_blank" rel="noopener" title="Visualizar {{ doc.portal_arquivo.nome }}">
+
+            {% if doc.portal_arquivo.is_image %}
+
+            <img src="{{ doc.portal_arquivo.url }}" alt="{{ doc.portal_arquivo.nome }}" class="portal-file-thumb">
+
+            {% elif doc.portal_arquivo.is_pdf %}
+
+            <span class="portal-file-thumb portal-file-thumb--pdf">
+
+              <iframe src="{{ doc.portal_arquivo.url }}" title="{{ doc.portal_arquivo.nome }}" tabindex="-1"></iframe>
+
+            </span>
+
+            {% else %}
+
+            <span class="portal-file-thumb portal-file-thumb--icon">
+
+              <i class="fas {{ doc.portal_arquivo.icon }}" aria-hidden="true"></i>
+
+            </span>
+
+            {% endif %}
+
+          </a>
+
+        </div>
+
+        {% else %}
+
+        <div class="portal-doc-icon pending" aria-hidden="true"><i class="fas fa-file-alt"></i></div>
+
+        <div class="portal-doc-body">
+
+          <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+
+          <p class="portal-doc-status">
+
+            Aguardando envio{% if doc.tipo.obrigatorio %} · Obrigatório{% endif %}
+
+          </p>
+
+          {% if doc.observacao %}
+
+          <p class="portal-doc-obs"><i class="fas fa-info-circle" aria-hidden="true"></i> {{ doc.observacao }}</p>
+
+          {% endif %}
+
+        </div>
+
+        <form method="post" action="{% url 'recursos_humanos:portal_upload' token doc.pk %}" enctype="multipart/form-data" class="portal-upload-form">
+
+          {% csrf_token %}
+
+          <input type="file" name="arquivo" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+
+          <div class="portal-doc-file-actions portal-is-hidden" data-role="selected">
+
+            <a href="#" class="portal-file-thumb-link" target="_blank" rel="noopener" data-role="thumb-link" title="Visualizar arquivo">
+
+              <span data-role="thumb"></span>
+
+            </a>
+
+            <button type="button" class="portal-file-remove" data-role="clear" aria-label="Remover arquivo" title="Remover">
+
+              <i class="fas fa-times" aria-hidden="true"></i>
+
+            </button>
+
+          </div>
+
+          <button type="button" class="portal-upload-btn" data-role="picker">
+
+            <i class="fas fa-upload" aria-hidden="true"></i> Enviar
+
+          </button>
+
+        </form>
+
+        {% endif %}
+
+      </div>
+
+      {% empty %}
+
+      <p class="portal-sub">Nenhum documento solicitado no momento.</p>
+
+      {% endfor %}
+
+    </div>
+
+  </div>
+
+  <script>
+  (function () {
+    var iconByExt = {
+      pdf: 'fa-file-pdf',
+      doc: 'fa-file-word',
+      docx: 'fa-file-word',
+      xls: 'fa-file-excel',
+      xlsx: 'fa-file-excel'
+    };
+
+    function fileExt(name) {
+      var parts = name.split('.');
+      return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    }
+
+    function isImage(file) {
+      return /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.type);
+    }
+
+    function isPdf(file) {
+      return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    }
+
+    function buildThumb(file, url) {
+      if (isImage(file)) {
+        var img = document.createElement('img');
+        img.src = url;
+        img.alt = file.name;
+        img.className = 'portal-file-thumb';
+        return img;
+      }
+      if (isPdf(file)) {
+        var pdfWrap = document.createElement('span');
+        pdfWrap.className = 'portal-file-thumb portal-file-thumb--pdf';
+        var iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.title = file.name;
+        iframe.setAttribute('tabindex', '-1');
+        pdfWrap.appendChild(iframe);
+        return pdfWrap;
+      }
+      var ext = fileExt(file.name);
+      var iconWrap = document.createElement('span');
+      iconWrap.className = 'portal-file-thumb portal-file-thumb--icon';
+      var icon = document.createElement('i');
+      icon.className = 'fas ' + (iconByExt[ext] || 'fa-file');
+      icon.setAttribute('aria-hidden', 'true');
+      iconWrap.appendChild(icon);
+      return iconWrap;
+    }
+
+    document.querySelectorAll('.portal-upload-form').forEach(function (form) {
+      var input = form.querySelector('.portal-file-input');
+      var picker = form.querySelector('[data-role="picker"]');
+      var selected = form.querySelector('[data-role="selected"]');
+      var thumbLink = form.querySelector('[data-role="thumb-link"]');
+      var thumb = form.querySelector('[data-role="thumb"]');
+      var clearBtn = form.querySelector('[data-role="clear"]');
+      var objectUrl = null;
+
+      function revokeUrl() {
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+        }
+      }
+
+      function showEmpty() {
+        revokeUrl();
+        input.value = '';
+        thumb.innerHTML = '';
+        thumbLink.removeAttribute('href');
+        selected.classList.add('portal-is-hidden');
+        picker.classList.remove('portal-is-hidden');
+      }
+
+      function showSelected(file) {
+        revokeUrl();
+        objectUrl = URL.createObjectURL(file);
+        thumb.innerHTML = '';
+        thumb.appendChild(buildThumb(file, objectUrl));
+        thumbLink.href = objectUrl;
+        thumbLink.title = 'Visualizar ' + file.name;
+        selected.classList.remove('portal-is-hidden');
+      }
+
+      picker.addEventListener('click', function () {
+        if (input.files && input.files.length) {
+          form.submit();
+          return;
+        }
+        input.click();
+      });
+
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) {
+          showEmpty();
+          return;
+        }
+        showSelected(file);
+      });
+
+      clearBtn.addEventListener('click', showEmpty);
+    });
+  })();
+  </script>
+
+</body>
+
+</html>
+

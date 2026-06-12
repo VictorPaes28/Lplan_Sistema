@@ -1,106 +1,1013 @@
 {% extends "recursos_humanos/base_rh.html" %}
 
+
+
+{% block rh_breadcrumb %}
+
+<nav class="rh-breadcrumb" aria-label="Navegação">
+
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+
+  <span class="rh-breadcrumb-current">Colaboradores</span>
+
+</nav>
+
+{% endblock %}
+
+
+
 {% block rh_content %}
+
 <div class="rh-page">
+
   <div class="rh-page-header">
+
     <div>
+
       <h1 class="rh-title">Colaboradores</h1>
+
       <p class="rh-subtitle">
+
         Registro de todos os colaboradores da empresa. Para contratar alguém novo, inicie pelo
+
         <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link">Fluxo de Admissão</a>.
+
       </p>
+
+      <div class="rh-chips rh-chips--inline">
+
+        <span class="rh-chip rh-chip-green"><span class="rh-dot rh-dot-green"></span>{{ contagens.ativo }} Ativos</span>
+
+        <span class="rh-chip rh-chip-blue"><span class="rh-dot rh-dot-blue"></span>{{ contagens.em_admissao }} Em Admissão</span>
+
+        <span class="rh-chip rh-chip-gray"><span class="rh-dot rh-dot-gray"></span>{{ contagens.desligado }} Desligados</span>
+
+      </div>
+
     </div>
-    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-outline">
-      <i class="fas fa-code-branch" aria-hidden="true"></i> Iniciar admissão
-    </a>
+
+    <button type="button" class="rh-btn rh-btn-outline js-rh-admissao-nova-open">
+
+      <i class="fas fa-plus" aria-hidden="true"></i> Iniciar admissão
+
+    </button>
+
   </div>
 
-  <div class="rh-chips">
-    <span class="rh-chip rh-chip-green"><span class="rh-dot rh-dot-green"></span>{{ contagens.ativo }} Ativos</span>
-    <span class="rh-chip rh-chip-blue"><span class="rh-dot rh-dot-blue"></span>{{ contagens.em_admissao }} Em Admissão</span>
-    <span class="rh-chip rh-chip-gray"><span class="rh-dot rh-dot-gray"></span>{{ contagens.desligado }} Desligados</span>
-  </div>
 
-  <form method="get" class="rh-filters">
+
+  <form method="get" class="rh-filters rh-filters-bar">
+
     <div class="rh-search-wrap">
+
       <i class="fas fa-search rh-search-icon" aria-hidden="true"></i>
+
       <input type="search" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou cargo..." class="rh-input rh-search-input">
+
     </div>
-    <div class="rh-segmented">
-      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=todos" class="rh-seg-btn {% if status_filtro == 'todos' %}active{% endif %}">Todos</a>
-      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=em_admissao" class="rh-seg-btn {% if status_filtro == 'em_admissao' %}active{% endif %}">Em Admissão</a>
-      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=ativo" class="rh-seg-btn {% if status_filtro == 'ativo' %}active{% endif %}">Ativos</a>
-      <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=desligado" class="rh-seg-btn {% if status_filtro == 'desligado' %}active{% endif %}">Desligados</a>
+
+    <div class="rh-filter-actions">
+
+      <div class="rh-segmented" role="tablist" aria-label="Filtrar por status">
+
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=todos" class="rh-seg-btn {% if status_filtro == 'todos' %}active{% endif %}" role="tab">Todos</a>
+
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=em_admissao" class="rh-seg-btn {% if status_filtro == 'em_admissao' %}active{% endif %}" role="tab">Em Admissão</a>
+
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=ativo" class="rh-seg-btn {% if status_filtro == 'ativo' %}active{% endif %}" role="tab">Ativos</a>
+
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=desligado" class="rh-seg-btn {% if status_filtro == 'desligado' %}active{% endif %}" role="tab">Desligados</a>
+
+      </div>
+
+      <div class="rh-select-wrap rh-select-wrap--obra">
+
+        <select name="obra" class="rh-select rh-select-obra" onchange="this.form.submit()" aria-label="Filtrar por obra">
+
+          <option value="">Todas as obras</option>
+
+          {% for obra in obras %}
+
+          <option value="{{ obra.pk }}" {% if obra_filtro == obra.pk|stringformat:"s" %}selected{% endif %}>{{ obra.nome }}</option>
+
+          {% endfor %}
+
+        </select>
+
+        <i class="fas fa-chevron-down rh-select-chevron" aria-hidden="true"></i>
+
+      </div>
+
     </div>
-    <select name="obra" class="rh-select" onchange="this.form.submit()">
-      <option value="">Todas as obras</option>
-      {% for obra in obras %}
-      <option value="{{ obra.pk }}" {% if obra_filtro == obra.pk|stringformat:"s" %}selected{% endif %}>{{ obra.nome }}</option>
-      {% endfor %}
-    </select>
+
     <input type="hidden" name="status" value="{{ status_filtro }}">
-    <span class="rh-count">{{ colaboradores|length }} colaborador{{ colaboradores|length|pluralize:"es" }}</span>
+
+    <span class="rh-count">{{ page_obj.paginator.count }} colaborador{{ page_obj.paginator.count|pluralize:"es" }}</span>
+
   </form>
 
+
+
   <div class="rh-card rh-table-wrap">
+
     <table class="rh-table">
+
       <thead>
+
         <tr>
+
           <th>Nome</th>
+
           <th>CPF</th>
+
           <th>Cargo</th>
+
           <th>Obra(s)</th>
+
           <th>Status</th>
+
           <th>Documentos</th>
+
           <th>Prazo próximo</th>
+
           <th>Ações</th>
+
         </tr>
+
       </thead>
+
       <tbody>
+
         {% for c in colaboradores %}
-        <tr>
+
+        <tr id="rh-colab-row-{{ c.pk }}" data-pk="{{ c.pk }}">
+
           <td>
+
             <div class="rh-person-cell">
-              <span class="rh-avatar">{{ c.iniciais }}</span>
-              <a href="{% url 'recursos_humanos:colaborador_detalhe' c.pk %}" class="rh-person-name">{{ c.nome }}</a>
+
+              <span class="rh-avatar" aria-hidden="true">{{ c.iniciais }}</span>
+
+              <button type="button" class="rh-person-name js-rh-modal-ver rh-colab-nome"
+                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">{{ c.nome }}</button>
+
             </div>
+
           </td>
-          <td class="rh-muted">{{ c.cpf }}</td>
-          <td>{{ c.cargo }}</td>
+
+          <td class="rh-muted rh-colab-cpf">{{ c.cpf }}</td>
+
+          <td class="rh-colab-cargo">{{ c.cargo }}</td>
+
           <td>
+
             {% for obra in c.obras.all %}
+
             <span class="rh-tag">{{ obra.nome }}</span>
+
             {% empty %}<span class="rh-muted">—</span>{% endfor %}
+
           </td>
+
           <td>
-            <span class="rh-status rh-status-{{ c.status }}">{{ c.get_status_display }}</span>
+
+            <span class="rh-status rh-status-pill rh-status-{{ c.status }} rh-colab-status">{{ c.get_status_display }}</span>
+
           </td>
+
           <td>
+
             {% if c.status == 'em_admissao' %}
-            <a href="{% url 'recursos_humanos:admissao' %}?id={{ c.pk }}" class="rh-link">Ver admissão →</a>
+
+            <a href="{% url 'recursos_humanos:admissao' %}?id={{ c.pk }}" class="rh-link rh-link-admissao">Ver admissão →</a>
+
             {% else %}
+
             <div class="rh-progress">
+
               <div class="rh-progress-bar">
-                <div class="rh-progress-fill {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_total|add:'-3' >= c.docs_recebidos %}warn{% else %}bad{% endif %}" style="width: {% if c.docs_total %}{% widthratio c.docs_recebidos c.docs_total 100 %}{% else %}0{% endif %}%"></div>
+
+                <div class="rh-progress-fill {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_recebidos >= c.docs_total|add:-2 %}warn{% else %}bad{% endif %}" style="width: {% if c.docs_total %}{% widthratio c.docs_recebidos c.docs_total 100 %}{% else %}0{% endif %}%"></div>
+
               </div>
-              <span class="rh-progress-label">{{ c.docs_recebidos }}/{{ c.docs_total }}</span>
+
+              <span class="rh-progress-label {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_recebidos >= c.docs_total|add:-2 %}warn{% else %}bad{% endif %}">{{ c.docs_recebidos }}/{{ c.docs_total }}</span>
+
             </div>
+
             {% endif %}
+
           </td>
+
           <td>
+
             {% if c.proximo_prazo_fmt %}
+
             <span class="rh-deadline{% if c.dias_proximo_prazo is not None %}{% if c.dias_proximo_prazo < 0 %} rh-deadline-overdue{% elif c.dias_proximo_prazo <= 7 %} rh-deadline-urgent{% endif %}{% endif %}">{{ c.proximo_prazo_fmt }}</span>
+
             {% else %}<span class="rh-muted">—</span>{% endif %}
+
           </td>
+
           <td>
-            <a href="{% url 'recursos_humanos:colaborador_detalhe' c.pk %}" class="rh-icon-btn" title="Ver perfil"><i class="fas fa-eye"></i></a>
+
+            <div class="rh-actions-cell">
+
+              <button type="button" class="rh-icon-btn js-rh-modal-ver" title="Ver perfil"
+                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+              </button>
+
+              <button type="button" class="rh-icon-btn rh-icon-btn--edit js-rh-modal-editar" title="Editar colaborador"
+                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+              </button>
+
+              {% if c.status == 'ativo' %}
+              <button type="button" class="rh-icon-btn rh-icon-btn--desligar js-rh-modal-desligar" title="Desligar colaborador"
+                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+                <i class="fas fa-user-times" aria-hidden="true"></i>
+              </button>
+              {% else %}
+              <button type="button" class="rh-icon-btn rh-icon-btn--danger js-rh-modal-excluir" title="Excluir"
+                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+              </button>
+              {% endif %}
+
+            </div>
+
           </td>
+
         </tr>
+
         {% empty %}
+
         <tr><td colspan="8" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
+
         {% endfor %}
+
       </tbody>
+
     </table>
+
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div class="rh-pagination-wrapper">
+    <div class="rh-pagination">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if busca %}&amp;q={{ busca|urlencode }}{% endif %}&amp;status={{ status_filtro }}{% if obra_filtro %}&amp;obra={{ obra_filtro }}{% endif %}" class="rh-pagination-btn">Anterior</a>
+      {% else %}
+      <span class="rh-pagination-btn rh-pagination-btn-disabled">Anterior</span>
+      {% endif %}
+      <span class="rh-pagination-info">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if busca %}&amp;q={{ busca|urlencode }}{% endif %}&amp;status={{ status_filtro }}{% if obra_filtro %}&amp;obra={{ obra_filtro }}{% endif %}" class="rh-pagination-btn">Próxima</a>
+      {% else %}
+      <span class="rh-pagination-btn rh-pagination-btn-disabled">Próxima</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# Modal Ver Perfil #}
+<div id="modal-perfil" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-perfil" role="dialog" aria-labelledby="modal-perfil-heading">
+    <header class="modal-rh-header modal-rh-header-perfil">
+      <div class="modal-rh-header-top">
+        <div>
+          <h2 id="modal-perfil-heading" class="modal-rh-title">Perfil do Colaborador</h2>
+          <p class="modal-rh-subtitle">Visualização dos dados cadastrais</p>
+        </div>
+        <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <hr class="modal-rh-divider" aria-hidden="true">
+    <div class="modal-rh-profile-card">
+      <span class="rh-avatar rh-avatar-lg rh-avatar-round" id="modal-perfil-iniciais" aria-hidden="true"></span>
+      <div class="modal-rh-profile-info">
+        <h3 id="modal-perfil-nome" class="modal-rh-profile-name"></h3>
+        <div class="modal-rh-profile-meta">
+          <span class="rh-status rh-status-pill" id="modal-perfil-status"></span>
+          <span class="modal-rh-obras" id="modal-perfil-obras"></span>
+          <span class="modal-rh-cargo" id="modal-perfil-cargo"></span>
+        </div>
+      </div>
+    </div>
+    <div class="rh-colab-tabs" role="tablist" aria-label="Seções do perfil" id="modal-perfil-tabs">
+      <button type="button" class="rh-colab-tab active" data-colab-tab="pessoal" role="tab" aria-selected="true">Dados Pessoais</button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="profissional" role="tab" aria-selected="false">Dados Profissionais</button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="documentos" role="tab" aria-selected="false">Documentos</button>
+    </div>
+    <div class="modal-rh-body modal-rh-body-perfil">
+      <div class="rh-colab-tab-panel" data-colab-panel="pessoal" role="tabpanel">
+        <div class="modal-rh-grid" id="modal-perfil-dados-pessoais"></div>
+      </div>
+      <div class="rh-colab-tab-panel" data-colab-panel="profissional" role="tabpanel" hidden>
+        <div class="modal-rh-grid" id="modal-perfil-dados-profissionais"></div>
+      </div>
+      <div class="rh-colab-tab-panel" data-colab-panel="documentos" role="tabpanel" hidden>
+        <div class="modal-rh-doc-progress" id="modal-perfil-doc-progress"></div>
+        <div id="modal-perfil-documentos"></div>
+      </div>
+    </div>
+    <footer class="modal-rh-footer">
+      <button type="button" class="rh-btn rh-btn-outline js-modal-close">Fechar</button>
+      <button type="button" class="rh-btn rh-btn-danger-outline" id="modal-perfil-btn-desligar" hidden>Desligar</button>
+      <button type="button" class="rh-btn rh-btn-danger-outline" id="modal-perfil-btn-excluir" hidden>Excluir</button>
+      <button type="button" class="rh-btn rh-btn-primary" id="modal-perfil-btn-editar">Editar cadastro</button>
+    </footer>
   </div>
 </div>
+
+{# Modal Editar #}
+<div id="modal-editar" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-editar" role="dialog" aria-labelledby="modal-editar-title">
+    <header class="modal-rh-header modal-rh-header-edit">
+      <div class="modal-rh-profile-head">
+        <span class="rh-avatar rh-avatar-lg rh-avatar-round" id="modal-editar-iniciais" aria-hidden="true"></span>
+        <div>
+          <h2 id="modal-editar-title" class="modal-rh-title">Editar colaborador</h2>
+          <p class="modal-rh-subtitle" id="modal-editar-nome"></p>
+        </div>
+      </div>
+      <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+    </header>
+    <div class="rh-colab-tabs" role="tablist" aria-label="Seções do cadastro" id="modal-editar-tabs">
+      <button type="button" class="rh-colab-tab active" data-colab-tab="pessoal" role="tab" aria-selected="true">Dados Pessoais</button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="profissional" role="tab" aria-selected="false">Dados Profissionais</button>
+    </div>
+    <form id="form-editar-colaborador" class="modal-rh-body modal-rh-body-form" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="salvar_dados">
+      <input type="hidden" name="colab_pk" id="editar-colab-pk">
+
+      <div class="rh-colab-tab-panel" data-colab-panel="pessoal" role="tabpanel">
+        <div class="modal-rh-form-grid">
+          <label class="modal-rh-field">Nome completo *<input type="text" name="nome" id="edit-nome" class="rh-input" required></label>
+          <label class="modal-rh-field">CPF *<input type="text" name="cpf" id="edit-cpf" class="rh-input" required></label>
+          <label class="modal-rh-field">RG<input type="text" name="rg" id="edit-rg" class="rh-input"></label>
+          <label class="modal-rh-field">Data de nascimento<input type="date" name="data_nascimento" id="edit-data_nascimento" class="rh-input"></label>
+          <label class="modal-rh-field">PIS<input type="text" name="pis" id="edit-pis" class="rh-input"></label>
+          <label class="modal-rh-field">E-mail<input type="email" name="email" id="edit-email" class="rh-input"></label>
+          <label class="modal-rh-field">Telefone / WhatsApp<input type="tel" name="telefone" id="edit-telefone" class="rh-input" placeholder="+5581999999999"></label>
+          <label class="modal-rh-field modal-rh-field-full">Endereço<input type="text" name="endereco" id="edit-endereco" class="rh-input"></label>
+          <label class="modal-rh-field modal-rh-field-full">Conta bancária<input type="text" name="dados_bancarios" id="edit-dados_bancarios" class="rh-input"></label>
+          <label class="modal-rh-field">Escolaridade<input type="text" name="escolaridade" id="edit-escolaridade" class="rh-input"></label>
+          <label class="modal-rh-field">Tam. camisa
+            <select name="tamanho_camisa" id="edit-tamanho_camisa" class="rh-select">
+              <option value="">—</option>
+              <option value="PP">PP</option><option value="P">P</option><option value="M">M</option>
+              <option value="G">G</option><option value="GG">GG</option><option value="XG">XG</option>
+            </select>
+          </label>
+          <label class="modal-rh-field">Tam. bota
+            <select name="tamanho_bota" id="edit-tamanho_bota" class="rh-select">
+              <option value="">—</option>
+              <option value="34">34</option><option value="35">35</option><option value="36">36</option>
+              <option value="37">37</option><option value="38">38</option><option value="39">39</option>
+              <option value="40">40</option><option value="41">41</option><option value="42">42</option>
+              <option value="43">43</option><option value="44">44</option><option value="45">45</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="rh-colab-tab-panel" data-colab-panel="profissional" role="tabpanel" hidden>
+        <div class="modal-rh-form-grid">
+          <label class="modal-rh-field">Cargo *<input type="text" name="cargo" id="edit-cargo" class="rh-input" required></label>
+          <label class="modal-rh-field">Status
+            <select name="status" id="edit-status" class="rh-select">
+              <option value="em_admissao">Em Admissão</option>
+              <option value="ativo">Ativo</option>
+              <option value="desligado">Desligado</option>
+            </select>
+          </label>
+          <label class="modal-rh-field">Data de admissão<input type="date" name="data_admissao" id="edit-data_admissao" class="rh-input"></label>
+          <label class="modal-rh-field">Empresa responsável<input type="text" name="empresa" id="edit-empresa" class="rh-input"></label>
+          <label class="modal-rh-field">Tipo de contrato
+            <select name="tipo_contrato" id="edit-tipo_contrato" class="rh-select">
+              <option value="CLT">CLT</option>
+              <option value="Temporário">Temporário</option>
+              <option value="Estágio">Estágio</option>
+              <option value="Pessoa Jurídica">Pessoa Jurídica</option>
+            </select>
+          </label>
+          <label class="modal-rh-field">Salário<input type="text" name="salario" id="edit-salario" class="rh-input"></label>
+          <div class="modal-rh-field modal-rh-field-full">
+            <span class="modal-rh-label">Obras vinculadas *</span>
+            <div class="rh-obras-checkbox-grid" id="edit-obras-container">
+              {% for obra in obras %}
+              <label><input type="checkbox" name="obras" value="{{ obra.pk }}"> {{ obra.nome }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <label class="modal-rh-field modal-rh-field-full">Observações
+            <textarea name="observacoes_requisicao" id="edit-observacoes_requisicao" class="rh-input rh-textarea" rows="3"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-rh-form-errors" id="edit-form-errors" hidden></div>
+    </form>
+    <footer class="modal-rh-footer">
+      <button type="button" class="rh-btn rh-btn-outline js-modal-close">Cancelar</button>
+      <button type="button" class="rh-btn rh-btn-primary" id="btn-salvar-editar"><i class="fas fa-save" aria-hidden="true"></i> Salvar alterações</button>
+    </footer>
+  </div>
+</div>
+
+{# Modal Desligar #}
+<div id="modal-desligar" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-desligar" role="dialog" aria-labelledby="modal-desligar-heading">
+    <header class="modal-rh-header modal-rh-header-excluir">
+      <div class="modal-rh-header-top">
+        <h2 id="modal-desligar-heading" class="modal-rh-title">Desligar colaborador</h2>
+        <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <hr class="modal-rh-divider" aria-hidden="true">
+    <form id="form-desligar-colaborador" class="modal-rh-body modal-rh-body-desligar" novalidate>
+      {% csrf_token %}
+      <div class="modal-rh-desligar-icon" aria-hidden="true"><i class="fas fa-user-times"></i></div>
+      <p class="modal-rh-desligar-intro">Registre o desligamento de <strong class="desligar-nome"></strong>.</p>
+      <label class="modal-rh-field modal-rh-field-full">
+        Data de desligamento
+        <input type="date" name="data_desligamento" id="desligar-data" class="rh-input" max="{% now 'Y-m-d' %}" required>
+      </label>
+      <label class="modal-rh-field modal-rh-field-full">
+        Motivo do desligamento
+        <textarea name="motivo" id="desligar-motivo" class="rh-input rh-textarea" rows="3" minlength="10" required placeholder="Descreva o motivo (mín. 10 caracteres)..."></textarea>
+      </label>
+      <div class="modal-rh-form-errors" id="desligar-form-errors" hidden></div>
+    </form>
+    <footer class="modal-rh-footer">
+      <button type="button" class="rh-btn rh-btn-outline js-modal-close">Cancelar</button>
+      <button type="button" class="rh-btn rh-btn-danger-outline" id="btn-desligar-confirm">
+        <i class="fas fa-user-times" aria-hidden="true"></i> Confirmar desligamento
+      </button>
+    </footer>
+  </div>
+</div>
+
+{# Modal Excluir #}
+<div id="modal-excluir" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-excluir" role="dialog" aria-labelledby="modal-excluir-heading">
+    <header class="modal-rh-header modal-rh-header-excluir">
+      <div class="modal-rh-header-top">
+        <h2 id="modal-excluir-heading" class="modal-rh-title">Confirmar exclusão</h2>
+        <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+      </div>
+    </header>
+    <hr class="modal-rh-divider" aria-hidden="true">
+    <div class="modal-rh-body modal-rh-body-excluir">
+      <div class="modal-rh-delete-icon" aria-hidden="true"><i class="fas fa-trash"></i></div>
+      <h3 id="modal-excluir-title" class="modal-rh-excluir-title">Excluir colaborador?</h3>
+      <p class="modal-rh-excluir-intro">Você está prestes a excluir <strong class="excluir-nome"></strong>.</p>
+      <p class="modal-rh-excluir-warning">Esta ação não pode ser desfeita. Todos os documentos e histórico serão removidos permanentemente.</p>
+      <p class="modal-rh-alert" id="modal-excluir-ativo-aviso" hidden>
+        Não é possível excluir colaborador ativo. Faça o desligamento primeiro.
+      </p>
+    </div>
+    <footer class="modal-rh-footer">
+      <button type="button" class="rh-btn rh-btn-outline js-modal-close">Cancelar</button>
+      <form method="post" id="form-excluir-colaborador" class="modal-rh-inline-form">
+        {% csrf_token %}
+        <button type="submit" class="rh-btn rh-btn-danger" id="btn-excluir-confirm">Excluir definitivamente</button>
+      </form>
+    </footer>
+  </div>
+</div>
+
 {% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var jsonUrlBase = '{% url "recursos_humanos:colaborador_json" 0 %}';
+  var editUrlBase = '{% url "recursos_humanos:colaborador_detalhe" 0 %}';
+  var excluirUrlBase = '{% url "recursos_humanos:colaborador_excluir" 0 %}';
+  var desligarUrlBase = '{% url "recursos_humanos:colaborador_desligar" 0 %}';
+  var perfilData = null;
+  var editPk = null;
+  var desligarPk = null;
+
+  function getCsrfToken() {
+    var el = document.querySelector('#form-editar-colaborador [name=csrfmiddlewaretoken]')
+      || document.querySelector('#form-excluir-colaborador [name=csrfmiddlewaretoken]')
+      || document.querySelector('#form-desligar-colaborador [name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  function urlFor(base, pk) { return base.replace('/0/', '/' + pk + '/'); }
+  function getJsonUrl(pk) { return urlFor(jsonUrlBase, pk); }
+  function getEditUrl(pk) { return urlFor(editUrlBase, pk); }
+  function getExcluirUrl(pk) { return urlFor(excluirUrlBase, pk); }
+  function getDesligarUrl(pk) { return urlFor(desligarUrlBase, pk); }
+
+  function fecharModais() {
+    document.querySelectorAll('.modal-overlay.open').forEach(function (m) {
+      m.classList.remove('open');
+      m.setAttribute('aria-hidden', 'true');
+    });
+    document.body.classList.remove('rh-modal-open');
+  }
+
+  function abrirModal(id) {
+    fecharModais();
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('rh-modal-open');
+  }
+
+  function esc(v) {
+    if (v == null || v === '') return '—';
+    var d = document.createElement('div');
+    d.textContent = v;
+    return d.innerHTML;
+  }
+
+  function campo(label, val) {
+    return '<div class="modal-rh-field-view"><span class="modal-rh-label">' + esc(label) + '</span><span class="modal-rh-value">' + esc(val) + '</span></div>';
+  }
+
+  function ativarColabTab(container, tabId) {
+    if (!container) return;
+    container.querySelectorAll('[data-colab-tab]').forEach(function (tab) {
+      var on = tab.dataset.colabTab === tabId;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    container.querySelectorAll('[data-colab-panel]').forEach(function (panel) {
+      panel.hidden = panel.dataset.colabPanel !== tabId;
+    });
+  }
+
+  function initColabTabs(container) {
+    if (!container || container.dataset.colabTabsBound) return;
+    container.dataset.colabTabsBound = '1';
+    container.querySelectorAll('[data-colab-tab]').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        ativarColabTab(container, tab.dataset.colabTab);
+      });
+    });
+  }
+
+  function docCategoria(nome) {
+    var n = (nome || '').toLowerCase();
+    if (n.indexOf('aso') >= 0 || n.indexOf('saúde') >= 0 || n.indexOf('saude') >= 0) return 'saude';
+    if (n.indexOf('nr-') >= 0 || n.indexOf('nr ') >= 0) return 'treinamentos';
+    if (n.indexOf('comprovante') >= 0 || n.indexOf('fgts') >= 0 || n.indexOf('banc') >= 0) return 'comprovantes';
+    if (n.indexOf('rg') >= 0 || n.indexOf('cpf') >= 0 || n.indexOf('título') >= 0 || n.indexOf('titulo') >= 0 ||
+        n.indexOf('certidão') >= 0 || n.indexOf('certidao') >= 0 || n.indexOf('pis') >= 0 ||
+        n.indexOf('ctps') >= 0 || n.indexOf('filhos') >= 0 || n.indexOf('escolaridade') >= 0) return 'pessoais';
+    return 'outros';
+  }
+
+  var catLabels = {
+    pessoais: 'Documentos Pessoais',
+    comprovantes: 'Comprovantes',
+    saude: 'Saúde e Segurança',
+    treinamentos: 'Treinamentos e NRs',
+    outros: 'Outros documentos'
+  };
+
+  function docIcon(status) {
+    if (status === 'received') return '<span class="modal-doc-icon ok"><i class="fas fa-check"></i></span>';
+    if (status === 'pending') return '<span class="modal-doc-icon warn"><i class="fas fa-clock"></i></span>';
+    return '<span class="modal-doc-icon bad"><i class="fas fa-times"></i></span>';
+  }
+
+  function docStatusLabel(status) {
+    if (status === 'received') return 'Recebido';
+    if (status === 'pending') return 'Pendente';
+    return 'Faltando';
+  }
+
+  function popularModalPerfil(data) {
+    perfilData = data;
+    document.getElementById('modal-perfil-iniciais').textContent = data.iniciais;
+    document.getElementById('modal-perfil-nome').textContent = data.nome;
+    var statusEl = document.getElementById('modal-perfil-status');
+    statusEl.textContent = data.status_display;
+    statusEl.className = 'rh-status rh-status-pill rh-status-' + data.status;
+    var obrasEl = document.getElementById('modal-perfil-obras');
+    obrasEl.innerHTML = (data.obras || []).map(function (o) {
+      return '<span class="rh-tag">' + esc(o) + '</span>';
+    }).join('');
+    document.getElementById('modal-perfil-cargo').textContent = data.cargo || '';
+
+    var dadosPessoais = [
+      ['CPF', data.cpf], ['RG', data.rg], ['Data de nascimento', data.data_nascimento_fmt],
+      ['PIS', data.pis], ['E-mail', data.email], ['Telefone', data.telefone],
+      ['Endereço', data.endereco], ['Conta bancária', data.dados_bancarios],
+      ['Escolaridade', data.escolaridade], ['Tam. camisa', data.tamanho_camisa],
+      ['Tam. bota', data.tamanho_bota]
+    ];
+    document.getElementById('modal-perfil-dados-pessoais').innerHTML = dadosPessoais.map(function (d) {
+      return campo(d[0], d[1]);
+    }).join('');
+
+    var obrasTxt = (data.obras && data.obras.length) ? data.obras.join(', ') : '—';
+    var dadosProfissionais = [
+      ['Cargo', data.cargo], ['Status', data.status_display],
+      ['Data de admissão', data.data_admissao_fmt], ['Empresa responsável', data.empresa],
+      ['Tipo de contrato', data.tipo_contrato], ['Salário', data.salario],
+      ['Obras vinculadas', obrasTxt]
+    ];
+    if (data.observacoes_requisicao) {
+      dadosProfissionais.push(['Observações', data.observacoes_requisicao]);
+    }
+    document.getElementById('modal-perfil-dados-profissionais').innerHTML = dadosProfissionais.map(function (d) {
+      return campo(d[0], d[1]);
+    }).join('');
+
+    var pct = data.docs_total ? Math.round(data.docs_recebidos / data.docs_total * 100) : 0;
+    document.getElementById('modal-perfil-doc-progress').innerHTML =
+      '<div class="rh-progress-bar rh-progress-bar--lg"><div class="rh-progress-fill ok" style="width:' + pct + '%"></div></div>' +
+      '<span class="rh-progress-label ok">' + data.docs_recebidos + '/' + data.docs_total + '</span>';
+
+    var grupos = { pessoais: [], comprovantes: [], saude: [], treinamentos: [], outros: [] };
+    (data.documentos || []).forEach(function (doc) {
+      grupos[docCategoria(doc.nome)].push(doc);
+    });
+
+    var html = '';
+    Object.keys(catLabels).forEach(function (key) {
+      var docs = grupos[key];
+      if (!docs.length) return;
+      html += '<div class="modal-rh-doc-grupo"><h4 class="modal-rh-doc-grupo-title">' + catLabels[key] + '</h4><ul class="modal-rh-doc-list">';
+      docs.forEach(function (doc) {
+        html += '<li class="modal-rh-doc-item">' + docIcon(doc.status) +
+          '<span class="modal-rh-doc-name">' + esc(doc.nome) + '</span>' +
+          '<span class="modal-rh-doc-meta">' + docStatusLabel(doc.status) +
+          (doc.vencimento ? ' · ' + esc(doc.vencimento) : '') + '</span></li>';
+      });
+      html += '</ul></div>';
+    });
+    document.getElementById('modal-perfil-documentos').innerHTML = html || '<p class="rh-muted">Nenhum documento.</p>';
+    document.getElementById('modal-perfil-btn-editar').dataset.pk = data.id;
+    atualizarAcoesPerfil(data);
+  }
+
+  function atualizarAcoesPerfil(data) {
+    var btnDesligar = document.getElementById('modal-perfil-btn-desligar');
+    var btnExcluir = document.getElementById('modal-perfil-btn-excluir');
+    btnDesligar.hidden = data.status !== 'ativo';
+    btnExcluir.hidden = data.status === 'ativo';
+  }
+
+  function popularModalEditar(data) {
+    editPk = data.id;
+    document.getElementById('editar-colab-pk').value = data.id;
+    document.getElementById('modal-editar-iniciais').textContent = data.iniciais || '';
+    document.getElementById('modal-editar-nome').textContent = data.nome;
+    document.getElementById('edit-nome').value = data.nome || '';
+    document.getElementById('edit-cpf').value = data.cpf || '';
+    document.getElementById('edit-rg').value = data.rg || '';
+    document.getElementById('edit-data_nascimento').value = data.data_nascimento || '';
+    document.getElementById('edit-pis').value = data.pis || '';
+    document.getElementById('edit-email').value = data.email || '';
+    document.getElementById('edit-telefone').value = data.telefone || '';
+    document.getElementById('edit-endereco').value = data.endereco || '';
+    document.getElementById('edit-dados_bancarios').value = data.dados_bancarios || '';
+    document.getElementById('edit-cargo').value = data.cargo || '';
+    document.getElementById('edit-empresa').value = data.empresa || '';
+    document.getElementById('edit-status').value = data.status || 'em_admissao';
+    document.getElementById('edit-tipo_contrato').value = data.tipo_contrato || 'CLT';
+    document.getElementById('edit-salario').value = data.salario || '';
+    document.getElementById('edit-data_admissao').value = data.data_admissao || '';
+    document.getElementById('edit-escolaridade').value = data.escolaridade || '';
+    document.getElementById('edit-tamanho_camisa').value = data.tamanho_camisa || '';
+    document.getElementById('edit-tamanho_bota').value = data.tamanho_bota || '';
+    document.getElementById('edit-observacoes_requisicao').value = data.observacoes_requisicao || '';
+    var obraIds = (data.obras_ids || []).map(String);
+    document.querySelectorAll('#edit-obras-container input[name="obras"]').forEach(function (cb) {
+      cb.checked = obraIds.indexOf(cb.value) >= 0;
+    });
+    document.getElementById('edit-form-errors').hidden = true;
+    document.getElementById('edit-form-errors').innerHTML = '';
+    ativarColabTab(document.getElementById('modal-editar'), 'pessoal');
+  }
+
+  function abrirModalPerfil(pk) {
+    fetch(getJsonUrl(pk), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        popularModalPerfil(data);
+        ativarColabTab(document.getElementById('modal-perfil'), 'pessoal');
+        abrirModal('modal-perfil');
+      });
+  }
+
+  function abrirModalEditar(pk, cachedData) {
+    var dataPromise;
+    if (cachedData && cachedData.id) {
+      dataPromise = Promise.resolve(cachedData);
+    } else {
+      dataPromise = fetch(getJsonUrl(pk), { credentials: 'same-origin' }).then(function (r) {
+        return r.json();
+      });
+    }
+    dataPromise.then(function (data) {
+      popularModalEditar(data);
+      abrirModal('modal-editar');
+    }).catch(function () {
+      /* falha silenciosa — fetch ou parse JSON */
+    });
+  }
+
+  function abrirModalDesligar(pk, nome) {
+    desligarPk = pk;
+    document.querySelector('#modal-desligar .desligar-nome').textContent = nome;
+    document.getElementById('desligar-data').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('desligar-motivo').value = '';
+    var errEl = document.getElementById('desligar-form-errors');
+    errEl.hidden = true;
+    errEl.innerHTML = '';
+    abrirModal('modal-desligar');
+  }
+
+  function abrirModalExcluir(pk, nome, status) {
+    var modal = document.getElementById('modal-excluir');
+    modal.dataset.pk = pk;
+    modal.dataset.status = status;
+    modal.querySelector('.excluir-nome').textContent = nome;
+    document.getElementById('form-excluir-colaborador').action = getExcluirUrl(pk);
+    var aviso = document.getElementById('modal-excluir-ativo-aviso');
+    var btn = document.getElementById('btn-excluir-confirm');
+    var isAtivo = status === 'ativo';
+    aviso.hidden = !isAtivo;
+    btn.disabled = isAtivo;
+    abrirModal('modal-excluir');
+  }
+
+  function atualizarStatusLinha(pk, nome, status, statusDisplay) {
+    var row = document.getElementById('rh-colab-row-' + pk);
+    if (!row) return;
+    row.querySelectorAll('[data-pk]').forEach(function (el) {
+      el.dataset.nome = nome;
+      el.dataset.status = status;
+    });
+    var statusEl = row.querySelector('.rh-colab-status');
+    if (statusEl) {
+      statusEl.textContent = statusDisplay;
+      statusEl.className = 'rh-status rh-status-pill rh-status-' + status + ' rh-colab-status';
+    }
+    var acaoBtn = row.querySelector('.js-rh-modal-desligar, .js-rh-modal-excluir');
+    if (!acaoBtn) return;
+    if (status === 'ativo' && acaoBtn.classList.contains('js-rh-modal-excluir')) {
+      var desligarBtn = document.createElement('button');
+      desligarBtn.type = 'button';
+      desligarBtn.className = 'rh-icon-btn rh-icon-btn--desligar js-rh-modal-desligar';
+      desligarBtn.title = 'Desligar colaborador';
+      desligarBtn.dataset.pk = pk;
+      desligarBtn.dataset.nome = nome;
+      desligarBtn.dataset.status = status;
+      desligarBtn.innerHTML = '<i class="fas fa-user-times" aria-hidden="true"></i>';
+      acaoBtn.replaceWith(desligarBtn);
+    } else if (status !== 'ativo' && acaoBtn.classList.contains('js-rh-modal-desligar')) {
+      var excluirBtn = document.createElement('button');
+      excluirBtn.type = 'button';
+      excluirBtn.className = 'rh-icon-btn rh-icon-btn--danger js-rh-modal-excluir';
+      excluirBtn.title = 'Excluir';
+      excluirBtn.dataset.pk = pk;
+      excluirBtn.dataset.nome = nome;
+      excluirBtn.dataset.status = status;
+      excluirBtn.innerHTML = '<i class="fas fa-trash" aria-hidden="true"></i>';
+      acaoBtn.replaceWith(excluirBtn);
+    }
+  }
+
+  function atualizarLinhaTabela(pk, data) {
+    var row = document.getElementById('rh-colab-row-' + pk);
+    if (!row) return;
+    var nomeEl = row.querySelector('.rh-colab-nome');
+    if (nomeEl) nomeEl.textContent = data.nome;
+    var cargoEl = row.querySelector('.rh-colab-cargo');
+    if (cargoEl) cargoEl.textContent = data.cargo;
+    if (data.status && data.status_display) {
+      atualizarStatusLinha(pk, data.nome, data.status, data.status_display);
+    } else {
+      var statusEl = row.querySelector('.rh-colab-status');
+      if (statusEl && data.status_display) {
+        statusEl.textContent = data.status_display;
+      }
+    }
+    row.querySelectorAll('[data-pk]').forEach(function (el) {
+      el.dataset.nome = data.nome;
+      if (data.status) el.dataset.status = data.status;
+    });
+  }
+
+  document.querySelectorAll('.js-rh-modal-ver').forEach(function (btn) {
+    btn.addEventListener('click', function () { abrirModalPerfil(btn.dataset.pk); });
+  });
+  document.querySelectorAll('.js-rh-modal-editar').forEach(function (btn) {
+    btn.addEventListener('click', function () { abrirModalEditar(btn.dataset.pk); });
+  });
+
+  var tableBody = document.querySelector('.rh-table tbody');
+  if (tableBody) {
+    tableBody.addEventListener('click', function (e) {
+      var btn = e.target.closest('.js-rh-modal-desligar');
+      if (btn) {
+        abrirModalDesligar(btn.dataset.pk, btn.dataset.nome);
+        return;
+      }
+      btn = e.target.closest('.js-rh-modal-excluir');
+      if (btn) {
+        abrirModalExcluir(btn.dataset.pk, btn.dataset.nome, btn.dataset.status);
+      }
+    });
+  }
+
+  document.getElementById('modal-perfil-btn-editar').addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var pk = (perfilData && perfilData.id) || this.dataset.pk;
+    if (!pk) return;
+    abrirModalEditar(pk, perfilData);
+  });
+
+  document.getElementById('modal-perfil-btn-desligar').addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!perfilData) return;
+    abrirModalDesligar(perfilData.id, perfilData.nome);
+  });
+
+  document.getElementById('modal-perfil-btn-excluir').addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!perfilData) return;
+    abrirModalExcluir(perfilData.id, perfilData.nome, perfilData.status);
+  });
+
+  document.querySelectorAll('.js-modal-close').forEach(function (btn) {
+    btn.addEventListener('click', fecharModais);
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) fecharModais();
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') fecharModais();
+  });
+
+  document.getElementById('form-editar-colaborador').addEventListener('submit', function (e) {
+    e.preventDefault();
+  });
+
+  document.getElementById('btn-salvar-editar').addEventListener('click', function () {
+    var pk = editPk;
+    if (!pk) return;
+    var form = document.getElementById('form-editar-colaborador');
+    var fd = new FormData(form);
+    var btn = this;
+    btn.disabled = true;
+    fetch(getEditUrl(pk), {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCsrfToken() }
+    })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+      })
+      .then(function (res) {
+        if (res.ok && res.data.ok) {
+          atualizarLinhaTabela(pk, res.data);
+          fecharModais();
+        } else if (res.data && res.data.errors) {
+          var errEl = document.getElementById('edit-form-errors');
+          var msgs = [];
+          Object.keys(res.data.errors).forEach(function (k) {
+            res.data.errors[k].forEach(function (m) { msgs.push(k + ': ' + m); });
+          });
+          errEl.innerHTML = msgs.map(function (m) { return '<p>' + esc(m) + '</p>'; }).join('');
+          errEl.hidden = false;
+        } else {
+          alert('Não foi possível salvar. Verifique os dados e tente novamente.');
+        }
+      })
+      .catch(function () {
+        alert('Erro ao salvar alterações. Tente novamente.');
+      })
+      .finally(function () {
+        btn.disabled = false;
+      });
+  });
+
+  document.getElementById('form-desligar-colaborador').addEventListener('submit', function (e) {
+    e.preventDefault();
+  });
+
+  document.getElementById('btn-desligar-confirm').addEventListener('click', function () {
+    var pk = desligarPk;
+    if (!pk) return;
+    var form = document.getElementById('form-desligar-colaborador');
+    var fd = new FormData(form);
+    var btn = this;
+    var errEl = document.getElementById('desligar-form-errors');
+    errEl.hidden = true;
+    errEl.innerHTML = '';
+    btn.disabled = true;
+    fetch(getDesligarUrl(pk), {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': getCsrfToken()
+      }
+    })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+      })
+      .then(function (res) {
+        if (res.ok && res.data.ok) {
+          var nome = document.querySelector('#modal-desligar .desligar-nome').textContent;
+          atualizarStatusLinha(pk, nome, res.data.status, res.data.status_display);
+          if (perfilData && String(perfilData.id) === String(pk)) {
+            perfilData.status = res.data.status;
+            perfilData.status_display = res.data.status_display;
+            var statusEl = document.getElementById('modal-perfil-status');
+            statusEl.textContent = res.data.status_display;
+            statusEl.className = 'rh-status rh-status-pill rh-status-' + res.data.status;
+            atualizarAcoesPerfil(perfilData);
+          }
+          fecharModais();
+        } else if (res.data && res.data.errors) {
+          errEl.innerHTML = res.data.errors.map(function (m) {
+            return '<p>' + esc(m) + '</p>';
+          }).join('');
+          errEl.hidden = false;
+        } else {
+          alert('Não foi possível registrar o desligamento.');
+        }
+      })
+      .catch(function () {
+        alert('Erro ao desligar colaborador. Tente novamente.');
+      })
+      .finally(function () {
+        btn.disabled = false;
+      });
+  });
+
+  initColabTabs(document.getElementById('modal-perfil'));
+  initColabTabs(document.getElementById('modal-editar'));
+
+  document.getElementById('form-excluir-colaborador').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var modal = document.getElementById('modal-excluir');
+    if (modal.dataset.status === 'ativo') return;
+    var pk = modal.dataset.pk;
+    var form = e.target;
+    var fd = new FormData(form);
+    var btn = document.getElementById('btn-excluir-confirm');
+    btn.disabled = true;
+    fetch(form.action, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': getCsrfToken()
+      }
+    })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+      })
+      .then(function (res) {
+        if (res.ok && res.data.ok) {
+          var row = document.getElementById('rh-colab-row-' + pk);
+          if (row) row.remove();
+          fecharModais();
+        } else if (res.data && res.data.error) {
+          alert(res.data.error);
+        } else {
+          alert('Não foi possível excluir o colaborador.');
+        }
+      })
+      .catch(function () {
+        alert('Erro ao excluir colaborador. Tente novamente.');
+      })
+      .finally(function () {
+        btn.disabled = modal.dataset.status === 'ativo';
+      });
+  });
+})();
+</script>
+{% endblock %}
+

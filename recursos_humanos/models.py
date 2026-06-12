@@ -1,3 +1,7 @@
+from datetime import timedelta
+import secrets
+
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -28,11 +32,38 @@ class ObraLocal(models.Model):
         return self.nome
 
 
+class CargoRH(models.Model):
+    nome = models.CharField('Nome', max_length=120, unique=True)
+
+    class Meta:
+        verbose_name = 'Cargo (RH)'
+        verbose_name_plural = 'Cargos (RH)'
+        ordering = ['nome']
+
+    def __str__(self):
+        return self.nome
+
+
+class CargoCatalogo(models.Model):
+    """Catálogo de cargos operacionais para sugestão em novas requisições."""
+
+    nome = models.CharField('Nome', max_length=120, unique=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Cargo (catálogo)'
+        verbose_name_plural = 'Cargos (catálogo)'
+        ordering = ['nome']
+
+    def __str__(self):
+        return self.nome
+
+
 class TipoDocumento(models.Model):
     class AplicaA(models.TextChoices):
-        TODOS = 'todos', 'Todos'
-        POR_CARGO = 'por_cargo', 'Por Cargo'
-        POR_OBRA = 'por_obra', 'Por Obra'
+        TODOS = 'todos', 'Todos os colaboradores'
+        POR_CARGO = 'por_cargo', 'Por Cargo específico'
+        POR_OBRA = 'por_obra', 'Por Obra específica'
 
     nome = models.CharField('Nome', max_length=200)
     aplica_a = models.CharField(
@@ -45,6 +76,20 @@ class TipoDocumento(models.Model):
     dias_validade = models.PositiveIntegerField('Dias de validade', null=True, blank=True)
     obrigatorio = models.BooleanField('Obrigatório', default=True)
     ordem = models.PositiveSmallIntegerField('Ordem', default=0)
+    cargos_aplicaveis = models.ManyToManyField(
+        CargoRH,
+        blank=True,
+        related_name='tipos_documento',
+        verbose_name='Cargos aplicáveis',
+        help_text='Preencher apenas se aplica_a=por_cargo',
+    )
+    obras_aplicaveis = models.ManyToManyField(
+        ObraLocal,
+        blank=True,
+        related_name='tipos_documento',
+        verbose_name='Obras aplicáveis',
+        help_text='Preencher apenas se aplica_a=por_obra',
+    )
 
     class Meta:
         verbose_name = 'Tipo de documento'
@@ -63,6 +108,8 @@ class Colaborador(models.Model):
 
     nome = models.CharField('Nome completo', max_length=200)
     cpf = models.CharField('CPF', max_length=14, unique=True)
+    email = models.EmailField('E-mail', max_length=254, blank=True)
+    telefone = models.CharField('Telefone', max_length=20, blank=True)
     rg = models.CharField('RG', max_length=20, blank=True)
     data_nascimento = models.DateField('Data de nascimento', null=True, blank=True)
     endereco = models.CharField('Endereço', max_length=300, blank=True)
@@ -72,6 +119,14 @@ class Colaborador(models.Model):
     tamanho_camisa = models.CharField('Tamanho camisa', max_length=10, blank=True)
     tamanho_bota = models.CharField('Tamanho bota', max_length=10, blank=True)
     cargo = models.CharField('Cargo', max_length=120)
+    cargo_rh = models.ForeignKey(
+        CargoRH,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='colaboradores',
+        verbose_name='Cargo (RH)',
+    )
     empresa = models.CharField('Empresa', max_length=200, blank=True)
     status = models.CharField(
         'Status',
@@ -88,9 +143,50 @@ class Colaborador(models.Model):
     tipo_contrato = models.CharField('Tipo de contrato', max_length=40, blank=True, default='CLT')
     salario = models.CharField('Salário', max_length=40, blank=True)
     gestor_aprovador = models.CharField('Gestor aprovador', max_length=120, blank=True)
+    gestor_aprovador_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_admissao_gestor',
+        verbose_name='Gestor aprovador (usuário)',
+    )
+    requisicao_aprovada_gestor = models.BooleanField(
+        'Requisição aprovada pelo gestor',
+        default=False,
+    )
+    requisicao_reprovada = models.BooleanField(
+        'Requisição reprovada pelo gestor',
+        default=False,
+    )
+    requisicao_motivo_reprovacao = models.TextField(
+        'Motivo da reprovação da requisição',
+        blank=True,
+    )
+    requisicao_criada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_admissao_criadas',
+        verbose_name='Requisição criada por',
+    )
     motivo_admissao = models.CharField('Motivo admissão', max_length=120, blank=True)
     observacoes_requisicao = models.TextField('Observações da requisição', blank=True)
     obras = models.ManyToManyField(ObraLocal, blank=True, related_name='colaboradores')
+    token_portal = models.CharField(
+        'Token do portal',
+        max_length=64,
+        blank=True,
+        unique=True,
+        null=True,
+        help_text='Token para acesso ao portal do candidato',
+    )
+    token_portal_expira = models.DateTimeField(
+        'Expiração do token',
+        null=True,
+        blank=True,
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -133,6 +229,19 @@ class Colaborador(models.Model):
         if prazo is None:
             return None
         return (prazo - timezone.localdate()).days
+
+    def gerar_token_portal(self, dias=30):
+        self.token_portal = secrets.token_urlsafe(32)
+        self.token_portal_expira = timezone.now() + timedelta(days=dias)
+        self.save(update_fields=['token_portal', 'token_portal_expira'])
+        return self.token_portal
+
+    def token_portal_valido(self):
+        if not self.token_portal:
+            return False
+        if self.token_portal_expira:
+            return timezone.now() < self.token_portal_expira
+        return True
 
 
 class DocumentoColaborador(models.Model):
@@ -191,3 +300,47 @@ class AdmissaoHistorico(models.Model):
 
     def __str__(self):
         return f'{self.colaborador.nome} — {self.descricao}'
+
+
+class ConfiguracaoAlertasRH(models.Model):
+    """Configuração global (singleton) de prazos e canais de alerta do RH."""
+
+    dias_documento_vencendo = models.PositiveSmallIntegerField(
+        'Documentos com vencimento próximo (dias)',
+        default=30,
+    )
+    dias_treinamento_vencer = models.PositiveSmallIntegerField(
+        'Treinamentos a vencer (dias)',
+        default=60,
+    )
+    dias_renovacao_aso = models.PositiveSmallIntegerField(
+        'Renovação de ASO (dias)',
+        default=45,
+    )
+    dias_renotificar_vencido = models.PositiveSmallIntegerField(
+        'Documentos vencidos — renotificar (dias)',
+        default=7,
+    )
+    canal_email_rh = models.BooleanField('E-mail para o RH', default=True)
+    canal_notificacao_sistema = models.BooleanField('Notificação no sistema', default=True)
+    canal_whatsapp_gestor = models.BooleanField('WhatsApp para o gestor', default=False)
+    canal_relatorio_pdf_semanal = models.BooleanField('Relatório semanal PDF', default=True)
+    responsaveis = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='config_alertas_rh',
+        verbose_name='Responsáveis por receber alertas',
+    )
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuração de alertas RH'
+        verbose_name_plural = 'Configuração de alertas RH'
+
+    def __str__(self):
+        return 'Configuração de alertas RH'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

@@ -2071,6 +2071,13 @@ class Notification(models.Model):
             ('restricao_prazo', 'Prazo de Restrição Vencendo'),
             ('trackhub_etapa_concluida', 'Etapa Concluída no TrackHub'),
             ('trackhub_prazo', 'Prazo de Etapa TrackHub'),
+            ('rh_requisicao_pendente', 'RH — Requisição para Aprovar'),
+            ('rh_requisicao_reprovada', 'RH — Requisição Reprovada'),
+            ('rh_coleta_docs', 'RH — Coleta de Documentos'),
+            ('rh_documento_recebido', 'RH — Documento Recebido'),
+            ('rh_documentacao_pronta', 'RH — Documentação Completa'),
+            ('rh_admissao_pendente', 'RH — Admissão Pendente'),
+            ('rh_documento_vencendo', 'RH — Documento Vencendo/Vencido'),
         ],
         verbose_name='Tipo de Notificação'
     )

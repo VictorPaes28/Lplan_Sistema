@@ -29,13 +29,23 @@
         {{ form.cpf.errors }}
       </div>
       <div class="rh-form-field">
+        <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+        {{ form.email }}
+        {{ form.email.errors }}
+      </div>
+      <div class="rh-form-field">
+        <label for="{{ form.telefone.id_for_label }}">{{ form.telefone.label }}</label>
+        {{ form.telefone }}
+        {{ form.telefone.errors }}
+      </div>
+      <div class="rh-form-field">
         <label for="{{ form.cargo.id_for_label }}">{{ form.cargo.label }}</label>
         {{ form.cargo }}
         {{ form.cargo.errors }}
       </div>
-      <div class="rh-form-field">
-        <label for="{{ form.obra.id_for_label }}">{{ form.obra.label }}</label>
-        {{ form.obra }}
+      <div class="rh-form-field rh-form-field-full">
+        <label>{{ form.obra.label }} <span class="rh-required">*</span></label>
+        <div class="rh-checkbox-grid">{{ form.obra }}</div>
         {{ form.obra.errors }}
       </div>
       <div class="rh-form-field">
@@ -54,9 +64,10 @@
         {{ form.data_inicio.errors }}
       </div>
       <div class="rh-form-field">
-        <label for="{{ form.gestor.id_for_label }}">{{ form.gestor.label }}</label>
-        {{ form.gestor }}
-        {{ form.gestor.errors }}
+        <label for="{{ form.gestor_id.id_for_label }}">{{ form.gestor_id.label }} <span class="rh-required">*</span></label>
+        {{ form.gestor_id }}
+        <p class="rh-field-hint">Usuários ativos do sistema.</p>
+        {{ form.gestor_id.errors }}
       </div>
       <div class="rh-form-field">
         <label for="{{ form.motivo.id_for_label }}">{{ form.motivo.label }}</label>

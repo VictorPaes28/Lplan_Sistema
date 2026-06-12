@@ -2412,13 +2412,16 @@ window.updateLaborQuantity = updateLaborQuantity;
         var cargoId = el.getAttribute('data-cargo-id');
         return cargoId ? cargoRefFromId(cargoId) : '';
     }
-    function findQtyInput(cargoRef, company) {
+    function findQtyInput(cargoRef, company, categorySlug) {
         var all = document.querySelectorAll('.diary-labor-qty');
         for (var i = 0; i < all.length; i++) {
             var el = all[i];
             var elCargoRef = getElementCargoRef(el);
             var elCompany = el.getAttribute('data-company') || '';
-            if (elCargoRef === String(cargoRef) && elCompany === (company || '')) return el;
+            var elCategory = el.getAttribute('data-category-slug') || '';
+            if (elCargoRef !== String(cargoRef) || elCompany !== (company || '')) continue;
+            if (categorySlug && elCategory && elCategory !== categorySlug) continue;
+            return el;
         }
         return null;
     }
@@ -2481,7 +2484,7 @@ window.updateLaborQuantity = updateLaborQuantity;
             if (!cargoName) continue;
             var cargoRef = cargo.project_labor_item_id
                 ? cargoRefFromProjectItem(cargo.project_labor_item_id)
-                : (cargo.id ? cargoRefFromId(cargo.id) : cargoRefFromName(cargoName));
+                : (cargo.id ? cargoRefFromId(cargo.id) : cargoRefFromNameAndCategory(cargoName, 'terceirizada'));
             var q = diaryLaborState[key(cargoRef, companyName)] || 0;
             html += '<li class="diary-labor-row flex items-center justify-between gap-2 py-1 border-b border-slate-100 last:border-0"><span class="diary-labor-row__label text-sm text-slate-800 flex-1 min-w-0">' + escapeHtml(cargoName) + '</span>';
             html += '<div class="flex items-center gap-1"><button type="button" class="diary-labor-minus w-8 h-8 flex items-center justify-center rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700" data-cargo-ref="' + escapeHtml(cargoRef) + '" data-company="' + escapeHtml(companyName) + '" data-category-slug="terceirizada"><i class="fas fa-minus text-xs"></i></button>';
@@ -2605,11 +2608,12 @@ window.updateLaborQuantity = updateLaborQuantity;
             if (parsed.project_labor_item_id) row.project_labor_item_id = parsed.project_labor_item_id;
             if (parsed.cargo_name) row.cargo_name = parsed.cargo_name;
             if (parsed.category_slug) row.category_slug = parsed.category_slug;
-            var sourceInput = findQtyInput(split.cargoRef, split.company || '');
+            var sourceInput = findQtyInput(split.cargoRef, split.company || '', row.category_slug || '');
             if (!row.category_slug && sourceInput) {
                 var inputCategorySlug = sourceInput.getAttribute('data-category-slug') || '';
                 if (inputCategorySlug) row.category_slug = inputCategorySlug;
             }
+            if (!row.category_slug && split.company) row.category_slug = 'terceirizada';
             if (row.cargo_id || row.cargo_name || row.project_labor_item_id) out.push(row);
         }
         return out;
@@ -2647,7 +2651,7 @@ window.updateLaborQuantity = updateLaborQuantity;
         hiddenInput.value = JSON.stringify(Array.isArray(payload) ? payload : []);
     }
 
-    function setQuantity(cargoRef, company, qty) {
+    function setQuantity(cargoRef, company, qty, categorySlug) {
         var k = key(cargoRef, company);
         var normalized = Math.max(0, parseInt(qty, 10) || 0);
         if (normalized <= 0) {
@@ -2655,13 +2659,13 @@ window.updateLaborQuantity = updateLaborQuantity;
         } else {
             diaryLaborState[k] = normalized;
         }
-        var inp = findQtyInput(cargoRef, company || '');
+        var inp = findQtyInput(cargoRef, company || '', categorySlug || '');
         if (inp) inp.value = normalized;
         refreshLaborVisualFeedback();
     }
-    function changeQty(cargoRef, company, delta) {
+    function changeQty(cargoRef, company, delta, categorySlug) {
         var k = key(cargoRef, company);
-        var inp = findQtyInput(cargoRef, company || '');
+        var inp = findQtyInput(cargoRef, company || '', categorySlug || '');
         var currentInputValue = inp ? (parseInt(inp.value, 10) || 0) : 0;
         var currentStateValue = parseInt(diaryLaborState[k], 10) || 0;
         var current = Math.max(currentInputValue, currentStateValue);
@@ -2681,7 +2685,7 @@ window.updateLaborQuantity = updateLaborQuantity;
         var cref = getElementCargoRef(inp);
         var company = inp.getAttribute('data-company') || '';
         if (cid && !cref) cref = cargoRefFromId(cid);
-        if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0);
+        if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0, inp.getAttribute('data-category-slug') || '');
     }
     function bindPlusMinus() {
         document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('click', function(ev) {
@@ -2700,9 +2704,10 @@ window.updateLaborQuantity = updateLaborQuantity;
             var source = plus || minus;
             var cargoRef = getElementCargoRef(source);
             var company = (plus && plus.getAttribute('data-company')) || (minus && minus.getAttribute('data-company')) || '';
+            var categorySlug = (source && source.getAttribute('data-category-slug')) || '';
             if (!cargoRef) return;
-            if (plus) changeQty(cargoRef, company, 1);
-            if (minus) changeQty(cargoRef, company, -1);
+            if (plus) changeQty(cargoRef, company, 1, categorySlug);
+            if (minus) changeQty(cargoRef, company, -1, categorySlug);
         });
         document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('change', function(ev) {
             syncLaborInputToState(ev.target);
@@ -2719,9 +2724,14 @@ window.updateLaborQuantity = updateLaborQuantity;
             var data = JSON.parse(el.textContent || '[]');
             for (var i = 0; i < data.length; i++) {
                 var e = data[i];
+                var categorySlug = e.category_slug || (e.company ? 'terceirizada' : '');
                 var existingRef = e.project_labor_item_id
                     ? cargoRefFromProjectItem(e.project_labor_item_id)
-                    : (e.cargo_id ? cargoRefFromId(e.cargo_id) : cargoRefFromName(e.cargo_name || ''));
+                    : (e.cargo_id ? cargoRefFromId(e.cargo_id) : (
+                        categorySlug
+                            ? cargoRefFromNameAndCategory(e.cargo_name || '', categorySlug)
+                            : cargoRefFromName(e.cargo_name || '')
+                    ));
                 if (!existingRef) continue;
                 if (e.cargo_id || e.cargo_name || e.project_labor_item_id) {
                     upsertDynamicCargo({
@@ -2730,7 +2740,7 @@ window.updateLaborQuantity = updateLaborQuantity;
                         name: e.cargo_name || ''
                     });
                 }
-                setQuantity(existingRef, e.company || '', e.quantity);
+                setQuantity(existingRef, e.company || '', e.quantity, categorySlug);
             }
             var companies = [];
             for (var k in diaryLaborState) {

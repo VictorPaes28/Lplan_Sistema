@@ -1,147 +1,132 @@
 {% extends "recursos_humanos/base_rh.html" %}
 
-
-
-{% block rh_content %}
-
-<div class="rh-page">
-
-  <div class="rh-page-header">
-
-    <div>
-
-      <h1 class="rh-title">Fluxo de Admissão</h1>
-
-      <p class="rh-subtitle">Entrada única para contratar novos colaboradores — da requisição até a ativação</p>
-
-    </div>
-
-    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-primary">
-      <i class="fas fa-plus" aria-hidden="true"></i> Nova requisição
-    </a>
-
-  </div>
-
-
-
-  {% if not admissoes %}
-
-  <div class="rh-card rh-pad rh-empty-state">
-
-    <p>Nenhuma admissão em andamento.</p>
-    <a href="{% url 'recursos_humanos:admissao_nova' %}" class="rh-btn rh-btn-primary">Criar nova requisição</a>
-
-  </div>
-
-  {% else %}
-
-  <div class="rh-admission-layout">
-
-    <aside class="rh-admission-list">
-
-      {% for adm in admissoes %}
-
-      <a href="?id={{ adm.pk }}" class="rh-admission-item {% if selecionado.pk == adm.pk %}active{% endif %}">
-
-        <strong>{{ adm.nome }}</strong>
-
-        <span class="rh-muted">{{ adm.cargo }}</span>
-
-        <span class="rh-admission-step">Etapa {{ adm.etapa_admissao }}/5</span>
-
-      </a>
-
-      {% endfor %}
-
-    </aside>
-
-
-
-    {% if selecionado %}
-
-    <div class="rh-admission-detail">
-
-      <div class="rh-steps">
-
-        {% for num, label in etapas %}
-
-        <div class="rh-step {% if selecionado.etapa_admissao >= num %}done{% endif %} {% if selecionado.etapa_admissao == num %}current{% endif %}">
-
-          <span class="rh-step-num">{{ num }}</span>
-
-          <span class="rh-step-label">{{ label }}</span>
-
-        </div>
-
-        {% endfor %}
-
-      </div>
-
-
-
-      <div class="rh-card rh-pad">
-
-        <h3 class="rh-card-title rh-card-title--tight">{{ selecionado.nome }}</h3>
-
-        <p class="rh-subtitle">{{ selecionado.cargo }} · {% for o in selecionado.obras.all %}{{ o.nome }}{% if not forloop.last %}, {% endif %}{% empty %}Sem obra{% endfor %}</p>
-
-        <div class="rh-fields-grid rh-fields-grid-2">
-
-          <div class="rh-field"><span class="rh-field-label">Início</span><span class="rh-field-value">{% if selecionado.data_admissao %}{{ selecionado.data_admissao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
-
-          <div class="rh-field"><span class="rh-field-label">Etapa atual</span><span class="rh-field-value">{{ selecionado.etapa_admissao }} — {% for num, label in etapas %}{% if num == selecionado.etapa_admissao %}{{ label }}{% endif %}{% endfor %}</span></div>
-
-        </div>
-
-      </div>
-
-
-
-      {% include "recursos_humanos/includes/admissao_etapa_conteudo.html" %}
-
-
-
-      <div class="rh-card rh-pad">
-
-        <h3 class="rh-card-title">Histórico</h3>
-
-        <ul class="rh-timeline">
-
-          {% for ev in historico %}
-
-          <li class="rh-timeline-item {% if ev.concluido %}done{% else %}pending{% endif %}">
-
-            <span class="rh-timeline-dot"></span>
-
-            <div>
-
-              <strong>{{ ev.descricao }}</strong>
-
-              <span class="rh-muted">{{ ev.data_hora|date:"d/m/Y H:i" }} · {{ ev.autor|default:"—" }}</span>
-
-            </div>
-
-          </li>
-
-          {% empty %}
-
-          <li class="rh-muted">Sem eventos registrados.</li>
-
-          {% endfor %}
-
-        </ul>
-
-      </div>
-
-    </div>
-
-    {% endif %}
-
-  </div>
-
-  {% endif %}
-
-</div>
-
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Fluxo de Admissão</span>
+</nav>
 {% endblock %}
 
+{% block rh_content %}
+<div class="rh-page rh-page--admissao">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Fluxo de Admissão</h1>
+      <p class="rh-subtitle">Entrada única para contratar novos colaboradores — da requisição até a ativação</p>
+    </div>
+    <button type="button" class="rh-btn rh-btn-outline js-rh-admissao-nova-open">
+      <i class="fas fa-plus" aria-hidden="true"></i> Iniciar admissão
+    </button>
+  </div>
+
+  {% if adm_page_obj.paginator.count == 0 %}
+  <div class="rh-card rh-pad rh-empty-state">
+    <p>Nenhuma admissão em andamento.</p>
+    <button type="button" class="rh-btn rh-btn-primary js-rh-admissao-nova-open">Criar nova admissão</button>
+  </div>
+  {% else %}
+  <div class="rh-admission-layout">
+    <aside class="rh-admission-sidebar" aria-label="Admissões em andamento">
+      {% for adm in admissoes %}
+      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}">
+        <strong class="rh-admission-card-name">{{ adm.nome }}</strong>
+        <span class="rh-admission-card-meta">
+          {{ adm.cargo }}{% if adm.obras.all %} · {% for obra in adm.obras.all %}{{ obra.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+        </span>
+        <div class="rh-admission-card-footer">
+          <div class="rh-etapa-segments" aria-label="Etapa {{ adm.etapa_admissao }} de 5">
+            {% for num, label in etapas %}
+            <span class="rh-etapa-segment {% if adm.etapa_admissao >= 5 or adm.etapa_admissao > num %}is-done{% elif adm.etapa_admissao == num %}is-current{% endif %}"></span>
+            {% endfor %}
+          </div>
+          <span class="rh-admission-card-stage">
+            {% for num, label in etapas %}{% if num == adm.etapa_admissao %}{{ label }}{% endif %}{% endfor %}
+          </span>
+        </div>
+      </a>
+      {% endfor %}
+      {% if adm_page_obj.has_other_pages %}
+      <div class="rh-pagination-wrapper rh-pagination-wrapper--sidebar">
+        <div class="rh-pagination">
+          {% if adm_page_obj.has_previous %}
+          <a href="?page={{ adm_page_obj.previous_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Anterior</a>
+          {% endif %}
+          <span class="rh-pagination-info">{{ adm_page_obj.number }}/{{ adm_page_obj.paginator.num_pages }}</span>
+          {% if adm_page_obj.has_next %}
+          <a href="?page={{ adm_page_obj.next_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Próxima</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </aside>
+
+    {% if selecionado %}
+    <div class="rh-admission-main">
+      <div class="rh-stepper" aria-label="Etapas da admissão">
+        {% for num, label in etapas %}
+        {% if num <= selecionado.etapa_admissao %}
+        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if num != selecionado.etapa_admissao %}&amp;ver_etapa={{ num }}{% endif %}"
+           class="rh-stepper-item rh-stepper-item--link {% if selecionado.etapa_admissao > num %}is-done{% elif selecionado.etapa_admissao == num and not somente_leitura %}is-current{% elif etapa_exibida == num %}is-viewing{% endif %}">
+          <div class="rh-stepper-node" aria-hidden="true">
+            {% if selecionado.etapa_admissao > num %}
+            <i class="fas fa-check"></i>
+            {% elif num == 1 %}
+            <i class="fas fa-clipboard-list"></i>
+            {% elif num == 2 %}
+            <i class="fas fa-file-alt"></i>
+            {% elif num == 3 %}
+            <i class="fas fa-shield-alt"></i>
+            {% elif num == 4 %}
+            <i class="fas fa-pen"></i>
+            {% else %}
+            <i class="fas fa-user-check"></i>
+            {% endif %}
+          </div>
+          <span class="rh-stepper-label">{{ label }}</span>
+        </a>
+        {% else %}
+        <div class="rh-stepper-item is-future">
+          <div class="rh-stepper-node" aria-hidden="true">
+            {% if num == 1 %}<i class="fas fa-clipboard-list"></i>
+            {% elif num == 2 %}<i class="fas fa-file-alt"></i>
+            {% elif num == 3 %}<i class="fas fa-shield-alt"></i>
+            {% elif num == 4 %}<i class="fas fa-pen"></i>
+            {% else %}<i class="fas fa-user-check"></i>{% endif %}
+          </div>
+          <span class="rh-stepper-label">{{ label }}</span>
+        </div>
+        {% endif %}
+        {% if not forloop.last %}<div class="rh-stepper-connector {% if selecionado.etapa_admissao > num %}is-done{% endif %}" aria-hidden="true"></div>{% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="rh-admission-panel">
+        {% include "recursos_humanos/includes/admissao_etapa_conteudo.html" %}
+
+        <section class="rh-admission-history">
+          <h3 class="rh-admission-history-title">Histórico</h3>
+          <ul class="rh-timeline rh-timeline--admission">
+            {% for ev in historico %}
+            <li class="rh-timeline-item {% if ev.concluido %}done{% else %}pending{% endif %}">
+              <span class="rh-timeline-dot"></span>
+              <div class="rh-timeline-body">
+                <strong>{{ ev.descricao }}</strong>
+                <span class="rh-timeline-meta">{{ ev.data_hora|date:"d/m/Y H:i" }} · {{ ev.autor|default:"—" }}</span>
+              </div>
+            </li>
+            {% empty %}
+            <li class="rh-muted">Sem eventos registrados.</li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% if rh_requisicao_edicao %}
+{{ rh_requisicao_edicao|json_script:"rh-requisicao-edicao-data" }}
+{% endif %}
+{% endblock %}

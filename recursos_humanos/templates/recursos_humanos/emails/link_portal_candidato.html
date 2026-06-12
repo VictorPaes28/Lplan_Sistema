@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentos para admissão — Lplan</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #374151;
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      background-color: #f9fafb;
+    }
+    .email-container {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    .email-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #ffffff;
+    }
+    .brand-name {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0e6da8;
+      margin: 0 0 4px 0;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: #64748b;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .email-header-meta {
+      margin: 12px 0 0 0;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .email-body {
+      padding: 24px;
+    }
+    .email-body p {
+      margin: 0 0 16px 0;
+      font-size: 15px;
+    }
+    .btn-wrap {
+      margin: 24px 0;
+      text-align: center;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #2563eb;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .info-note {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #0369a1;
+      margin: 16px 0 0 0;
+    }
+    .email-footer {
+      padding: 16px 24px;
+      border-top: 1px solid #f3f4f6;
+      font-size: 12px;
+      color: #9ca3af;
+      background: #f8fafc;
+    }
+    .email-footer p {
+      margin: 0 0 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="email-header">
+      <p class="brand-name">Lplan</p>
+      <p class="brand-sub">Engenharia integrada</p>
+      <p class="email-header-meta">Recursos Humanos · Comunicação automática</p>
+    </div>
+    <div class="email-body">
+      <p>Olá, <strong>{{ nome }}</strong>!</p>
+      <p>
+        Sua admissão na Lplan foi iniciada.
+        Para concluir o processo, envie seus documentos pelo link abaixo:
+      </p>
+      <div class="btn-wrap">
+        <a href="{{ link }}" class="btn">Enviar meus documentos</a>
+      </div>
+      <p class="info-note">⏰ O link é válido por 30 dias.</p>
+    </div>
+    <div class="email-footer">
+      <p>Em caso de dúvidas, entre em contato com o setor de RH pelo e-mail
+        <a href="mailto:rh@lplan.com.br">rh@lplan.com.br</a>.</p>
+      <p>Mensagem automática. Não responda a este e-mail.</p>
+    </div>
+  </div>
+</body>
+</html>

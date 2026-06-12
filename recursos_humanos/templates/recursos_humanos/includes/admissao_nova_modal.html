@@ -1,0 +1,744 @@
+<div id="rh-admissao-modal" class="rh-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="rh-admissao-modal-title">
+  <div class="rh-modal-backdrop js-rh-admissao-modal-close" aria-hidden="true"></div>
+  <div class="rh-modal-dialog rh-wizard-dialog">
+    <header class="rh-modal-header">
+      <div>
+        <h2 id="rh-admissao-modal-title" class="rh-modal-title">Nova Requisição de Contratação</h2>
+        <p class="rh-modal-subtitle" id="rh-admissao-modal-subtitle">Etapa 1 do fluxo de admissão — Requisição</p>
+      </div>
+      <button type="button" class="rh-modal-close js-rh-admissao-modal-close" aria-label="Fechar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+
+    <div class="rh-wizard-stepper" aria-label="Progresso da requisição">
+      <div class="rh-wizard-step is-active" data-step="1">
+        <div class="rh-wizard-step-icon"><i class="fas fa-user" aria-hidden="true"></i></div>
+        <span>Candidato</span>
+      </div>
+      <div class="rh-wizard-step-line" data-line="1"></div>
+      <div class="rh-wizard-step" data-step="2">
+        <div class="rh-wizard-step-icon"><i class="fas fa-briefcase" aria-hidden="true"></i></div>
+        <span>Vaga</span>
+      </div>
+      <div class="rh-wizard-step-line" data-line="2"></div>
+      <div class="rh-wizard-step" data-step="3">
+        <div class="rh-wizard-step-icon"><i class="fas fa-file-alt" aria-hidden="true"></i></div>
+        <span>Contrato</span>
+      </div>
+      <div class="rh-wizard-step-line" data-line="3"></div>
+      <div class="rh-wizard-step" data-step="4">
+        <div class="rh-wizard-step-icon"><i class="fas fa-check" aria-hidden="true"></i></div>
+        <span>Confirmação</span>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'recursos_humanos:admissao_nova' %}" class="rh-wizard-form" id="rh-admissao-wizard-form" novalidate
+      data-url-nova="{% url 'recursos_humanos:admissao_nova' %}"
+      data-url-atualizar="{% url 'recursos_humanos:admissao_atualizar_requisicao' 0 %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <input type="hidden" name="motivo" value="Nova contratação">
+      <input type="hidden" name="gestor_id" id="req-gestor-id" value="">
+
+      <div class="rh-wizard-body">
+        <section class="rh-wizard-panel is-active" data-panel="1">
+          <div class="rh-wizard-section-head rh-wizard-section-head--blue">
+            <span class="rh-wizard-section-icon"><i class="fas fa-user" aria-hidden="true"></i></span>
+            <h3>Dados do Candidato</h3>
+          </div>
+          <div class="rh-wizard-fields">
+            <div class="rh-form-field rh-wizard-field-full">
+              <label for="req-nome">Nome completo <span class="rh-required">*</span></label>
+              <input type="text" name="nome" id="req-nome" class="rh-input" maxlength="200" required placeholder="Ex: João Silva Santos">
+            </div>
+            <div class="rh-wizard-fields-row">
+              <div class="rh-form-field">
+                <label for="req-cpf">CPF <span class="rh-required">*</span></label>
+                <input type="text" name="cpf" id="req-cpf" class="rh-input" maxlength="14" required placeholder="000.000.000-00">
+              </div>
+              <div class="rh-form-field">
+                <label for="req-solicitante">Responsável pela admissão</label>
+                <input type="text" id="req-solicitante" class="rh-input" value="{{ rh_solicitante_nome }}" readonly tabindex="-1">
+                <p class="rh-field-hint">Usuário logado que está abrindo esta requisição (registrado no histórico).</p>
+              </div>
+            </div>
+            <div class="rh-wizard-fields-row">
+              <div class="rh-form-field">
+                <label for="req-email">E-mail <span class="rh-required">*</span></label>
+                <input type="email" name="email" id="req-email" class="rh-input" maxlength="254" required placeholder="candidato@email.com" autocomplete="email">
+              </div>
+              <div class="rh-form-field">
+                <label for="req-telefone">Telefone <span class="rh-required">*</span></label>
+                <input type="tel" name="telefone" id="req-telefone" class="rh-input" maxlength="20" required placeholder="(81) 99999-9999" autocomplete="tel">
+              </div>
+            </div>
+          </div>
+          <div class="rh-wizard-info rh-wizard-info--blue">
+            <strong>Próxima etapa:</strong> Após aprovação do gestor, o candidato receberá o link de documentação por e-mail. Os documentos exigidos são definidos na aba Config. Documentos.
+          </div>
+        </section>
+
+        <section class="rh-wizard-panel" data-panel="2" hidden>
+          <div class="rh-wizard-section-head rh-wizard-section-head--purple">
+            <span class="rh-wizard-section-icon"><i class="fas fa-briefcase" aria-hidden="true"></i></span>
+            <h3>Informações da Vaga</h3>
+          </div>
+          <div class="rh-wizard-fields rh-wizard-fields-grid">
+            <div class="rh-form-field">
+              <label for="req-cargo-select">Cargo <span class="rh-required">*</span></label>
+              <div class="rh-cargo-picker">
+                <select id="req-cargo-select" class="rh-select">
+                  <option value="">Selecione o cargo</option>
+                  {% for cargo in rh_cargos_catalogo %}
+                  <option value="{{ cargo }}">{{ cargo }}</option>
+                  {% endfor %}
+                  <option value="__novo__">+ Cadastrar novo cargo...</option>
+                </select>
+                <div class="rh-cargo-novo-wrap" id="req-cargo-novo-wrap" hidden>
+                  <input type="text" id="req-cargo-novo" class="rh-input" maxlength="120" placeholder="Nome do novo cargo">
+                  <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="req-cargo-salvar">Salvar cargo</button>
+                </div>
+                <input type="hidden" name="cargo" id="req-cargo" required>
+              </div>
+            </div>
+            <div class="rh-form-field">
+              <label for="req-cargo-rh">Cargo (RH)</label>
+              <div class="rh-cargo-picker">
+                <select name="cargo_rh" id="req-cargo-rh" class="rh-select">
+                  <option value="">— Opcional —</option>
+                  {% for c in rh_cargos_rh %}
+                  <option value="{{ c.pk }}">{{ c.nome }}</option>
+                  {% endfor %}
+                  <option value="__novo__">+ Cadastrar novo cargo (RH)...</option>
+                </select>
+                <div class="rh-cargo-novo-wrap" id="req-cargo-rh-novo-wrap" hidden>
+                  <input type="text" id="req-cargo-rh-novo" class="rh-input" maxlength="120" placeholder="Nome do cargo (RH)">
+                  <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="req-cargo-rh-salvar">Salvar cargo (RH)</button>
+                </div>
+              </div>
+            </div>
+            <div class="rh-form-field rh-wizard-field-full">
+              <span class="rh-wizard-obras-label">Obra <span class="rh-required">*</span></span>
+              <div class="rh-wizard-obras" id="req-obras-wrap">
+                {% for obra in rh_form_requisicao.fields.obra.queryset %}
+                <label class="rh-wizard-obra-item">
+                  <input type="checkbox" name="obra" value="{{ obra.pk }}" class="req-obra-cb">
+                  <span>{{ obra.nome }}</span>
+                </label>
+                {% empty %}
+                <p class="rh-muted">Nenhuma obra ativa encontrada no GestControll. Cadastre ou ative obras no sistema principal.</p>
+                {% endfor %}
+              </div>
+              <p class="rh-field-hint">Selecione uma ou mais obras de alocação do colaborador.</p>
+            </div>
+            <div class="rh-form-field rh-wizard-field-full">
+              <label for="req-gestor">Gestor responsável <span class="rh-required">*</span></label>
+              <div class="rh-user-picker" id="req-gestor-picker">
+                <input type="text" id="req-gestor" class="rh-input rh-user-picker-input" maxlength="120" required readonly placeholder="Clique para selecionar um usuário" autocomplete="off">
+                <button type="button" class="rh-user-picker-toggle" id="req-gestor-toggle" aria-label="Selecionar gestor" aria-expanded="false">
+                  <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                </button>
+                <div class="rh-user-picker-dropdown" id="req-gestor-dropdown" hidden>
+                  <input type="search" class="rh-input rh-user-picker-search" id="req-gestor-search" placeholder="Buscar por nome ou usuário..." autocomplete="off">
+                  <ul class="rh-user-picker-list" id="req-gestor-list" role="listbox"></ul>
+                </div>
+              </div>
+              <p class="rh-field-hint">Usuários ativos do sistema.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="rh-wizard-panel" data-panel="3" hidden>
+          <div class="rh-wizard-section-head rh-wizard-section-head--green">
+            <span class="rh-wizard-section-icon"><i class="fas fa-file-alt" aria-hidden="true"></i></span>
+            <h3>Dados Contratuais</h3>
+          </div>
+          <div class="rh-wizard-fields rh-wizard-fields-grid">
+            <div class="rh-form-field">
+              <label for="req-tipo-contrato">Tipo de contrato</label>
+              <select name="tipo_contrato" id="req-tipo-contrato" class="rh-select">
+                {% for val, label in rh_form_requisicao.fields.tipo_contrato.choices %}
+                <option value="{{ val }}" {% if val == 'CLT' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="rh-form-field">
+              <label for="req-data-inicio">Data prevista de início <span class="rh-required">*</span></label>
+              <input type="date" name="data_inicio" id="req-data-inicio" class="rh-input" required value="{% now 'Y-m-d' %}">
+            </div>
+            <div class="rh-form-field">
+              <label for="req-salario">Salário (R$) <span class="rh-required">*</span></label>
+              <input type="text" name="salario" id="req-salario" class="rh-input" maxlength="40" required placeholder="Ex: 3.500,00">
+            </div>
+            <div class="rh-form-field rh-wizard-field-full">
+              <label for="req-observacoes">Observações</label>
+              <textarea name="observacoes" id="req-observacoes" class="rh-input rh-textarea" rows="3" placeholder="Informações adicionais relevantes para a contratação..."></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="rh-wizard-panel" data-panel="4" hidden>
+          <div class="rh-wizard-section-head rh-wizard-section-head--green">
+            <span class="rh-wizard-section-icon"><i class="fas fa-check" aria-hidden="true"></i></span>
+            <h3>Confirmar Requisição</h3>
+          </div>
+          <p class="rh-wizard-confirm-intro">Revise os dados antes de enviar. Após a confirmação, a requisição seguirá para aprovação do gestor.</p>
+          <div class="rh-wizard-summary">
+            <div class="rh-wizard-summary-block">
+              <h4>Candidato</h4>
+              <dl class="rh-wizard-summary-grid">
+                <div><dt>Nome</dt><dd id="sum-nome">—</dd></div>
+                <div><dt>CPF</dt><dd id="sum-cpf">—</dd></div>
+                <div><dt>E-mail</dt><dd id="sum-email">—</dd></div>
+                <div><dt>Telefone</dt><dd id="sum-telefone">—</dd></div>
+                <div><dt>Responsável</dt><dd id="sum-solicitante">—</dd></div>
+              </dl>
+            </div>
+            <div class="rh-wizard-summary-block">
+              <h4>Vaga</h4>
+              <dl class="rh-wizard-summary-grid">
+                <div><dt>Cargo</dt><dd id="sum-cargo">—</dd></div>
+                <div><dt>Cargo (RH)</dt><dd id="sum-cargo-rh">—</dd></div>
+                <div><dt>Obra</dt><dd id="sum-obra">—</dd></div>
+                <div><dt>Gestor</dt><dd id="sum-gestor">—</dd></div>
+              </dl>
+            </div>
+            <div class="rh-wizard-summary-block">
+              <h4>Contrato</h4>
+              <dl class="rh-wizard-summary-grid">
+                <div><dt>Tipo</dt><dd id="sum-tipo">—</dd></div>
+                <div><dt>Salário</dt><dd id="sum-salario">—</dd></div>
+                <div><dt>Início previsto</dt><dd id="sum-inicio">—</dd></div>
+                <div><dt>Observações</dt><dd id="sum-observacoes">—</dd></div>
+              </dl>
+            </div>
+          </div>
+          <div class="rh-wizard-info rh-wizard-info--yellow" id="sum-gestor-alert">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            A requisição será encaminhada ao gestor <strong id="sum-gestor-nome">—</strong> para aprovação. Após aprovado, o link será enviado automaticamente ao e-mail do candidato.
+          </div>
+        </section>
+      </div>
+
+      <footer class="rh-wizard-footer">
+        <div class="rh-wizard-footer-left">
+          <button type="button" class="rh-btn rh-btn-outline rh-wizard-btn-back" hidden>← Voltar</button>
+          <button type="button" class="rh-btn rh-btn-outline js-rh-admissao-modal-close rh-wizard-btn-cancel">Cancelar</button>
+        </div>
+        <span class="rh-wizard-progress" aria-live="polite">1 de 4</span>
+        <div class="rh-wizard-footer-right">
+          <button type="button" class="rh-btn rh-btn-primary rh-wizard-btn-next">Continuar <i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+          <button type="submit" class="rh-btn rh-btn-success rh-wizard-btn-submit" hidden><i class="fas fa-check" aria-hidden="true"></i> <span id="rh-admissao-submit-label">Criar requisição</span></button>
+        </div>
+      </footer>
+    </form>
+  </div>
+</div>
+
+{% if rh_requisicao_draft %}
+{{ rh_requisicao_draft|json_script:"rh-requisicao-draft-data" }}
+{% endif %}
+{{ rh_usuarios_gestor|json_script:"rh-usuarios-gestor-data" }}
+
+<script>
+(function () {
+  var modal = document.getElementById('rh-admissao-modal');
+  if (!modal) return;
+
+  var form = document.getElementById('rh-admissao-wizard-form');
+  var panels = modal.querySelectorAll('.rh-wizard-panel');
+  var steps = modal.querySelectorAll('.rh-wizard-step');
+  var lines = modal.querySelectorAll('.rh-wizard-step-line');
+  var btnNext = modal.querySelector('.rh-wizard-btn-next');
+  var btnBack = modal.querySelector('.rh-wizard-btn-back');
+  var btnCancel = modal.querySelector('.rh-wizard-btn-cancel');
+  var btnSubmit = modal.querySelector('.rh-wizard-btn-submit');
+  var progress = modal.querySelector('.rh-wizard-progress');
+  var current = 1;
+  var total = 4;
+  var stepIcons = ['fa-user', 'fa-briefcase', 'fa-file-alt', 'fa-check'];
+  var stepSubtitles = [
+    'Etapa 1 do fluxo de admissão — Requisição',
+    'Etapa 2 do fluxo de admissão — Requisição',
+    'Etapa 3 do fluxo de admissão — Requisição',
+    'Etapa 4 do fluxo de admissão — Requisição'
+  ];
+  var modalSubtitle = document.getElementById('rh-admissao-modal-subtitle');
+  var modalTitle = document.getElementById('rh-admissao-modal-title');
+  var submitLabel = document.getElementById('rh-admissao-submit-label');
+  var editColaboradorId = null;
+  var cargoCatalogoUrl = '{% url "recursos_humanos:cargo_catalogo_create" %}';
+  var cargoRhCreateUrl = '{% url "recursos_humanos:cargo_rh_quick_create" %}';
+  var csrfInput = form ? form.querySelector('[name=csrfmiddlewaretoken]') : null;
+
+  function getWizardCsrf() {
+    return csrfInput ? csrfInput.value : '';
+  }
+
+  function insertOptionBeforeNovo(select, value, label) {
+    var novoOpt = select.querySelector('option[value="__novo__"]');
+    var opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    if (novoOpt) {
+      select.insertBefore(opt, novoOpt);
+    } else {
+      select.appendChild(opt);
+    }
+    return opt;
+  }
+
+  function setupCargoPicker(selectId, hiddenId, novoWrapId, novoInputId, salvarBtnId, createUrl, emptyLabel) {
+    var select = document.getElementById(selectId);
+    var hidden = hiddenId ? document.getElementById(hiddenId) : null;
+    var novoWrap = document.getElementById(novoWrapId);
+    var novoInput = document.getElementById(novoInputId);
+    var salvarBtn = document.getElementById(salvarBtnId);
+    if (!select) return;
+
+    function syncHidden() {
+      if (!hidden) return;
+      if (select.value && select.value !== '__novo__') {
+        hidden.value = select.options[select.selectedIndex].textContent;
+      } else {
+        hidden.value = '';
+      }
+    }
+
+    select.addEventListener('change', function () {
+      var isNovo = select.value === '__novo__';
+      if (novoWrap) novoWrap.hidden = !isNovo;
+      if (!isNovo) syncHidden();
+    });
+
+    if (novoWrap) novoWrap.hidden = select.value !== '__novo__';
+
+    if (salvarBtn && novoInput) {
+      salvarBtn.addEventListener('click', function () {
+        var nome = novoInput.value.trim();
+        if (nome.length < 2) {
+          novoInput.focus();
+          novoInput.reportValidity && novoInput.setCustomValidity('Informe o nome.');
+          return;
+        }
+        novoInput.setCustomValidity('');
+        salvarBtn.disabled = true;
+        var fd = new FormData();
+        fd.append('nome', nome);
+        fetch(createUrl, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getWizardCsrf()
+          }
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+          .then(function (res) {
+            if (res.ok && res.data.ok) {
+              var val = hidden ? res.data.nome : String(res.data.id);
+              var label = res.data.nome;
+              var existing = Array.prototype.find.call(select.options, function (o) {
+                return o.value === val;
+              });
+              if (!existing) {
+                existing = insertOptionBeforeNovo(select, val, label);
+              }
+              select.value = val;
+              if (novoWrap) novoWrap.hidden = true;
+              novoInput.value = '';
+              syncHidden();
+            } else {
+              var msg = (res.data && (res.data.error || (res.data.errors && res.data.errors[0])))
+                || 'Não foi possível salvar.';
+              alert(msg);
+            }
+          })
+          .catch(function () { alert('Erro ao salvar. Tente novamente.'); })
+          .finally(function () { salvarBtn.disabled = false; });
+      });
+    }
+  }
+
+  setupCargoPicker('req-cargo-select', 'req-cargo', 'req-cargo-novo-wrap', 'req-cargo-novo', 'req-cargo-salvar', cargoCatalogoUrl);
+  setupCargoPicker('req-cargo-rh', null, 'req-cargo-rh-novo-wrap', 'req-cargo-rh-novo', 'req-cargo-rh-salvar', cargoRhCreateUrl);
+
+  var usuariosGestor = [];
+  (function () {
+    var el = document.getElementById('rh-usuarios-gestor-data');
+    if (!el) return;
+    try { usuariosGestor = JSON.parse(el.textContent); } catch (e) { usuariosGestor = []; }
+  })();
+
+  function setupGestorPicker() {
+    var picker = document.getElementById('req-gestor-picker');
+    var input = document.getElementById('req-gestor');
+    var toggle = document.getElementById('req-gestor-toggle');
+    var dropdown = document.getElementById('req-gestor-dropdown');
+    var search = document.getElementById('req-gestor-search');
+    var list = document.getElementById('req-gestor-list');
+    if (!picker || !input || !dropdown || !list) return;
+
+    function renderList(filter) {
+      var q = (filter || '').toLowerCase().trim();
+      var items = usuariosGestor.filter(function (u) {
+        if (!q) return true;
+        return (u.nome || '').toLowerCase().indexOf(q) >= 0
+          || (u.username || '').toLowerCase().indexOf(q) >= 0;
+      });
+      if (!items.length) {
+        list.innerHTML = '<li class="rh-user-picker-empty">Nenhum usuário encontrado.</li>';
+        return;
+      }
+      list.innerHTML = items.map(function (u) {
+        return '<li><button type="button" class="rh-user-picker-option" role="option" data-id="' + esc(String(u.id)) + '" data-nome="' + esc(u.nome) + '">'
+          + '<span class="rh-user-picker-nome">' + esc(u.nome) + '</span>'
+          + '<span class="rh-user-picker-username">@' + esc(u.username) + '</span>'
+          + '</button></li>';
+      }).join('');
+    }
+
+    function openDropdown() {
+      dropdown.hidden = false;
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+      renderList(search ? search.value : '');
+      if (search) {
+        search.value = '';
+        search.focus();
+      }
+    }
+
+    function closeDropdown() {
+      dropdown.hidden = true;
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function esc(v) {
+      var d = document.createElement('div');
+      d.textContent = v == null ? '' : v;
+      return d.innerHTML;
+    }
+
+    input.addEventListener('click', openDropdown);
+    if (toggle) toggle.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropdown.hidden) openDropdown();
+      else closeDropdown();
+    });
+    if (search) {
+      search.addEventListener('input', function () { renderList(search.value); });
+      search.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDropdown(); });
+    }
+    list.addEventListener('click', function (e) {
+      var btn = e.target.closest('.rh-user-picker-option');
+      if (!btn) return;
+      input.value = btn.getAttribute('data-nome') || '';
+      var gestorIdEl = document.getElementById('req-gestor-id');
+      if (gestorIdEl) gestorIdEl.value = btn.getAttribute('data-id') || '';
+      closeDropdown();
+    });
+    document.addEventListener('click', function (e) {
+      if (!picker.contains(e.target)) closeDropdown();
+    });
+    renderList('');
+  }
+
+  setupGestorPicker();
+
+  var draftEl = document.getElementById('rh-requisicao-draft-data');
+  var edicaoEl = document.getElementById('rh-requisicao-edicao-data');
+  var rhRequisicaoDraft = null;
+  var rhRequisicaoEdicao = null;
+  if (draftEl) {
+    try { rhRequisicaoDraft = JSON.parse(draftEl.textContent); } catch (e) { rhRequisicaoDraft = null; }
+  }
+  if (edicaoEl) {
+    try { rhRequisicaoEdicao = JSON.parse(edicaoEl.textContent); } catch (e) { rhRequisicaoEdicao = null; }
+  }
+
+  function setEditMode(colaboradorId) {
+    editColaboradorId = colaboradorId || null;
+    var isEdit = !!editColaboradorId;
+    if (form) {
+      if (isEdit) {
+        var tpl = form.getAttribute('data-url-atualizar') || '';
+        form.action = tpl.replace('/0/', '/' + editColaboradorId + '/');
+      } else {
+        form.action = form.getAttribute('data-url-nova') || form.action;
+      }
+    }
+    if (modalTitle) modalTitle.textContent = isEdit ? 'Corrigir Requisição de Contratação' : 'Nova Requisição de Contratação';
+    if (submitLabel) submitLabel.textContent = isEdit ? 'Reenviar requisição' : 'Criar requisição';
+  }
+
+  function setCargoSelectValue(selectId, hiddenId, value) {
+    if (!value) return;
+    var select = document.getElementById(selectId);
+    if (!select) return;
+    var found = Array.prototype.find.call(select.options, function (o) {
+      return o.value === value || o.textContent === value;
+    });
+    if (!found) {
+      found = insertOptionBeforeNovo(select, value, value);
+    }
+    select.value = found.value;
+    if (hiddenId) {
+      var hidden = document.getElementById(hiddenId);
+      if (hidden) hidden.value = value;
+    }
+  }
+
+  function populateFormData(d) {
+    if (!d) return;
+    var nomeEl = document.getElementById('req-nome');
+    if (nomeEl) nomeEl.value = d.nome || '';
+    var cpfEl = document.getElementById('req-cpf');
+    if (cpfEl) cpfEl.value = d.cpf || '';
+    var emailEl = document.getElementById('req-email');
+    if (emailEl) emailEl.value = d.email || '';
+    var telefoneEl = document.getElementById('req-telefone');
+    if (telefoneEl) telefoneEl.value = d.telefone || '';
+    setCargoSelectValue('req-cargo-select', 'req-cargo', d.cargo || '');
+    var cargoRh = document.getElementById('req-cargo-rh');
+    if (cargoRh && d.cargo_rh) cargoRh.value = d.cargo_rh;
+    document.querySelectorAll('.req-obra-cb').forEach(function (cb) {
+      cb.checked = (d.obra || []).indexOf(cb.value) >= 0 || (d.obra || []).indexOf(String(cb.value)) >= 0;
+    });
+    var tipo = document.getElementById('req-tipo-contrato');
+    if (tipo && d.tipo_contrato) tipo.value = d.tipo_contrato;
+    var gestor = document.getElementById('req-gestor');
+    var gestorId = document.getElementById('req-gestor-id');
+    if (d.gestor_id && gestorId) {
+      gestorId.value = d.gestor_id;
+      var foundUser = usuariosGestor.find(function (u) { return String(u.id) === String(d.gestor_id); });
+      if (gestor && foundUser) gestor.value = foundUser.nome;
+    } else if (gestor && d.gestor) {
+      gestor.value = d.gestor;
+    }
+    var inicio = document.getElementById('req-data-inicio');
+    if (inicio) inicio.value = d.data_inicio || '';
+    var salario = document.getElementById('req-salario');
+    if (salario) salario.value = d.salario || '';
+    var obs = document.getElementById('req-observacoes');
+    if (obs) obs.value = d.observacoes || '';
+    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.hidden = true;
+    });
+  }
+
+  function restoreDraft() {
+    populateFormData(rhRequisicaoDraft);
+  }
+
+  function openModalBase() {
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('rh-modal-open');
+    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.hidden = true;
+    });
+    goToStep(1);
+  }
+
+  function openModal() {
+    setEditMode(null);
+    if (modalSubtitle) modalSubtitle.textContent = stepSubtitles[0];
+    openModalBase();
+    restoreDraft();
+  }
+
+  function openEditModal() {
+    if (!rhRequisicaoEdicao) return;
+    setEditMode(rhRequisicaoEdicao.colaborador_id);
+    if (modalSubtitle) {
+      var motivo = rhRequisicaoEdicao.motivo_reprovacao || '';
+      modalSubtitle.textContent = motivo
+        ? 'Corrija os dados conforme o gestor solicitou: ' + motivo
+        : 'Corrija os dados e reenvie ao gestor responsável';
+    }
+    openModalBase();
+    populateFormData(rhRequisicaoEdicao);
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('rh-modal-open');
+  }
+
+  function updateSummary() {
+    var obraNames = [];
+    document.querySelectorAll('.req-obra-cb:checked').forEach(function (cb) {
+      var label = cb.closest('.rh-wizard-obra-item');
+      if (label) {
+        var span = label.querySelector('span');
+        if (span) obraNames.push(span.textContent);
+      }
+    });
+    var dataVal = document.getElementById('req-data-inicio').value;
+    var dataFmt = '—';
+    if (dataVal) {
+      var p = dataVal.split('-');
+      if (p.length === 3) dataFmt = p[2] + '/' + p[1] + '/' + p[0];
+    }
+    document.getElementById('sum-nome').textContent = document.getElementById('req-nome').value || '—';
+    document.getElementById('sum-cpf').textContent = document.getElementById('req-cpf').value || '—';
+    document.getElementById('sum-email').textContent = document.getElementById('req-email').value || '—';
+    document.getElementById('sum-telefone').textContent = document.getElementById('req-telefone').value || '—';
+    document.getElementById('sum-solicitante').textContent = document.getElementById('req-solicitante').value || '—';
+    document.getElementById('sum-cargo').textContent = document.getElementById('req-cargo').value || '—';
+    var cargoRhSelect = document.getElementById('req-cargo-rh');
+    var cargoRhText = cargoRhSelect && cargoRhSelect.options[cargoRhSelect.selectedIndex]
+      ? cargoRhSelect.options[cargoRhSelect.selectedIndex].text
+      : '—';
+    document.getElementById('sum-cargo-rh').textContent = cargoRhSelect && cargoRhSelect.value ? cargoRhText : '—';
+    document.getElementById('sum-obra').textContent = obraNames.length ? obraNames.join(', ') : '—';
+    var gestorNome = document.getElementById('req-gestor').value || '—';
+    document.getElementById('sum-gestor').textContent = gestorNome;
+    var sumGestorNome = document.getElementById('sum-gestor-nome');
+    if (sumGestorNome) sumGestorNome.textContent = gestorNome;
+    document.getElementById('sum-tipo').textContent = document.getElementById('req-tipo-contrato').value || '—';
+    document.getElementById('sum-inicio').textContent = dataFmt;
+    document.getElementById('sum-salario').textContent = document.getElementById('req-salario').value || '—';
+    var obsEl = document.getElementById('req-observacoes');
+    var sumObs = document.getElementById('sum-observacoes');
+    if (sumObs) sumObs.textContent = (obsEl && obsEl.value.trim()) ? obsEl.value.trim() : '—';
+  }
+
+  function validateStep(step) {
+    var panel = modal.querySelector('[data-panel="' + step + '"]');
+    if (!panel) return true;
+    if (step === 2) {
+      var cargoSelect = document.getElementById('req-cargo-select');
+      var cargoHidden = document.getElementById('req-cargo');
+      if (cargoSelect && cargoHidden) {
+        if (cargoSelect.value === '__novo__') {
+          alert('Salve o novo cargo antes de continuar.');
+          return false;
+        }
+        if (!cargoSelect.value) {
+          cargoSelect.focus();
+          alert('Selecione ou cadastre o cargo.');
+          return false;
+        }
+        cargoHidden.value = cargoSelect.options[cargoSelect.selectedIndex].textContent;
+      }
+      var cargoRh = document.getElementById('req-cargo-rh');
+      if (cargoRh && cargoRh.value === '__novo__') {
+        alert('Salve o novo cargo (RH) antes de continuar.');
+        return false;
+      }
+      var obrasChecked = panel.querySelectorAll('.req-obra-cb:checked');
+      if (!obrasChecked.length) {
+        alert('Selecione ao menos uma obra.');
+        var wrap = document.getElementById('req-obras-wrap');
+        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return false;
+      }
+      var gestorIdEl = document.getElementById('req-gestor-id');
+      var gestorInput = document.getElementById('req-gestor');
+      if (!gestorIdEl || !gestorIdEl.value) {
+        alert('Selecione o gestor responsável.');
+        if (gestorInput) gestorInput.focus();
+        return false;
+      }
+    }
+    var fields = panel.querySelectorAll('input, select, textarea');
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      if (f.readOnly || f.type === 'hidden' || f.getAttribute('aria-hidden') === 'true') continue;
+      if (f.id === 'req-gestor') continue;
+      if (f.id === 'req-cargo-rh' && f.value === '__novo__') continue;
+      if (f.classList && f.classList.contains('req-obra-cb')) continue;
+      if (!f.checkValidity()) {
+        f.reportValidity();
+        f.focus();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function goToStep(step) {
+    current = step;
+    panels.forEach(function (p) {
+      p.hidden = parseInt(p.getAttribute('data-panel'), 10) !== step;
+      p.classList.toggle('is-active', parseInt(p.getAttribute('data-panel'), 10) === step);
+    });
+    steps.forEach(function (s) {
+      var n = parseInt(s.getAttribute('data-step'), 10);
+      var icon = s.querySelector('.rh-wizard-step-icon i');
+      s.classList.remove('is-active', 'is-done');
+      if (n < step) {
+        s.classList.add('is-done');
+        if (icon) icon.className = 'fas fa-check';
+      } else if (n === step) {
+        s.classList.add('is-active');
+        if (icon) icon.className = 'fas ' + stepIcons[n - 1];
+      } else if (icon) {
+        icon.className = 'fas ' + stepIcons[n - 1];
+      }
+    });
+    lines.forEach(function (l) {
+      var n = parseInt(l.getAttribute('data-line'), 10);
+      l.classList.toggle('is-done', n < step);
+    });
+    progress.textContent = step + ' de ' + total;
+    if (modalSubtitle) modalSubtitle.textContent = stepSubtitles[step - 1];
+    btnBack.hidden = step === 1;
+    btnCancel.hidden = step !== 1;
+    btnNext.hidden = step === total;
+    btnSubmit.hidden = step !== total;
+    if (step === total) updateSummary();
+  }
+
+  document.querySelectorAll('.js-rh-admissao-nova-open').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      openModal();
+    });
+  });
+
+  document.querySelectorAll('.js-rh-admissao-editar-open').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      openEditModal();
+    });
+  });
+
+  modal.querySelectorAll('.js-rh-admissao-modal-close').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+
+  if (btnNext) {
+    btnNext.addEventListener('click', function () {
+      if (!validateStep(current)) return;
+      if (current < total) goToStep(current + 1);
+    });
+  }
+
+  if (btnBack) {
+    btnBack.addEventListener('click', function () {
+      if (current > 1) goToStep(current - 1);
+    });
+  }
+
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('editar') && rhRequisicaoEdicao) {
+      openEditModal();
+    } else if (params.get('nova') === '1') {
+      openModal();
+    }
+  })();
+})();
+</script>

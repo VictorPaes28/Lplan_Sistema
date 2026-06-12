@@ -1,104 +1,299 @@
-{% extends "recursos_humanos/base_rh.html" %}
-
-{% block rh_content %}
-<div class="rh-page">
-  <div class="rh-page-header">
-    <div>
-      <h1 class="rh-title">Configuração de Documentos</h1>
-      <p class="rh-subtitle">Tipos de documentos exigidos e regras de validade</p>
-    </div>
-  </div>
-
-  <div class="rh-card rh-pad rh-form-card">
-    <h3 class="rh-card-title">Novo tipo de documento</h3>
-    <form method="post" class="rh-form-grid rh-form-grid-compact">
-      {% csrf_token %}
-      <input type="hidden" name="acao" value="criar">
-      <div class="rh-form-field rh-form-field-wide">
-        <label for="{{ form_novo.nome.id_for_label }}">Nome</label>
-        {{ form_novo.nome }}
-      </div>
-      <div class="rh-form-field">
-        <label for="{{ form_novo.aplica_a.id_for_label }}">Aplica-se a</label>
-        {{ form_novo.aplica_a }}
-      </div>
-      <div class="rh-form-field">
-        <label><input type="checkbox" name="tem_validade" {% if form_novo.tem_validade.value %}checked{% endif %}> Tem validade</label>
-      </div>
-      <div class="rh-form-field">
-        <label for="{{ form_novo.dias_validade.id_for_label }}">Dias</label>
-        {{ form_novo.dias_validade }}
-      </div>
-      <div class="rh-form-field">
-        <label><input type="checkbox" name="obrigatorio" checked> Obrigatório</label>
-      </div>
-      <div class="rh-form-field">
-        <label for="{{ form_novo.ordem.id_for_label }}">Ordem</label>
-        {{ form_novo.ordem }}
-      </div>
-      <div class="rh-form-field rh-form-field-actions">
-        <button type="submit" class="rh-btn rh-btn-primary rh-btn-sm"><i class="fas fa-plus"></i> Adicionar</button>
-      </div>
-    </form>
-  </div>
-
-  <div class="rh-card rh-table-wrap">
-    <table class="rh-table">
-      <thead>
-        <tr>
-          <th>Documento</th>
-          <th>Aplica-se a</th>
-          <th>Validade</th>
-          <th>Dias</th>
-          <th>Obrigatório</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tipos %}
-        <tr>
-          <td colspan="6" class="rh-table-edit-row">
-            <form method="post" class="rh-form-grid rh-form-grid-compact rh-table-inline-form">
-              {% csrf_token %}
-              <input type="hidden" name="acao" value="editar">
-              <input type="hidden" name="tipo_id" value="{{ t.pk }}">
-              <div class="rh-form-field rh-form-field-wide">
-                <input type="text" name="nome" value="{{ t.nome }}" class="rh-input" required>
-              </div>
-              <div class="rh-form-field">
-                <select name="aplica_a" class="rh-select">
-                  {% for val, label in t.AplicaA.choices %}
-                  <option value="{{ val }}" {% if t.aplica_a == val %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="rh-form-field">
-                <label><input type="checkbox" name="tem_validade" {% if t.tem_validade %}checked{% endif %}></label>
-              </div>
-              <div class="rh-form-field">
-                <input type="number" name="dias_validade" value="{{ t.dias_validade|default:'' }}" class="rh-input" min="1">
-              </div>
-              <div class="rh-form-field">
-                <label><input type="checkbox" name="obrigatorio" {% if t.obrigatorio %}checked{% endif %}></label>
-              </div>
-              <div class="rh-form-field rh-form-field-actions">
-                <input type="number" name="ordem" value="{{ t.ordem }}" class="rh-input rh-input-sm" min="0" style="width:4rem">
-                <button type="submit" class="rh-btn rh-btn-sm rh-btn-outline">Salvar</button>
-              </div>
-            </form>
-            <form method="post" class="rh-inline-delete" onsubmit="return confirm('Excluir este tipo de documento?');">
-              {% csrf_token %}
-              <input type="hidden" name="acao" value="excluir">
-              <input type="hidden" name="tipo_id" value="{{ t.pk }}">
-              <button type="submit" class="rh-btn rh-btn-sm rh-btn-danger-outline"><i class="fas fa-trash"></i></button>
-            </form>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="6" class="rh-empty">Nenhum tipo cadastrado.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endblock %}
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Config. Documentos</span>
+</nav>
+{% endblock %}
+
+{% block rh_content %}
+<div class="rh-page rh-page--docconfig">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Configuração de Documentos</h1>
+      <p class="rh-subtitle">Defina os tipos de documentos exigidos e suas regras de validade</p>
+    </div>
+    <button type="button" class="rh-btn rh-btn-outline" id="docconfig-novo-btn" aria-expanded="false" aria-controls="docconfig-novo-panel">
+      <i class="fas fa-plus" aria-hidden="true"></i> Novo Tipo de Documento
+    </button>
+  </div>
+
+  <div id="docconfig-novo-panel" class="rh-docconfig-novo-panel" hidden>
+    <div class="rh-docconfig-novo-card">
+      <h3 class="rh-docconfig-novo-title">Novo tipo de documento</h3>
+      <form method="post" class="rh-docconfig-form rh-docconfig-form--novo">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="criar">
+
+        <div class="rh-docconfig-novo-row rh-docconfig-novo-row--fields">
+          <div class="rh-form-field rh-docconfig-novo-name">
+            <label for="{{ form_novo.nome.id_for_label }}">Nome do documento <span class="rh-required">*</span></label>
+            {{ form_novo.nome }}
+          </div>
+          <div class="rh-form-field rh-docconfig-novo-aplica">
+            <label for="{{ form_novo.aplica_a.id_for_label }}">Aplica-se a</label>
+            {{ form_novo.aplica_a }}
+          </div>
+        </div>
+
+        <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--cargos" data-aplica-panel="por_cargo" hidden>
+          <p class="rh-docconfig-aplica-panel-title">Selecionar Cargos específicos</p>
+          <div class="rh-checkbox-grid">{{ form_novo.cargos_aplicaveis }}</div>
+        </div>
+
+        <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--obras" data-aplica-panel="por_obra" hidden>
+          <p class="rh-docconfig-aplica-panel-title">Selecionar Obras específicas</p>
+          <div class="rh-checkbox-grid">{{ form_novo.obras_aplicaveis }}</div>
+        </div>
+
+        <div class="rh-docconfig-novo-row rh-docconfig-novo-row--bottom">
+          <div class="rh-form-field rh-docconfig-novo-dias">
+            <label for="{{ form_novo.dias_validade.id_for_label }}">Validade (dias)</label>
+            {{ form_novo.dias_validade }}
+          </div>
+          <label class="rh-toggle">
+            {{ form_novo.tem_validade }}
+            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+            <span class="rh-toggle-label">Possui validade</span>
+          </label>
+          <label class="rh-toggle">
+            {{ form_novo.obrigatorio }}
+            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+            <span class="rh-toggle-label">Obrigatório</span>
+          </label>
+        </div>
+
+        <div class="rh-docconfig-form-actions">
+          <button type="submit" class="rh-btn rh-btn-primary">Adicionar documento</button>
+          <button type="button" class="rh-btn rh-btn-outline" id="docconfig-novo-cancel">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="rh-card rh-table-wrap rh-docconfig-table-wrap">
+    <table class="rh-table rh-docconfig-table">
+      <thead>
+        <tr>
+          <th>Nome do documento</th>
+          <th>Aplica-se a</th>
+          <th>Escopo</th>
+          <th>Possui validade</th>
+          <th>Prazo de validade</th>
+          <th>Obrigatório</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t, form_edit in tipos_forms %}
+        <tr class="rh-docconfig-data-row">
+          <td class="rh-docconfig-name">{{ t.nome }}</td>
+          <td>
+            <span class="rh-tag-aplica rh-tag-aplica-{{ t.aplica_a }}">{{ t.get_aplica_a_display }}</span>
+          </td>
+          <td class="rh-docconfig-escopo">
+            {% if t.aplica_a == 'por_cargo' %}
+              {% for c in t.cargos_aplicaveis.all %}
+              <span class="rh-tag">{{ c.nome }}</span>
+              {% empty %}<span class="rh-muted">—</span>{% endfor %}
+            {% elif t.aplica_a == 'por_obra' %}
+              {% for o in t.obras_aplicaveis.all %}
+              <span class="rh-tag">{{ o.nome }}</span>
+              {% empty %}<span class="rh-muted">—</span>{% endfor %}
+            {% else %}
+              <span class="rh-muted">Todos</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.tem_validade %}
+            <span class="rh-yesno rh-yesno--sim"><i class="fas fa-check" aria-hidden="true"></i> Sim</span>
+            {% else %}
+            <span class="rh-yesno rh-yesno--nao"><i class="fas fa-times" aria-hidden="true"></i> Não</span>
+            {% endif %}
+          </td>
+          <td class="rh-docconfig-prazo">
+            {% if t.tem_validade and t.dias_validade %}{{ t.dias_validade }} dias{% else %}<span class="rh-muted">—</span>{% endif %}
+          </td>
+          <td>
+            {% if t.obrigatorio %}
+            <span class="rh-yesno rh-yesno--sim"><i class="fas fa-check" aria-hidden="true"></i> Sim</span>
+            {% else %}
+            <span class="rh-yesno rh-yesno--nao"><i class="fas fa-times" aria-hidden="true"></i> Não</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="rh-docconfig-actions">
+              <button type="button" class="rh-icon-btn rh-docconfig-edit-btn" data-docconfig-edit="{{ t.pk }}" title="Editar" aria-label="Editar {{ t.nome }}">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+              </button>
+              <form method="post" class="rh-docconfig-delete-form" onsubmit="return confirm('Excluir este tipo de documento?');">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="excluir">
+                <input type="hidden" name="tipo_id" value="{{ t.pk }}">
+                <button type="submit" class="rh-icon-btn rh-icon-btn--danger" title="Excluir" aria-label="Excluir {{ t.nome }}">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <tr class="rh-docconfig-edit-row" id="docconfig-edit-{{ t.pk }}" hidden>
+          <td colspan="7">
+            <div class="rh-docconfig-edit-inner">
+              <form method="post" class="rh-docconfig-form rh-docconfig-form--edit rh-docconfig-form--novo">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="editar">
+                <input type="hidden" name="tipo_id" value="{{ t.pk }}">
+
+                <div class="rh-docconfig-novo-row rh-docconfig-novo-row--fields">
+                  <div class="rh-form-field rh-docconfig-novo-name">
+                    <label for="{{ form_edit.nome.id_for_label }}">Nome do documento <span class="rh-required">*</span></label>
+                    {{ form_edit.nome }}
+                  </div>
+                  <div class="rh-form-field rh-docconfig-novo-aplica">
+                    <label for="{{ form_edit.aplica_a.id_for_label }}">Aplica-se a</label>
+                    {{ form_edit.aplica_a }}
+                  </div>
+                </div>
+
+                <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--cargos" data-aplica-panel="por_cargo" {% if t.aplica_a != 'por_cargo' %}hidden{% endif %}>
+                  <p class="rh-docconfig-aplica-panel-title">Selecionar Cargos específicos</p>
+                  <div class="rh-checkbox-grid">{{ form_edit.cargos_aplicaveis }}</div>
+                </div>
+
+                <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--obras" data-aplica-panel="por_obra" {% if t.aplica_a != 'por_obra' %}hidden{% endif %}>
+                  <p class="rh-docconfig-aplica-panel-title">Selecionar Obras específicas</p>
+                  <div class="rh-checkbox-grid">{{ form_edit.obras_aplicaveis }}</div>
+                </div>
+
+                <div class="rh-docconfig-novo-row rh-docconfig-novo-row--bottom">
+                  <div class="rh-form-field rh-docconfig-novo-dias">
+                    <label for="{{ form_edit.dias_validade.id_for_label }}">Validade (dias)</label>
+                    {{ form_edit.dias_validade }}
+                  </div>
+                  <label class="rh-toggle">
+                    {{ form_edit.tem_validade }}
+                    <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+                    <span class="rh-toggle-label">Possui validade</span>
+                  </label>
+                  <label class="rh-toggle">
+                    {{ form_edit.obrigatorio }}
+                    <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+                    <span class="rh-toggle-label">Obrigatório</span>
+                  </label>
+                </div>
+
+                <div class="rh-docconfig-form-actions">
+                  <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Salvar alterações</button>
+                  <button type="button" class="rh-btn rh-btn-outline rh-docconfig-edit-cancel" data-docconfig-edit="{{ t.pk }}">Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="rh-empty">Nenhum tipo cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  var novoBtn = document.getElementById('docconfig-novo-btn');
+  var novoPanel = document.getElementById('docconfig-novo-panel');
+  var novoCancel = document.getElementById('docconfig-novo-cancel');
+
+  function closeAllEdits() {
+    document.querySelectorAll('.rh-docconfig-edit-row').forEach(function (row) {
+      row.hidden = true;
+    });
+  }
+
+  function syncAplicaPanels(scope) {
+    var root = scope || document;
+    root.querySelectorAll('form').forEach(function (form) {
+      var select = form.querySelector('.rh-aplica-a-select, select[name="aplica_a"]');
+      if (!select) return;
+      function update() {
+        var val = select.value;
+        form.querySelectorAll('[data-aplica-panel]').forEach(function (panel) {
+          panel.hidden = panel.getAttribute('data-aplica-panel') !== val;
+        });
+      }
+      select.removeEventListener('change', select._rhAplicaHandler);
+      select._rhAplicaHandler = update;
+      select.addEventListener('change', update);
+      update();
+    });
+  }
+
+  function syncValidadeFields(scope) {
+    var root = scope || document;
+    root.querySelectorAll('form').forEach(function (form) {
+      var temValidade = form.querySelector('.rh-docconfig-tem-validade, input[name="tem_validade"]');
+      var diasInput = form.querySelector('.rh-docconfig-dias-validade, input[name="dias_validade"]');
+      if (!temValidade || !diasInput) return;
+      function update() {
+        diasInput.disabled = !temValidade.checked;
+      }
+      temValidade.removeEventListener('change', temValidade._rhValidadeHandler);
+      temValidade._rhValidadeHandler = update;
+      temValidade.addEventListener('change', update);
+      update();
+    });
+  }
+
+  if (novoBtn && novoPanel) {
+    novoBtn.addEventListener('click', function () {
+      var open = novoPanel.hidden;
+      closeAllEdits();
+      novoPanel.hidden = !open;
+      novoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) {
+        syncAplicaPanels(novoPanel);
+        syncValidadeFields(novoPanel);
+      }
+    });
+  }
+
+  if (novoCancel && novoPanel && novoBtn) {
+    novoCancel.addEventListener('click', function () {
+      novoPanel.hidden = true;
+      novoBtn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  document.querySelectorAll('.rh-docconfig-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-docconfig-edit');
+      var row = document.getElementById('docconfig-edit-' + id);
+      if (!row) return;
+      if (novoPanel) novoPanel.hidden = true;
+      if (novoBtn) novoBtn.setAttribute('aria-expanded', 'false');
+      var willOpen = row.hidden;
+      closeAllEdits();
+      row.hidden = !willOpen;
+      if (willOpen) {
+        syncAplicaPanels(row);
+        syncValidadeFields(row);
+      }
+    });
+  });
+
+  document.querySelectorAll('.rh-docconfig-edit-cancel').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-docconfig-edit');
+      var row = document.getElementById('docconfig-edit-' + id);
+      if (row) row.hidden = true;
+    });
+  });
+
+  syncAplicaPanels(novoPanel);
+  syncValidadeFields(novoPanel);
+})();
+</script>
+{% endblock %}

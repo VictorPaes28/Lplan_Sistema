@@ -352,89 +352,9 @@ def _resolve_labor_cargo_from_payload_item(labor_item, project=None):
     Resolve LaborCargo.pk a partir do item do payload de mão de obra.
     DiaryLaborEntry continua FK para LaborCargo global (PDF/detalhe intactos).
     """
-    from .models import LaborCargo, LaborCategory, ProjectLaborItem
-    from .project_labor_catalog import (
-        ensure_project_labor_catalog,
-        find_project_labor_item_for_name,
-    )
+    from core.utils.diary_labor import resolve_labor_cargo_from_payload_item
 
-    cargo_name = (labor_item.get('cargo_name') or labor_item.get('cargoName') or '').strip()
-    category_slug = (labor_item.get('category_slug') or labor_item.get('categorySlug') or '').strip()
-
-    project_labor_item_id = labor_item.get('project_labor_item_id')
-    if project_labor_item_id:
-        try:
-            pli_qs = ProjectLaborItem.objects.select_related(
-                'source_labor_cargo',
-                'source_labor_cargo__category',
-                'category',
-            ).filter(pk=int(project_labor_item_id))
-            if project:
-                pli_qs = pli_qs.filter(project=project)
-            pli = pli_qs.get()
-            cargo_name = pli.name or cargo_name
-            if pli.source_labor_cargo_id:
-                return pli.source_labor_cargo_id, cargo_name
-            slug = pli.category.slug if pli.category_id else category_slug
-            gcat = LaborCategory.objects.filter(slug=slug).first()
-            if gcat:
-                cargo, _ = LaborCargo.objects.get_or_create(
-                    category=gcat,
-                    name=pli.name,
-                    defaults={'order': pli.order},
-                )
-                return cargo.id, cargo_name
-        except (ProjectLaborItem.DoesNotExist, ValueError, TypeError):
-            pass
-
-    cargo_id = labor_item.get('cargo_id') or labor_item.get('cargoId')
-    if cargo_id:
-        try:
-            cid = int(cargo_id)
-            if LaborCargo.objects.filter(pk=cid).exists():
-                return cid, cargo_name
-        except (ValueError, TypeError):
-            pass
-
-    if project and cargo_name:
-        ensure_project_labor_catalog(project)
-        pli = None
-        if category_slug:
-            pli = ProjectLaborItem.objects.filter(
-                project=project,
-                category__slug=category_slug,
-                name__iexact=cargo_name,
-            ).select_related('source_labor_cargo', 'category').first()
-        if not pli:
-            pli = find_project_labor_item_for_name(project, cargo_name)
-        if pli:
-            return _resolve_labor_cargo_from_payload_item(
-                {
-                    'project_labor_item_id': pli.pk,
-                    'cargo_name': cargo_name,
-                    'category_slug': category_slug or (pli.category.slug if pli.category_id else ''),
-                },
-                project,
-            )
-
-    terceirizada_category = LaborCategory.objects.filter(slug='terceirizada').first()
-    target_category = LaborCategory.objects.filter(slug=category_slug).first() if category_slug else None
-    if target_category is None:
-        target_category = terceirizada_category
-    if target_category is None or not cargo_name:
-        return None, cargo_name
-
-    existing_cargo = LaborCargo.objects.filter(
-        category=target_category,
-        name__iexact=cargo_name,
-    ).only('id').first()
-    if existing_cargo:
-        return existing_cargo.id, cargo_name
-    return LaborCargo.objects.create(
-        category=target_category,
-        name=cargo_name,
-        order=0,
-    ).id, cargo_name
+    return resolve_labor_cargo_from_payload_item(labor_item, project)
 
 
 def _project_activities_picker_data(project, exclude_diary_pk=None, front_id=None):
@@ -4000,6 +3920,11 @@ def _diary_form_context_from_post(request, project, form, image_formset, worklog
                             'quantity': int(item.get('quantity') or 1),
                             'company': (item.get('company') or '').strip(),
                             'project_labor_item_id': item.get('project_labor_item_id'),
+                            'category_slug': (
+                                item.get('category_slug')
+                                or item.get('categorySlug')
+                                or ('terceirizada' if (item.get('company') or '').strip() else '')
+                            ),
                         })
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
@@ -5847,12 +5772,16 @@ def diary_form_view(request, pk=None):
     if labor_source:
         try:
             from .models import DiaryLaborEntry
-            for e in DiaryLaborEntry.objects.filter(diary=labor_source).select_related('cargo'):
+            for e in DiaryLaborEntry.objects.filter(diary=labor_source).select_related('cargo', 'cargo__category'):
                 existing_diary_labor.append({
                     'cargo_id': e.cargo_id,
                     'cargo_name': getattr(e.cargo, 'name', ''),
                     'quantity': e.quantity,
                     'company': e.company or '',
+                    'category_slug': (
+                        'terceirizada' if (e.company or '').strip()
+                        else (getattr(getattr(e.cargo, 'category', None), 'slug', '') or '')
+                    ),
                 })
             from .project_labor_catalog import enrich_existing_diary_labor
             existing_diary_labor = enrich_existing_diary_labor(project, existing_diary_labor)
@@ -6835,6 +6764,13 @@ def notifications_view(request):
         ('pedido_reprovado', 'Reprovado', '#ef4444'),
         ('rdo_pendente', 'RDO', '#2563eb'),
         ('trackhub_etapa_concluida', 'TrackHub', '#0d9488'),
+        ('rh_requisicao_pendente', 'RH — Requisição', '#7c3aed'),
+        ('rh_requisicao_reprovada', 'RH — Reprovada', '#ef4444'),
+        ('rh_coleta_docs', 'RH — Coleta', '#2563eb'),
+        ('rh_documento_recebido', 'RH — Documento', '#0ea5e9'),
+        ('rh_documentacao_pronta', 'RH — Docs OK', '#16a34a'),
+        ('rh_admissao_pendente', 'RH — Admissão', '#d97706'),
+        ('rh_documento_vencendo', 'RH — Vencimento', '#dc2626'),
         ('system', 'Sistema', '#64748b'),
     ]
     sidebar_types = [

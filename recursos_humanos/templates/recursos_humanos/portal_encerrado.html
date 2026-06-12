@@ -1,0 +1,23 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Processo encerrado — Lplan</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}">
+</head>
+<body class="portal-body">
+  <div class="portal-wrap">
+    <header class="portal-header">
+      <div class="portal-logo">Lplan</div>
+    </header>
+    <div class="portal-state-card">
+      <div class="portal-state-icon" aria-hidden="true">✅</div>
+      <h1>Processo encerrado ou não iniciado</h1>
+      <p>O processo de admissão de <strong>{{ colaborador.nome }}</strong> não está mais ativo. Em caso de dúvidas, entre em contato com o RH.</p>
+    </div>
+  </div>
+</body>
+</html>

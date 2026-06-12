@@ -1,0 +1,34 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">{{ colaborador.nome }}</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Excluir</span>
+</nav>
+{% endblock %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}" class="rh-back">
+    <i class="fas fa-arrow-left" aria-hidden="true"></i> Voltar
+  </a>
+
+  <div class="rh-card rh-pad" style="max-width: 32rem;">
+    <h1 class="rh-title">Excluir colaborador</h1>
+    <p class="rh-subtitle">
+      Tem certeza que deseja excluir <strong>{{ colaborador.nome }}</strong> (CPF {{ colaborador.cpf }})?
+      Esta ação não pode ser desfeita e removerá também documentos e histórico vinculados.
+    </p>
+    <form method="post" class="rh-form-actions" style="margin-top: 1.25rem;">
+      {% csrf_token %}
+      <button type="submit" class="rh-btn rh-btn-danger-outline">
+        <i class="fas fa-trash" aria-hidden="true"></i> Confirmar exclusão
+      </button>
+      <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}" class="rh-btn rh-btn-outline">Cancelar</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
