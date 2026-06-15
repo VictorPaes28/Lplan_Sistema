@@ -196,11 +196,8 @@ class ProjectFront(models.Model):
                 fields=['project', 'name'],
                 name='core_front_unique_project_name',
             ),
-            models.UniqueConstraint(
-                fields=['project', 'code'],
-                condition=~Q(code=''),
-                name='core_front_unique_project_code_when_filled',
-            ),
+            # Removida UniqueConstraint condicional (project, code) — não suportada pelo MariaDB (W036).
+            # Unicidade só quando code preenchido: validate_unique().
         ]
         indexes = [
             models.Index(fields=['project', 'is_active']),
@@ -210,6 +207,19 @@ class ProjectFront(models.Model):
     def __str__(self) -> str:
         prefix = f"[{self.code}] " if self.code else ""
         return f"{self.project.code} - {prefix}{self.name}"
+
+    def validate_unique(self, exclude=None):
+        super().validate_unique(exclude=exclude)
+        code = (self.code or '').strip()
+        if not code or not self.project_id:
+            return
+        qs = ProjectFront.objects.filter(project_id=self.project_id, code=code)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {'code': 'Já existe uma frente nesta obra com este código.'},
+            )
 
 
 class ProjectFrontMember(models.Model):
@@ -1195,11 +1205,8 @@ class ConstructionDiary(models.Model):
                 fields=['project', 'front', 'date'],
                 name='core_diary_unique_project_front_date',
             ),
-            models.UniqueConstraint(
-                fields=['project', 'date'],
-                condition=Q(front__isnull=True),
-                name='core_diary_unique_project_date_without_front',
-            ),
+            # Removida UniqueConstraint condicional (project, date) sem frente — MariaDB (W036).
+            # MariaDB também não trata NULL como igual em UNIQUE; validate_unique() cobre os dois casos.
         ]
         indexes = [
             models.Index(fields=['project', 'date']),
@@ -1218,6 +1225,36 @@ class ConstructionDiary(models.Model):
         if self.front_id and self.project_id and self.front.project_id != self.project_id:
             raise ValidationError(
                 {'front': 'A frente selecionada não pertence ao projeto informado.'}
+            )
+
+    def validate_unique(self, exclude=None):
+        super().validate_unique(exclude=exclude)
+        if not self.project_id or not self.date:
+            return
+        qs = ConstructionDiary.objects.filter(project_id=self.project_id, date=self.date)
+        if self.front_id:
+            qs = qs.filter(front_id=self.front_id)
+        else:
+            qs = qs.filter(front__isnull=True)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            if self.front_id:
+                raise ValidationError(
+                    {
+                        '__all__': (
+                            f'Já existe um relatório para esta obra/frente na data '
+                            f'{self.date.strftime("%d/%m/%Y")}.'
+                        ),
+                    },
+                )
+            raise ValidationError(
+                {
+                    '__all__': (
+                        f'Já existe um relatório para esta obra na data '
+                        f'{self.date.strftime("%d/%m/%Y")} sem frente.'
+                    ),
+                },
             )
 
     def is_approved(self) -> bool:

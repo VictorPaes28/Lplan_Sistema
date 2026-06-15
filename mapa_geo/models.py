@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import Q
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 
 
@@ -142,13 +142,25 @@ class GeoFeature(models.Model):
             models.Index(fields=['project', 'kind']),
             models.Index(fields=['project', 'external_key']),
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['project', 'external_key'],
-                condition=~Q(external_key=''),
-                name='mapa_geo_unique_external_key_per_project',
-            ),
-        ]
+        # Removida UniqueConstraint condicional (project, external_key) — MariaDB (W036).
+        # Unicidade só quando external_key preenchida: validate_unique().
+
+    def validate_unique(self, exclude=None):
+        super().validate_unique(exclude=exclude)
+        ext = (self.external_key or '').strip()
+        if not ext or not self.project_id:
+            return
+        qs = GeoFeature.objects.filter(project_id=self.project_id, external_key=ext)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {
+                    'external_key': (
+                        'Já existe um elemento neste projeto com esta chave externa.'
+                    ),
+                },
+            )
 
     def __str__(self):
         label = self.name or self.external_key or f'#{self.pk}'
