@@ -23,8 +23,28 @@ from .forms import (
     ReprovarRequisicaoForm,
     TipoDocumentoForm,
 )
-from .models import CargoCatalogo, CargoRH, Colaborador, DocumentoColaborador, ObraLocal, TipoDocumento
+from .models import (
+    CargoCatalogo,
+    CargoRH,
+    Colaborador,
+    DocumentoColaborador,
+    ObraLocal,
+    PrazoContrato,
+    TipoDocumento,
+)
 from .services.admissao import montar_contexto_admissao
+from .services.alertas_config import obter_configuracao_alertas
+from recursos_humanos.services.documentos import (
+    admissao_etapa_concluida,
+    colaborador_documentos_recebidos_validos,
+    colaborador_tem_pendencia_documentos,
+    documento_alerta_vencimento,
+    documento_dias_restantes,
+    documento_esta_vencido,
+    documento_elegivel_reenvio,
+    etapa_fluxo_efetiva,
+    solicitar_reenvio_documento,
+)
 from .services.admissao_actions import (
     aprovar_documentacao,
     aprovar_requisicao_gestor,
@@ -35,6 +55,7 @@ from .services.admissao_actions import (
     concluir_admissao,
     criar_requisicao,
     devolver_admissao,
+    enviar_lembrete_coleta_documentos,
     registrar_historico,
     reprovar_requisicao_gestor,
     garantir_requisicao_criada_por,
@@ -81,6 +102,8 @@ def _salvar_rascunho_requisicao(request, form=None, exc_msg=None):
         'gestor_id': request.POST.get('gestor_id', ''),
         'motivo': request.POST.get('motivo', 'Nova contratação'),
         'observacoes': request.POST.get('observacoes', ''),
+        'prazo_duracao_dias': request.POST.get('prazo_duracao_dias', ''),
+        'clt_periodo_experiencia': bool(request.POST.get('clt_periodo_experiencia')),
     }
     if form is not None and not form.is_valid():
         draft['errors'] = {
@@ -134,6 +157,29 @@ def _enriquecer_colaborador(c):
 
 def _redirect_admissao(pk):
     return redirect(f"{reverse('recursos_humanos:admissao')}?id={pk}")
+
+
+def url_colaboradores_com_modal(pk, **extra_params):
+    """URL da lista com query param para abrir o modal de perfil via JS."""
+    from urllib.parse import urlencode
+
+    params = {'abrir_colaborador': pk, **extra_params}
+    return f'{reverse("recursos_humanos:colaboradores_list")}?{urlencode(params)}'
+
+
+def redirect_para_colaborador(pk, **extra_params):
+    """Redireciona para colaboradores_list com modal de perfil aberto."""
+    return redirect(url_colaboradores_com_modal(pk, **extra_params))
+
+
+_PORTAL_STATUS_OK = frozenset({
+    Colaborador.Status.EM_ADMISSAO,
+    Colaborador.Status.ATIVO,
+})
+
+
+def _portal_status_permitido(colaborador):
+    return colaborador.status in _PORTAL_STATUS_OK
 
 
 _STATUS_ORDER = Case(
@@ -256,9 +302,13 @@ def colaborador_detalhe_view(request, pk):
                     messages.error(request, 'Erro ao enviar o link.')
             elif not telefone:
                 messages.error(request, 'Informe o telefone do candidato.')
-        return redirect('recursos_humanos:colaborador_detalhe', pk=pk)
+        return redirect_para_colaborador(pk)
 
     historico = listar_historico_colaborador(colaborador, limite=50)
+
+    prazo_ativo = colaborador.prazos_contrato.filter(
+        status=PrazoContrato.Status.ATIVO,
+    ).first()
 
     portal_url = None
     if colaborador.status == Colaborador.Status.EM_ADMISSAO and colaborador.token_portal:
@@ -273,6 +323,8 @@ def colaborador_detalhe_view(request, pk):
         'historico': historico,
         'portal_url': portal_url,
         'token_portal_valido': colaborador.token_portal_valido(),
+        'prazo_ativo': prazo_ativo,
+        'prazo_tipo_choices': PrazoContrato.Tipo.choices,
         **_rh_nav_context(request),
     }
     return render(request, 'recursos_humanos/colaborador_detalhe.html', ctx)
@@ -288,15 +340,44 @@ def colaborador_json_view(request, pk):
     documentos = colaborador.documentos.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
 
     docs_data = []
+    url_perfil = url_colaboradores_com_modal(colaborador.pk)
     for doc in documentos:
+        dias_restantes = documento_dias_restantes(doc)
+        alerta_venc = documento_alerta_vencimento(doc)
+        vencido = documento_esta_vencido(doc)
+        pode_reenvio, _ = documento_elegivel_reenvio(doc)
+        pode_aprovar = (
+            bool(doc.arquivo)
+            and doc.status == DocumentoColaborador.Status.PENDENTE
+        )
         docs_data.append({
             'id': doc.pk,
             'nome': doc.tipo.nome,
             'status': doc.status,
+            'data_emissao': doc.data_emissao.strftime('%d/%m/%Y') if doc.data_emissao else None,
             'vencimento': doc.vencimento.strftime('%d/%m/%Y') if doc.vencimento else None,
+            'dias_restantes': dias_restantes,
+            'alerta_vencimento': alerta_venc,
+            'vencido': vencido,
+            'reenvio_solicitado': doc.reenvio_solicitado,
+            'pode_solicitar_reenvio': pode_reenvio,
+            'url_solicitar_reenvio': reverse(
+                'recursos_humanos:documento_solicitar_reenvio',
+                kwargs={'pk': colaborador.pk, 'doc_pk': doc.pk},
+            ) if pode_reenvio else None,
+            'pode_aprovar': pode_aprovar,
+            'url_aprovar': reverse('recursos_humanos:documento_aprovar', args=[doc.pk]) if pode_aprovar else None,
+            'url_redirect': url_perfil,
             'obrigatorio': doc.tipo.obrigatorio,
             'tem_arquivo': bool(doc.arquivo),
+            'tem_validade': doc.tipo.tem_validade,
+            'url_arquivo': doc.arquivo.url if doc.arquivo else None,
         })
+
+    from .services.prazo_contrato import prazo_contrato_para_perfil, serializar_prazo_perfil
+
+    prazo_exibir = prazo_contrato_para_perfil(colaborador)
+    prazo_data = serializar_prazo_perfil(prazo_exibir) if prazo_exibir else None
 
     obras = list(colaborador.obras.values_list('nome', flat=True))
 
@@ -319,6 +400,8 @@ def colaborador_json_view(request, pk):
         'tamanho_camisa': colaborador.tamanho_camisa,
         'tamanho_bota': colaborador.tamanho_bota,
         'cargo': colaborador.cargo,
+        'cargo_rh': colaborador.cargo_rh_id or '',
+        'cargo_rh_nome': colaborador.cargo_rh.nome if colaborador.cargo_rh_id else '',
         'empresa': colaborador.empresa,
         'status': colaborador.status,
         'status_display': colaborador.get_status_display(),
@@ -329,14 +412,39 @@ def colaborador_json_view(request, pk):
         'observacoes_requisicao': colaborador.observacoes_requisicao,
         'obras': obras,
         'obras_ids': list(colaborador.obras.values_list('pk', flat=True)),
-        'docs_recebidos': colaborador.documentos_recebidos(),
+        'docs_recebidos': colaborador_documentos_recebidos_validos(colaborador),
         'docs_total': colaborador.documentos_total(),
+        'pendencia_documentos': colaborador_tem_pendencia_documentos(colaborador),
         'documentos': docs_data,
+        'prazo_contrato': prazo_data,
         'historico': historico,
         'url_detalhe': reverse('recursos_humanos:colaborador_detalhe', args=[colaborador.pk]),
         'url_editar': reverse('recursos_humanos:colaborador_detalhe', args=[colaborador.pk]),
         'url_excluir': reverse('recursos_humanos:colaborador_excluir', args=[colaborador.pk]),
     })
+
+
+@login_required
+@require_rh
+def documento_solicitar_reenvio_view(request, pk, doc_pk):
+    if request.method != 'POST':
+        return redirect_para_colaborador(pk)
+
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    doc = get_object_or_404(
+        DocumentoColaborador,
+        pk=doc_pk,
+        colaborador=colaborador,
+    )
+    ok, msg = solicitar_reenvio_documento(doc, request.user)
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    next_url = request.POST.get('next')
+    if next_url:
+        return HttpResponseRedirect(next_url)
+    return redirect_para_colaborador(pk)
 
 
 def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
@@ -469,6 +577,24 @@ def admissao_view(request):
 
     etapa_exibida = None
     somente_leitura = False
+    pendencia_documentos = (
+        colaborador_tem_pendencia_documentos(selecionado) if selecionado else False
+    )
+    etapa_fluxo = (
+        etapa_fluxo_efetiva(selecionado) if selecionado else None
+    )
+    admissoes_status = {
+        adm.pk: colaborador_admissao_concluida(adm)
+        for adm in adm_page_obj
+    }
+    for adm in adm_page_obj:
+        adm.admissao_concluida_flag = admissoes_status.get(adm.pk, False)
+        adm.admissao_pendencia_flag = (
+            adm.etapa_admissao >= 5
+            and adm.status == Colaborador.Status.ATIVO
+            and not adm.admissao_concluida_flag
+            and colaborador_tem_pendencia_documentos(adm)
+        )
     if selecionado and admissao_ctx:
         etapa_atual = selecionado.etapa_admissao
         ver_etapa_raw = request.GET.get('ver_etapa')
@@ -479,11 +605,34 @@ def admissao_view(request):
                 ver_etapa = etapa_atual
             if 1 <= ver_etapa <= etapa_atual:
                 etapa_exibida = ver_etapa
-                somente_leitura = ver_etapa < etapa_atual
         if etapa_exibida is None:
-            etapa_exibida = etapa_atual
-        if colaborador_admissao_concluida(selecionado):
-            somente_leitura = etapa_exibida < etapa_atual
+            if pendencia_documentos:
+                etapa_exibida = etapa_fluxo
+            else:
+                etapa_exibida = etapa_atual
+        somente_leitura = etapa_exibida < etapa_atual
+        if pendencia_documentos and etapa_exibida == etapa_fluxo:
+            somente_leitura = False
+
+    etapas_labels = [
+        (1, 'Requisição'),
+        (2, 'Coleta de Docs'),
+        (3, 'Aprovação RH'),
+        (4, 'Ass. Contrato'),
+        (5, 'Ativo'),
+    ]
+    etapas_stepper = []
+    if selecionado:
+        for num, label in etapas_labels:
+            concluida = admissao_etapa_concluida(selecionado, num)
+            etapas_stepper.append({
+                'num': num,
+                'label': label,
+                'concluida': concluida,
+                'acessivel': num <= selecionado.etapa_admissao,
+                'atual': num == etapa_fluxo and pendencia_documentos,
+                'visualizando': etapa_exibida == num,
+            })
 
     ctx = {
         'admissoes': adm_page_obj,
@@ -495,16 +644,14 @@ def admissao_view(request):
         'somente_leitura': somente_leitura,
         'devolver_form': devolver_form,
         'rh_requisicao_edicao': requisicao_edicao,
-        'etapas': [
-            (1, 'Requisição'),
-            (2, 'Coleta de Docs'),
-            (3, 'Aprovação RH'),
-            (4, 'Ass. Contrato'),
-            (5, 'Ativo'),
-        ],
+        'etapas': etapas_labels,
+        'etapas_stepper': etapas_stepper,
         'admissao_concluida': (
             colaborador_admissao_concluida(selecionado) if selecionado else False
         ),
+        'pendencia_documentos': pendencia_documentos,
+        'etapa_fluxo': etapa_fluxo,
+        'admissoes_status': admissoes_status,
         **_rh_nav_context(request),
     }
     return render(request, 'recursos_humanos/admissao.html', ctx)
@@ -518,7 +665,7 @@ def admissao_nova_view(request):
         form = NovaRequisicaoForm(request.POST)
         if form.is_valid():
             try:
-                colab = criar_requisicao(form.cleaned_data, request.user)
+                colab = criar_requisicao(form, request.user)
                 CargoCatalogo.objects.get_or_create(
                     nome=form.cleaned_data['cargo'].strip(),
                 )
@@ -605,12 +752,14 @@ def admissao_acao_view(request, pk):
             ok, msg = False, 'Informe o motivo da devolução.'
     elif acao == 'concluir':
         ok, msg = concluir_admissao(colaborador, request.user)
+    elif acao == 'enviar_lembrete':
+        ok, msg = enviar_lembrete_coleta_documentos(colaborador, request.user)
     else:
         ok, msg = False, 'Ação inválida.'
 
     (messages.success if ok else messages.error)(request, msg)
     if ok and acao == 'concluir':
-        return redirect('recursos_humanos:colaborador_detalhe', pk=colaborador.pk)
+        return redirect_para_colaborador(colaborador.pk)
     return _redirect_admissao(colaborador.pk)
 
 
@@ -638,7 +787,7 @@ def documento_status_view(request, pk):
         )
     else:
         messages.error(request, 'Status inválido.')
-    next_url = request.POST.get('next') or reverse('recursos_humanos:colaborador_detalhe', args=[doc.colaborador_id])
+    next_url = request.POST.get('next') or url_colaboradores_com_modal(doc.colaborador_id)
     return HttpResponseRedirect(next_url)
 
 
@@ -648,12 +797,32 @@ def documento_aprovar_view(request, pk):
     if request.method != 'POST':
         return redirect('recursos_humanos:colaboradores')
     doc = get_object_or_404(DocumentoColaborador.objects.select_related('colaborador', 'tipo'), pk=pk)
-    ok, msg = aprovar_documento_arquivo(doc, request.user)
+    next_url = request.POST.get('next') or (
+        f'{reverse("recursos_humanos:admissao")}?id={doc.colaborador_id}&ver_etapa=2'
+    )
+
+    data_emissao = None
+    raw_emissao = (request.POST.get('data_emissao') or '').strip()
+    if raw_emissao:
+        from django.forms import DateField
+        data_emissao = DateField().to_python(raw_emissao)
+        if data_emissao is None:
+            messages.error(request, 'Data de emissão inválida.')
+            return HttpResponseRedirect(next_url)
+
+    if doc.tipo.tem_validade and not data_emissao:
+        messages.error(
+            request,
+            f'Informe a data de emissão do documento "{doc.tipo.nome}" '
+            f'— necessária para calcular o vencimento.',
+        )
+        return HttpResponseRedirect(next_url)
+
+    ok, msg = aprovar_documento_arquivo(doc, request.user, data_emissao)
     if ok:
         messages.success(request, msg)
     else:
         messages.error(request, msg)
-    next_url = request.POST.get('next') or f'{reverse("recursos_humanos:admissao")}?id={doc.colaborador_id}'
     return HttpResponseRedirect(next_url)
 
 
@@ -681,18 +850,32 @@ def documento_rejeitar_view(request, pk):
 def documento_upload_view(request, pk):
     if request.method != 'POST':
         return redirect('recursos_humanos:colaboradores')
-    doc = get_object_or_404(DocumentoColaborador.objects.select_related('colaborador'), pk=pk)
+    doc = get_object_or_404(
+        DocumentoColaborador.objects.select_related('colaborador', 'tipo'),
+        pk=pk,
+    )
+    next_url = request.POST.get('next') or url_colaboradores_com_modal(doc.colaborador_id)
     form = DocumentoUploadForm(request.POST, request.FILES)
     if form.is_valid():
         arquivo = form.cleaned_data['arquivo']
-        upload_documento_arquivo(doc, arquivo, request.user)
-        messages.success(
-            request,
-            f'Arquivo "{arquivo.name}" enviado com sucesso.',
-        )
+        data_emissao = form.cleaned_data.get('data_emissao')
+
+        if doc.tipo.tem_validade and not data_emissao:
+            messages.error(
+                request,
+                f'Informe a data de emissão do documento "{doc.tipo.nome}" '
+                f'— necessária para calcular o vencimento.',
+            )
+            return HttpResponseRedirect(next_url)
+
+        upload_documento_arquivo(doc, arquivo, request.user, data_emissao)
+
+        msg = f'Arquivo "{arquivo.name}" enviado com sucesso.'
+        if data_emissao and doc.vencimento:
+            msg += f' Vencimento calculado: {doc.vencimento.strftime("%d/%m/%Y")}.'
+        messages.success(request, msg)
     else:
         messages.error(request, 'Selecione um arquivo válido (máx. 10 MB).')
-    next_url = request.POST.get('next') or reverse('recursos_humanos:colaborador_detalhe', args=[doc.colaborador_id])
     return HttpResponseRedirect(next_url)
 
 
@@ -704,21 +887,23 @@ def alertas_view(request):
         config_para_template,
         obter_configuracao_alertas,
         rotulo_usuario_alertas,
-        usuarios_elegiveis_alertas,
+        usuarios_staff_alertas,
     )
+    from .services.alertas_email import enviar_emails_alertas_diarios
 
     alertas = gerar_alertas()
+    enviar_emails_alertas_diarios(alertas)
     config = obter_configuracao_alertas()
     usuarios_alertas = [
         {'id': u.pk, 'rotulo': rotulo_usuario_alertas(u)}
-        for u in usuarios_elegiveis_alertas()
+        for u in usuarios_staff_alertas()
     ]
     return render(request, 'recursos_humanos/alertas.html', {
         'alertas': alertas,
         'resumo': resumo_alertas(alertas, config),
         'config_alertas': config_para_template(config),
         'usuarios_alertas': usuarios_alertas,
-        **_rh_nav_context(request, len(alertas)),
+        **_rh_nav_context(request),
     })
 
 
@@ -835,7 +1020,7 @@ def colaborador_excluir_view(request, pk):
         if is_ajax:
             return JsonResponse({'ok': False, 'error': msg}, status=400)
         messages.error(request, msg)
-        return redirect('recursos_humanos:colaborador_detalhe', pk=pk)
+        return redirect_para_colaborador(pk)
     if request.method == 'POST':
         colab_id = colaborador.pk
         nome = colaborador.nome
@@ -859,26 +1044,29 @@ def colaborador_desligar_view(request, pk):
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '').strip()
         data_desligamento_raw = request.POST.get('data_desligamento', '').strip()
-        erros = []
+        from .services.admissao_actions import desligar_colaborador
 
         if not data_desligamento_raw:
-            erros.append('Informe a data de desligamento.')
+            msg = 'Informe a data de desligamento.'
+            ok = False
             data_parsed = None
         else:
             data_parsed = parse_date(data_desligamento_raw)
             if data_parsed is None:
-                erros.append('Data de desligamento inválida.')
-            elif data_parsed > timezone.localdate():
-                erros.append('A data de desligamento não pode ser futura.')
+                msg = 'Data de desligamento inválida.'
+                ok = False
+            else:
+                ok, msg = desligar_colaborador(
+                    colaborador,
+                    motivo,
+                    data_parsed,
+                    request.user,
+                )
 
-        if len(motivo) < 10:
-            erros.append('O motivo deve ter pelo menos 10 caracteres.')
-
-        if erros:
+        if not ok:
             if is_ajax:
-                return JsonResponse({'ok': False, 'errors': erros}, status=400)
-            for msg in erros:
-                messages.error(request, msg)
+                return JsonResponse({'ok': False, 'errors': [msg]}, status=400)
+            messages.error(request, msg)
             return render(
                 request,
                 'recursos_humanos/colaborador_desligar.html',
@@ -890,17 +1078,6 @@ def colaborador_desligar_view(request, pk):
                 },
             )
 
-        colaborador.status = Colaborador.Status.DESLIGADO
-        colaborador.save(update_fields=['status', 'atualizado_em'])
-        registrar_historico(
-            colaborador,
-            etapa=0,
-            descricao=(
-                f'Colaborador desligado. Data: {data_desligamento_raw}. '
-                f'Motivo: {motivo}'
-            ),
-            autor=request.user.get_full_name() or request.user.username,
-        )
         if is_ajax:
             return JsonResponse({
                 'ok': True,
@@ -908,7 +1085,7 @@ def colaborador_desligar_view(request, pk):
                 'status_display': colaborador.get_status_display(),
             })
         messages.success(request, f'{colaborador.nome} desligado com sucesso.')
-        return redirect('recursos_humanos:colaborador_detalhe', pk=pk)
+        return redirect_para_colaborador(pk)
     return render(
         request,
         'recursos_humanos/colaborador_desligar.html',
@@ -1013,12 +1190,14 @@ def portal_candidato_view(request, token):
             {'colaborador': colaborador},
         )
 
-    if colaborador.status != Colaborador.Status.EM_ADMISSAO:
+    if not _portal_status_permitido(colaborador):
         return render(
             request,
             'recursos_humanos/portal_encerrado.html',
             {'colaborador': colaborador},
         )
+
+    portal_modo_reenvio = colaborador.status == Colaborador.Status.ATIVO
 
     instanciar_documentos(colaborador)
 
@@ -1052,6 +1231,7 @@ def portal_candidato_view(request, token):
             'total_docs': total,
             'recebidos_docs': recebidos,
             'progresso_pct': progresso,
+            'portal_modo_reenvio': portal_modo_reenvio,
         },
     )
 
@@ -1061,6 +1241,8 @@ def portal_upload_view(request, token, doc_pk):
     colaborador = get_object_or_404(Colaborador, token_portal=token)
 
     if not colaborador.token_portal_valido():
+        return redirect('recursos_humanos:portal', token=token)
+    if not _portal_status_permitido(colaborador):
         return redirect('recursos_humanos:portal', token=token)
 
     doc = get_object_or_404(
@@ -1087,7 +1269,7 @@ def portal_arquivo_view(request, token, doc_pk):
     colaborador = get_object_or_404(Colaborador, token_portal=token)
     if not colaborador.token_portal_valido():
         return redirect('recursos_humanos:portal', token=token)
-    if colaborador.status != Colaborador.Status.EM_ADMISSAO:
+    if not _portal_status_permitido(colaborador):
         raise Http404
 
     doc = get_object_or_404(
@@ -1107,6 +1289,8 @@ def portal_remover_view(request, token, doc_pk):
     colaborador = get_object_or_404(Colaborador, token_portal=token)
 
     if not colaborador.token_portal_valido():
+        return redirect('recursos_humanos:portal', token=token)
+    if not _portal_status_permitido(colaborador):
         return redirect('recursos_humanos:portal', token=token)
 
     doc = get_object_or_404(
@@ -1174,7 +1358,7 @@ def contrato_upload_view(request, pk):
     contrato = obter_ou_criar_contrato(colaborador)
     if salvar_contrato_assinado(contrato, arquivo, request.user):
         messages.success(request, 'Contrato assinado arquivado. Colaborador ativado.')
-        return redirect('recursos_humanos:colaborador_detalhe', pk=colaborador.pk)
+        return redirect_para_colaborador(colaborador.pk)
 
     messages.error(request, 'Não foi possível salvar o contrato.')
     return _redirect_admissao(pk)
@@ -1195,3 +1379,179 @@ def contrato_download_view(request, pk):
         raise Http404('PDF do contrato indisponível.')
     nome = contrato.pdf_contrato.name.rsplit('/', 1)[-1]
     return FileResponse(contrato.pdf_contrato.open('rb'), as_attachment=True, filename=nome)
+
+
+def _prazo_contrato_decisao_queryset(pk):
+    return get_object_or_404(
+        PrazoContrato.objects.select_related('colaborador'),
+        pk=pk,
+        status__in=(
+            PrazoContrato.Status.ATIVO,
+            PrazoContrato.Status.CONVERTIDO,
+        ),
+    )
+
+
+def _serializar_prazo_decisao_response(prazo):
+    from .services.prazo_contrato import serializar_prazo_decisao
+
+    return serializar_prazo_decisao(
+        prazo,
+        post_url=reverse('recursos_humanos:prazo_contrato_decisao', kwargs={'pk': prazo.pk}),
+        perfil_url=url_colaboradores_com_modal(prazo.colaborador.pk),
+    )
+
+
+@login_required
+@require_rh
+def prazo_contrato_decisao_json_view(request, pk):
+    """Dados do prazo para o modal de decisão."""
+    prazo = _prazo_contrato_decisao_queryset(pk)
+    return JsonResponse(_serializar_prazo_decisao_response(prazo))
+
+
+@login_required
+@require_rh
+def prazo_contrato_decisao_view(request, pk):
+    """POST: executa a ação escolhida. GET redireciona para abrir o modal."""
+    from datetime import datetime
+
+    from .services.prazo_contrato import executar_acao_prazo
+
+    prazo = _prazo_contrato_decisao_queryset(pk)
+    ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if request.method == 'POST':
+        acao = request.POST.get('acao')
+        nova_data_str = request.POST.get('nova_data_fim', '')
+        motivo = request.POST.get('motivo', '')
+
+        nova_data_fim = None
+        if nova_data_str:
+            try:
+                nova_data_fim = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
+            except ValueError:
+                if ajax:
+                    return JsonResponse({'ok': False, 'message': 'Data de fim inválida.'}, status=400)
+                messages.error(request, 'Data de fim inválida.')
+                return _redirect_abrir_prazo_decisao(request, pk)
+
+        sucesso, msg = executar_acao_prazo(
+            prazo,
+            acao,
+            request.user,
+            nova_data_fim,
+            motivo,
+        )
+
+        if ajax:
+            if sucesso:
+                return JsonResponse({
+                    'ok': True,
+                    'message': msg,
+                    'colaborador_id': prazo.colaborador.pk,
+                })
+            return JsonResponse({'ok': False, 'message': msg}, status=400)
+
+        if sucesso:
+            messages.success(request, msg)
+        else:
+            messages.error(request, msg)
+
+        return redirect_para_colaborador(prazo.colaborador.pk)
+
+    return _redirect_abrir_prazo_decisao(request, pk)
+
+
+def _redirect_abrir_prazo_decisao(request, pk):
+    """Redireciona para a página de origem (ou alertas) com query para abrir o modal."""
+    from urllib.parse import urlencode, urlparse, urlunparse, parse_qs
+
+    referer = request.META.get('HTTP_REFERER', '')
+    parsed = urlparse(referer)
+    if not referer or '/prazo-contrato/' in referer or not parsed.path.startswith('/'):
+        target = reverse('recursos_humanos:alertas')
+        sep = '?'
+        return redirect(f'{target}{sep}{urlencode({"abrir_prazo_decisao": pk})}')
+
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    qs['abrir_prazo_decisao'] = [str(pk)]
+    new_query = urlencode(qs, doseq=True)
+    return redirect(urlunparse(parsed._replace(query=new_query)))
+
+
+@login_required
+@require_rh
+def prazo_contrato_reativar_view(request, pk):
+    """Reativa contrato encerrado e colaborador desligado pelo encerramento."""
+    from .services.prazo_contrato import reativar_prazo_contrato
+
+    prazo = get_object_or_404(
+        PrazoContrato.objects.select_related('colaborador'),
+        pk=pk,
+        status=PrazoContrato.Status.ENCERRADO,
+    )
+    ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if request.method != 'POST':
+        if ajax:
+            return JsonResponse({'ok': False, 'message': 'Método não permitido.'}, status=405)
+        return redirect_para_colaborador(prazo.colaborador.pk)
+
+    sucesso, msg = reativar_prazo_contrato(prazo, request.user)
+    if ajax:
+        if sucesso:
+            return JsonResponse({
+                'ok': True,
+                'message': msg,
+                'colaborador_id': prazo.colaborador.pk,
+            })
+        return JsonResponse({'ok': False, 'message': msg}, status=400)
+
+    if sucesso:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    return redirect_para_colaborador(prazo.colaborador.pk)
+
+
+@login_required
+@require_rh
+def prazo_contrato_criar_view(request, pk):
+    """Cria um novo PrazoContrato para um colaborador."""
+    from datetime import datetime
+
+    from .services.prazo_contrato import criar_prazo_contrato
+
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+
+    if request.method != 'POST':
+        return redirect_para_colaborador(pk)
+
+    if colaborador.prazos_contrato.filter(status=PrazoContrato.Status.ATIVO).exists():
+        messages.error(request, 'Já existe um prazo de contrato ativo para este colaborador.')
+        return redirect_para_colaborador(pk)
+
+    tipo = request.POST.get('tipo')
+    data_inicio_str = request.POST.get('data_inicio')
+    data_fim_str = request.POST.get('data_fim')
+
+    tipos_validos = {c[0] for c in PrazoContrato.Tipo.choices}
+    if tipo not in tipos_validos:
+        messages.error(request, 'Tipo de prazo inválido.')
+        return redirect_para_colaborador(pk)
+
+    try:
+        data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+        data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        messages.error(request, 'Datas inválidas.')
+        return redirect_para_colaborador(pk)
+
+    if data_fim <= data_inicio:
+        messages.error(request, 'A data de fim deve ser posterior à data de início.')
+        return redirect_para_colaborador(pk)
+
+    criar_prazo_contrato(colaborador, tipo, data_inicio, data_fim)
+    messages.success(request, 'Prazo de contrato registrado.')
+    return redirect_para_colaborador(pk)

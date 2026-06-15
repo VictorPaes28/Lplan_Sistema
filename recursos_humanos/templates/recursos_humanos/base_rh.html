@@ -4,7 +4,7 @@
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=34">
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=50">
 {% endblock %}
 
 {% block title %}DP / RH — LPLAN{% endblock %}
@@ -44,4 +44,5 @@
   </div>
 </div>
 {% include "recursos_humanos/includes/admissao_nova_modal.html" %}
+{% include "recursos_humanos/includes/prazo_contrato_decisao_modal.html" %}
 {% endblock %}

@@ -262,8 +262,8 @@
     24px
     minmax(0, 2fr)
     minmax(0, 1.5fr)
+    9rem
     10.5rem
-    9.75rem
     2.35rem
     0.5rem;
 }
@@ -274,7 +274,7 @@
     24px
     minmax(0, 2fr)
     minmax(0, 1.5fr)
-    10.5rem
+    9rem
     auto
     2.35rem
     0.5rem;
@@ -355,35 +355,23 @@
   text-overflow: ellipsis;
 }
 
-/* Badge pill — neutro (cor só no ícone) */
+/* Badge pill — mesma lógica de truncamento do resumo (largura fixa da coluna) */
 .notif-badge {
-  display: inline-flex;
-  align-items: center;
+  grid-column: 4;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
   padding: 0.12rem 0.45rem;
   border-radius: 20px;
   font-size: 0.68rem;
   font-weight: 500;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: #f8fafc;
   color: var(--text-muted);
   border: 1px solid var(--border-color);
   box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.notif-row.unread .notif-badge {
-  grid-column: 4;
-  justify-self: start;
-  width: max-content;
-  max-width: 100%;
-}
-
-.notif-badge-slot {
-  grid-column: 4;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
 }
 
 /* Ações compactas */
@@ -581,7 +569,6 @@
   }
 
   .notif-badge,
-  .notif-badge-slot,
   .notif-actions,
   .notif-time,
   .notif-unread-dot {
@@ -681,13 +668,7 @@
 
       <span class="notif-summary" title="{{ notification.message }}">{{ notification.message|truncatechars:80 }}</span>
 
-      {% if t != 'pedido_exclusao_solicitada' and not notification.is_read %}
       <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification.get_notification_type_display }}</span>
-      {% else %}
-      <span class="notif-badge-slot">
-        <span class="notif-badge" title="{{ notification.get_notification_type_display }}">{{ notification.get_notification_type_display }}</span>
-      </span>
-      {% endif %}
 
       <div class="notif-actions">
         {% url 'notification-open' notification.pk as notif_open %}

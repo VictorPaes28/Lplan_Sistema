@@ -3,7 +3,7 @@
   {% if somente_leitura %}
   <div class="rh-etapa-readonly-banner">
     <i class="fas fa-eye" aria-hidden="true"></i>
-    <span>Visualizando etapa anterior (somente leitura). <a href="?id={{ selecionado.pk }}{% if request.GET.page %}&amp;page={{ request.GET.page }}{% endif %}">Voltar à etapa atual</a></span>
+    <span>Visualizando etapa anterior (somente leitura). <a href="?id={{ selecionado.pk }}{% if request.GET.page %}&amp;page={{ request.GET.page }}{% endif %}{% if pendencia_documentos and etapa_fluxo %}&amp;ver_etapa={{ etapa_fluxo }}{% endif %}">Voltar à etapa atual</a></span>
   </div>
   {% endif %}
   {% with etapa=etapa_exibida|default:admissao_ctx.etapa_atual %}
@@ -166,9 +166,21 @@
     </div>
     <div class="rh-etapa-head-actions">
       <span class="rh-doc-coleta-count {% if resumo.completo %}ok{% else %}bad{% endif %}">{{ resumo.recebidos }}/{{ resumo.total }} recebidos</span>
-      <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" disabled title="Em breve">
+      {% if not somente_leitura and not resumo.completo and selecionado.email %}
+      <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-lembrete-form"
+            onsubmit="return confirm('Enviar lembrete por e-mail para {{ selecionado.email }}?');">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="enviar_lembrete">
+        <button type="submit" class="rh-btn rh-btn-outline rh-btn-sm" title="Reenviar e-mail com link do portal">
+          <i class="fas fa-bell" aria-hidden="true"></i> Enviar lembrete
+        </button>
+      </form>
+      {% else %}
+      <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" disabled
+              title="{% if resumo.completo %}Todos os documentos já foram recebidos{% elif not selecionado.email %}Colaborador sem e-mail cadastrado{% else %}Somente leitura{% endif %}">
         <i class="fas fa-bell" aria-hidden="true"></i> Enviar lembrete
       </button>
+      {% endif %}
     </div>
   </div>
 
@@ -190,7 +202,7 @@
       <div class="rh-doc-grupo-body">
         {% for doc in grupo.docs %}
         <div class="rh-doc-item">
-          <div class="rh-doc-row-clean">
+          <div class="rh-doc-row-clean{% if doc.tem_validade and not doc.tem_arquivo and doc.status != 'ok' %} rh-doc-row-with-hint{% endif %}">
             <span class="rh-doc-row-icon rh-doc-row-icon--{{ doc.status }}" aria-hidden="true">
               {% if doc.status == 'ok' %}<i class="fas fa-check-circle"></i>
               {% elif doc.status == 'pending' %}<i class="fas fa-exclamation-circle"></i>
@@ -198,9 +210,37 @@
             </span>
             <div class="rh-doc-row-body">
               <span class="rh-doc-row-name {% if doc.status == 'missing' %}is-muted{% endif %}">{{ doc.nome }}</span>
-              {% if doc.observacao %}<span class="rh-doc-row-hint">{{ doc.observacao }}</span>{% endif %}
+              {% if doc.data_emissao %}
+              <span class="rh-doc-row-hint">
+                Emitido: {{ doc.data_emissao|date:"d/m/Y" }}{% if doc.vencimento %} · Vence: {{ doc.vencimento|date:"d/m/Y" }}{% endif %}
+              </span>
+              {% elif doc.aguardando_aprovacao and doc.tem_validade %}
+              <p class="rh-doc-hint">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                <span>Informe a data de emissão abaixo para aprovar e calcular o vencimento.</span>
+              </p>
+              {% elif doc.tem_validade and not doc.tem_arquivo %}
+              <p class="rh-doc-hint">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                <span>Este documento tem prazo de validade. Informe a data de emissão para calcular o vencimento automaticamente.</span>
+              </p>
+              {% elif doc.observacao %}
+              <span class="rh-doc-row-hint">{{ doc.observacao }}</span>
+              {% endif %}
             </div>
             <div class="rh-doc-row-end">
+              {% if doc.vencido %}
+              <span class="rh-doc-venc-badge rh-doc-venc-badge--expired">Vencido</span>
+              {% elif doc.alerta_vencimento and doc.dias_restantes is not None %}
+              <span class="rh-doc-venc-badge rh-doc-venc-badge--soon">{% if doc.dias_restantes == 0 %}Hoje{% else %}{{ doc.dias_restantes }} dias{% endif %}</span>
+              {% endif %}
+              {% if doc.reenvio_solicitado %}
+              <span class="rh-doc-pill rh-doc-pill--pending">Reenvio solicitado</span>
+              {% endif %}
               {% if doc.tem_arquivo %}
               <a href="{{ doc.arquivo_url }}" class="rh-doc-file-thumb-link" target="_blank" rel="noopener" title="Visualizar {{ doc.arquivo_nome }}">
                 {% if doc.arquivo_is_image %}
@@ -218,9 +258,12 @@
               {% if not somente_leitura %}
               <div class="rh-doc-action-group">
                 {% if doc.aguardando_aprovacao %}
-                <form method="post" action="{% url 'recursos_humanos:documento_aprovar' doc.pk %}" class="rh-doc-action-form">
+                <form method="post" action="{% url 'recursos_humanos:documento_aprovar' doc.pk %}" class="rh-doc-action-form rh-doc-approve-form">
                   {% csrf_token %}
-                  <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}">
+                  <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
+                  {% if doc.tem_validade %}
+                  <input type="date" name="data_emissao" class="rh-input rh-doc-emissao-input" required title="Data de emissão" aria-label="Data de emissão de {{ doc.nome }}">
+                  {% endif %}
                   <button type="submit" class="rh-doc-action-btn rh-doc-action-btn--ok" title="Aprovar documento" aria-label="Aprovar {{ doc.nome }}">
                     <i class="fas fa-check" aria-hidden="true"></i>
                   </button>
@@ -230,20 +273,54 @@
                   data-doc-reject="{{ doc.pk }}" data-doc-nome="{{ doc.nome }}">
                   <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
+                {% if doc.pode_solicitar_reenvio %}
+                <form method="post" action="{% url 'recursos_humanos:documento_solicitar_reenvio' selecionado.pk doc.pk %}" class="rh-doc-reenvio-form" onsubmit="return confirm('Solicitar reenvio deste documento ao colaborador?');">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
+                  <button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button>
+                </form>
+                {% endif %}
               </div>
               {% endif %}
+              {% elif doc.pode_solicitar_reenvio and not somente_leitura %}
+              <form method="post" action="{% url 'recursos_humanos:documento_solicitar_reenvio' selecionado.pk doc.pk %}" class="rh-doc-reenvio-form" onsubmit="return confirm('Solicitar reenvio deste documento ao colaborador?');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
+                <button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button>
+              </form>
               {% elif doc.status != 'ok' and not somente_leitura %}
+              {% if doc.tem_validade %}
+              <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form rh-doc-form-column">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
+                <div class="rh-doc-emissao-field">
+                  <label for="rh-doc-emissao-adm-{{ doc.pk }}">Data de emissão</label>
+                  <input type="date" name="data_emissao" id="rh-doc-emissao-adm-{{ doc.pk }}" required>
+                </div>
+                <div class="rh-doc-actions-row">
+                  <div class="rh-doc-file-picker">
+                    <input type="file" name="arquivo" id="rh-doc-file-adm-{{ doc.pk }}" class="rh-doc-file-input rh-doc-file-input--hidden" required>
+                    <label for="rh-doc-file-adm-{{ doc.pk }}" class="rh-btn rh-btn-upload">
+                      <i class="fas fa-paperclip" aria-hidden="true"></i> Arquivo
+                    </label>
+                  </div>
+                  <button type="submit" class="rh-btn rh-btn-primary rh-btn-upload-submit">Enviar</button>
+                  <span class="rh-doc-filename" id="filename-{{ doc.pk }}"></span>
+                </div>
+              </form>
+              {% else %}
               <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form">
                 {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}">
+                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
                 <label class="rh-btn rh-btn-upload">
                   <i class="fas fa-upload" aria-hidden="true"></i> Upload
                   <input type="file" name="arquivo" class="rh-doc-file-input" required onchange="this.form.submit()">
                 </label>
               </form>
               {% endif %}
-              <span class="rh-doc-pill rh-doc-pill--{% if doc.aguardando_aprovacao %}pending{% else %}{{ doc.status }}{% endif %}">
-                {% if doc.status == 'ok' %}Recebido{% elif doc.aguardando_aprovacao %}Aguardando aprovação{% elif doc.status == 'pending' %}Pendente{% else %}Faltando{% endif %}
+              {% endif %}
+              <span class="rh-doc-pill rh-doc-pill--{% if doc.vencido %}missing{% elif doc.aguardando_aprovacao %}pending{% else %}{{ doc.status }}{% endif %}">
+                {% if doc.vencido %}Vencido{% elif doc.status == 'ok' %}Recebido{% elif doc.aguardando_aprovacao %}Aguardando aprovação{% elif doc.status == 'pending' %}Pendente{% else %}Faltando{% endif %}
               </span>
             </div>
           </div>
@@ -257,6 +334,46 @@
   </div>
 
   {% if not somente_leitura %}
+  <script>
+  (function () {
+    document.querySelectorAll('.rh-doc-upload-form.rh-doc-form-column').forEach(function (form) {
+      var fileInput = form.querySelector('input[type="file"]');
+      var dateInput = form.querySelector('input[type="date"]');
+      var filenameSpan = form.querySelector('.rh-doc-filename');
+      if (!fileInput) return;
+
+      fileInput.addEventListener('change', function () {
+        if (!filenameSpan) return;
+        if (this.files.length > 0) {
+          filenameSpan.textContent = this.files[0].name;
+          filenameSpan.style.display = 'inline';
+        } else {
+          filenameSpan.textContent = '';
+          filenameSpan.style.display = 'none';
+        }
+      });
+
+      form.addEventListener('submit', function (e) {
+        var hasFile = fileInput.files && fileInput.files.length > 0;
+        var hasDate = dateInput && dateInput.value;
+        if (!hasFile && !hasDate) {
+          e.preventDefault();
+          alert('Informe a data de emissão e selecione o arquivo antes de enviar.');
+          return;
+        }
+        if (!hasDate) {
+          e.preventDefault();
+          alert('Informe a data de emissão do documento.');
+          return;
+        }
+        if (!hasFile) {
+          e.preventDefault();
+          alert('Selecione um arquivo antes de enviar.');
+        }
+      });
+    });
+  })();
+  </script>
   <div id="rh-doc-reject-modal" class="rh-doc-reject-modal" hidden>
     <div class="rh-doc-reject-modal__backdrop" data-doc-reject-close></div>
     <div class="rh-doc-reject-modal__panel" role="dialog" aria-modal="true" aria-labelledby="rh-doc-reject-title">
@@ -446,6 +563,16 @@
     <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
   </div>
 
+  {% if ctx.prazo_ativo %}
+  <div class="rh-banner rh-banner-warning" style="margin-top:1rem;">
+    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+    <div>
+      <strong>Prazo de contrato: {{ ctx.prazo_ativo.get_tipo_display }}</strong>
+      <p class="rh-muted">Válido até {{ ctx.prazo_ativo.data_fim|date:"d/m/Y" }} ({{ ctx.prazo_ativo.dias_restantes }} dia(s))</p>
+    </div>
+  </div>
+  {% endif %}
+
   {% if ctx.contrato and ctx.contrato.status == 'concluido' %}
     <div class="rh-banner rh-banner-success rh-banner-lg" style="margin-top:1rem;">
       <i class="fas fa-check-circle" aria-hidden="true"></i>
@@ -493,7 +620,7 @@
       <span class="rh-etapa-kicker">ETAPA 5 › Ativo</span>
       <h3 class="rh-etapa-title">{{ selecionado.nome }}</h3>
     </div>
-    <a href="{% url 'recursos_humanos:colaborador_detalhe' selecionado.pk %}" class="rh-btn rh-btn-outline">Ver perfil</a>
+    <a href="{% url 'recursos_humanos:colaboradores_list' %}?abrir_colaborador={{ selecionado.pk }}" class="rh-btn rh-btn-outline">Ver perfil</a>
   </div>
   <p class="rh-muted">Colaborador ativo na lista de Colaboradores.</p>
   {% else %}

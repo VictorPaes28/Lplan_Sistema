@@ -183,6 +183,7 @@
         <div class="rh-colab-tab-panel" data-colab-panel="profissional" role="tabpanel" hidden>
           <div class="rh-form-grid">
             <div class="rh-form-field"><label for="{{ form_colaborador.cargo.id_for_label }}">Cargo *</label>{{ form_colaborador.cargo }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.cargo_rh.id_for_label }}">Cargo (RH)</label>{{ form_colaborador.cargo_rh }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.status.id_for_label }}">Status</label>{{ form_colaborador.status }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.data_admissao.id_for_label }}">Data de admissão</label>{{ form_colaborador.data_admissao }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.empresa.id_for_label }}">Empresa responsável</label>{{ form_colaborador.empresa }}</div>
@@ -202,6 +203,71 @@
         </div>
       </form>
     </div>
+  </div>
+
+
+
+  <div class="rh-card rh-pad rh-prazo-contrato-section">
+    <h3 class="rh-card-title"><i class="fas fa-file-contract" aria-hidden="true"></i> Prazo de contrato</h3>
+
+    {% if prazo_ativo %}
+    <div class="rh-fields-grid" style="margin-bottom:1rem;">
+      <div>
+        <span class="rh-field-label">Tipo</span>
+        <span class="rh-field-value">{{ prazo_ativo.get_tipo_display }}</span>
+      </div>
+      <div>
+        <span class="rh-field-label">Início</span>
+        <span class="rh-field-value">{{ prazo_ativo.data_inicio|date:"d/m/Y" }}</span>
+      </div>
+      <div>
+        <span class="rh-field-label">Fim</span>
+        <span class="rh-field-value">{{ prazo_ativo.data_fim|date:"d/m/Y" }}</span>
+      </div>
+      <div>
+        <span class="rh-field-label">Dias restantes</span>
+        <span class="rh-field-value">
+          {% with dias=prazo_ativo.dias_restantes %}
+          {% if dias < 0 %}Vencido ({{ dias }} dias){% elif dias == 0 %}Vence hoje{% else %}{{ dias }} dia(s){% endif %}
+          {% endwith %}
+        </span>
+      </div>
+    </div>
+    <button type="button" class="rh-btn rh-btn-primary js-rh-prazo-decidir" data-prazo-pk="{{ prazo_ativo.pk }}">
+      <i class="fas fa-gavel" aria-hidden="true"></i> Decidir
+    </button>
+    {% else %}
+    <p class="rh-muted">Nenhum prazo determinado ativo. Registre um prazo para contratos temporários, estágio, experiência ou PJ.</p>
+    <details class="rh-prazo-registrar-details">
+      <summary class="rh-btn rh-btn-outline" style="display:inline-flex;cursor:pointer;list-style:none;">
+        <i class="fas fa-plus" aria-hidden="true"></i> Registrar prazo determinado
+      </summary>
+      <form method="post" action="{% url 'recursos_humanos:prazo_contrato_criar' colaborador.pk %}" class="rh-form-grid" style="margin-top:1rem;">
+        {% csrf_token %}
+        <div class="rh-form-field">
+          <label for="prazo-tipo">Tipo de prazo</label>
+          <select name="tipo" id="prazo-tipo" class="rh-select" required>
+            <option value="">Selecione...</option>
+            {% for val, label in prazo_tipo_choices %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="rh-form-field">
+          <label for="prazo-inicio">Data de início</label>
+          <input type="date" name="data_inicio" id="prazo-inicio" class="rh-input" required
+            {% if colaborador.data_admissao %}value="{{ colaborador.data_admissao|date:'Y-m-d' }}"{% endif %}>
+        </div>
+        <div class="rh-form-field">
+          <label for="prazo-fim">Data de fim</label>
+          <input type="date" name="data_fim" id="prazo-fim" class="rh-input" required>
+        </div>
+        <div class="rh-form-field-full">
+          <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Salvar prazo</button>
+        </div>
+      </form>
+    </details>
+    {% endif %}
   </div>
 
 

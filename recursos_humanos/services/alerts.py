@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from django.urls import reverse
 from django.utils import timezone
 
 from recursos_humanos.models import Colaborador, DocumentoColaborador
-from recursos_humanos.services.alertas_config import limite_dias_antecedencia_doc, obter_configuracao_alertas
+from recursos_humanos.services.alertas_config import obter_configuracao_alertas
+from recursos_humanos.services.prazo_contrato import prazos_vencendo
 
 
 @dataclass
@@ -22,6 +23,7 @@ class AlertaRH:
     urgencia: str  # red, yellow, green
     acao: str
     url: str
+    acao_extra: dict = field(default_factory=dict)
 
 
 def _urgencia_por_dias(dias: int) -> str:
@@ -38,23 +40,37 @@ def _label_urgencia(urgencia: str) -> str:
     return {'red': 'Urgente', 'yellow': 'Atenção', 'green': 'Informativo'}.get(urgencia, 'Informativo')
 
 
-def _url_colaborador(pk: int) -> str:
-    return reverse('recursos_humanos:colaborador_detalhe', args=[pk])
+def _url_colaborador(pk: int, *, tab: str | None = None) -> str:
+    from urllib.parse import urlencode
+
+    params = {'abrir_colaborador': pk}
+    if tab:
+        params['abrir_colaborador_tab'] = tab
+    url = reverse('recursos_humanos:colaboradores_list')
+    return f'{url}?{urlencode(params)}'
 
 
 def _url_admissao(pk: int) -> str:
     return f"{reverse('recursos_humanos:admissao')}?id={pk}"
 
 
+def _doc_vencido_deve_alertar(dias: int, config) -> bool:
+    """Renotifica documentos vencidos a cada N dias (primeiro dia sempre alerta)."""
+    dias_atraso = abs(dias)
+    n = max(1, config.dias_renotificar_vencidos)
+    if dias_atraso <= 1:
+        return True
+    return dias_atraso % n == 0
+
+
 def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int, config) -> bool:
-    """Regras de negócio: ativos/admissão para vencimentos futuros; vencidos para todos."""
-    if doc.vencimento is None:
+    if doc.vencimento is None or not doc.tipo.tem_validade:
         return False
     if dias < 0:
-        return True
+        return _doc_vencido_deve_alertar(dias, config)
     if doc.colaborador.status == Colaborador.Status.DESLIGADO:
         return False
-    limite = limite_dias_antecedencia_doc(doc.tipo.nome, config)
+    limite = config.dias_antecedencia_documentos
     if doc.status == DocumentoColaborador.Status.RECEBIDO and dias > limite:
         return False
     return doc.colaborador.status in (
@@ -68,9 +84,9 @@ def gerar_alertas() -> list[AlertaRH]:
     config = obter_configuracao_alertas()
     alertas: list[AlertaRH] = []
 
-    docs = DocumentoColaborador.objects.select_related('colaborador', 'tipo').exclude(
-        vencimento__isnull=True,
-    )
+    docs = DocumentoColaborador.objects.select_related('colaborador', 'tipo').filter(
+        tipo__tem_validade=True,
+    ).exclude(vencimento__isnull=True)
     for doc in docs:
         dias = (doc.vencimento - hoje).days
         if not _doc_deve_gerar_alerta(doc, hoje, dias, config):
@@ -97,7 +113,7 @@ def gerar_alertas() -> list[AlertaRH]:
                 dias_restantes=dias,
                 urgencia=_urgencia_por_dias(dias),
                 acao=acao,
-                url=_url_colaborador(doc.colaborador_id),
+                url=_url_colaborador(doc.colaborador_id, tab='documentos'),
             )
         )
 
@@ -148,24 +164,59 @@ def gerar_alertas() -> list[AlertaRH]:
                 )
             )
 
+    for prazo in prazos_vencendo(dias_antecedencia=config.dias_antecedencia_documentos):
+        dias = prazo.dias_restantes()
+        if dias < 0:
+            urgencia = 'red'
+            detalhe = (
+                f'{prazo.get_tipo_display()} vencido há '
+                f'{abs(dias)} dia(s)'
+            )
+        elif dias <= 7:
+            urgencia = 'red'
+            detalhe = f'{prazo.get_tipo_display()} vence em {dias} dia(s)'
+        else:
+            urgencia = 'yellow'
+            detalhe = f'{prazo.get_tipo_display()} vence em {dias} dia(s)'
+
+        alertas.append(
+            AlertaRH(
+                id=f'prazo-{prazo.pk}',
+                colaborador_id=prazo.colaborador_id,
+                colaborador_nome=prazo.colaborador.nome,
+                tipo='Prazo de contrato',
+                detalhe=detalhe,
+                prazo=prazo.data_fim.strftime('%d/%m/%Y'),
+                dias_restantes=dias,
+                urgencia=urgencia,
+                acao='Decidir',
+                url=_url_colaborador(prazo.colaborador_id),
+                acao_extra={'prazo_id': prazo.pk, 'tipo': 'contrato'},
+            )
+        )
+
     alertas.sort(key=lambda a: a.dias_restantes)
     return alertas
 
 
 def contar_alertas() -> int:
-    """Contagem leve para badge nas abas (reutiliza a mesma regra de negócio)."""
+    """Contagem para badge nas abas; respeita notificar_sistema da configuração."""
+    config = obter_configuracao_alertas()
+    if not config.notificar_sistema:
+        return 0
     return len(gerar_alertas())
 
 
 def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
     hoje = timezone.localdate()
     cfg = config or obter_configuracao_alertas()
-    limite_doc = cfg.dias_documento_vencendo
+    limite_doc = cfg.dias_antecedencia_documentos
     vencendo = sum(
         1 for a in alertas if a.tipo == 'Documento vencendo' and 0 <= a.dias_restantes <= limite_doc
     )
     vencidos = sum(1 for a in alertas if a.tipo == 'Documento vencido')
     admissoes = sum(1 for a in alertas if a.tipo == 'Admissão em andamento')
+    contratos = sum(1 for a in alertas if a.tipo == 'Prazo de contrato')
     treinamentos = sum(
         1 for a in alertas
         if a.tipo == 'Documento vencendo'
@@ -179,7 +230,8 @@ def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
         'vencidos': vencidos,
         'treinamentos': treinamentos,
         'admissoes': admissoes,
-        'dias_documento_vencendo': limite_doc,
+        'contratos': contratos,
+        'dias_antecedencia_documentos': limite_doc,
         'total': len(alertas),
         'hoje': hoje,
     }

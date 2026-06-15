@@ -1,0 +1,97 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_breadcrumb %}
+<nav class="rh-breadcrumb" aria-label="Navegação">
+  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <a href="{% url 'recursos_humanos:alertas' %}">Prazos e Alertas</a>
+  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
+  <span class="rh-breadcrumb-current">Decisão de contrato</span>
+</nav>
+{% endblock %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Decisão sobre prazo de contrato</h1>
+      <p class="rh-subtitle">{{ prazo.colaborador.nome }} — {{ prazo.get_tipo_display }}</p>
+    </div>
+    <a href="{% url 'recursos_humanos:colaboradores_list' %}?abrir_colaborador={{ prazo.colaborador.pk }}" class="rh-btn rh-btn-outline">
+      <i class="fas fa-user" aria-hidden="true"></i> Ver perfil
+    </a>
+  </div>
+
+  <div class="rh-card rh-pad" style="margin-bottom:1.25rem;">
+    <div class="rh-info-grid">
+      <div class="rh-info-box">
+        <span class="rh-field-label">Tipo</span>
+        <span class="rh-field-value">{{ prazo.get_tipo_display }}</span>
+      </div>
+      <div class="rh-info-box">
+        <span class="rh-field-label">Vigência</span>
+        <span class="rh-field-value">{{ prazo.data_inicio|date:"d/m/Y" }} a {{ prazo.data_fim|date:"d/m/Y" }}</span>
+      </div>
+      <div class="rh-info-box">
+        <span class="rh-field-label">Renovação</span>
+        <span class="rh-field-value">{% if prazo.renovacao_numero %}Nº {{ prazo.renovacao_numero }}{% else %}Original{% endif %}</span>
+      </div>
+      <div class="rh-info-box">
+        <span class="rh-field-label">Situação</span>
+        <span class="rh-field-value">
+          {% with dias=prazo.dias_restantes %}
+          {% if dias < 0 %}Vencido há {% widthratio dias 1 -1 %} dia(s)
+          {% elif dias == 0 %}Vence hoje
+          {% else %}{{ dias }} dia(s) restantes{% endif %}
+          {% endwith %}
+        </span>
+      </div>
+    </div>
+
+    {% if prazo.limite_legal_dias %}
+    <p class="rh-muted" style="margin-top:1rem;">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
+      Limite legal de referência para {{ prazo.get_tipo_display|lower }}:
+      <strong>{{ prazo.limite_legal_dias }} dias</strong> (desde o início do período original).
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="rh-card rh-pad">
+    <h3 class="rh-card-title">Ações disponíveis</h3>
+    <p class="rh-muted">Escolha a decisão apropriada para este vínculo.</p>
+
+    {% for item in acoes_itens %}
+    <div style="border:1px solid var(--rh-border,#e5e7eb);border-radius:8px;padding:1rem;margin-bottom:1rem;">
+      <h4 style="margin:0 0 0.75rem;">{{ item.label }}</h4>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="{{ item.codigo }}">
+
+        {% if item.codigo == 'prorrogar' or item.codigo == 'renovar' %}
+        <label class="rh-form-field">
+          <span>Nova data de fim <span class="rh-required">*</span></span>
+          <input type="date" name="nova_data_fim" class="rh-input" required min="{{ prazo.data_fim|date:'Y-m-d' }}">
+        </label>
+        {% endif %}
+
+        {% if item.codigo == 'desligar' or item.codigo == 'encerrar' %}
+        <label class="rh-form-field">
+          <span>Motivo {% if item.codigo == 'desligar' %}<span class="rh-required">*</span>{% endif %}</span>
+          <textarea name="motivo" class="rh-input rh-textarea" rows="2" maxlength="500" {% if item.codigo == 'desligar' %}required{% endif %} placeholder="Descreva o motivo..."></textarea>
+        </label>
+        {% endif %}
+
+        <button type="submit" class="rh-btn {% if item.codigo == 'desligar' or item.codigo == 'encerrar' %}rh-btn-danger{% else %}rh-btn-primary{% endif %}" style="margin-top:0.5rem;">
+          {% if item.codigo == 'efetivar' %}<i class="fas fa-user-check" aria-hidden="true"></i>
+          {% elif item.codigo == 'converter' %}<i class="fas fa-exchange-alt" aria-hidden="true"></i>
+          {% elif item.codigo == 'prorrogar' or item.codigo == 'renovar' %}<i class="fas fa-calendar-plus" aria-hidden="true"></i>
+          {% else %}<i class="fas fa-times-circle" aria-hidden="true"></i>{% endif %}
+          Confirmar
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

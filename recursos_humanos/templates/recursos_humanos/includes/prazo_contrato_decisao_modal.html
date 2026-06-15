@@ -1,0 +1,31 @@
+{% load static %}
+<div id="modal-prazo-decisao" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-prazo-decisao" role="dialog" aria-labelledby="modal-prazo-decisao-title">
+    <header class="modal-rh-header modal-rh-header-decisao">
+      <div class="modal-rh-header-top">
+        <div>
+          <h2 id="modal-prazo-decisao-title" class="modal-rh-title">Decisão sobre prazo de contrato</h2>
+          <p class="modal-rh-subtitle" id="modal-prazo-decisao-subtitle"></p>
+        </div>
+        <button type="button" class="modal-rh-close js-prazo-decisao-close" aria-label="Fechar">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+    <hr class="modal-rh-divider" aria-hidden="true">
+    <div class="modal-rh-body modal-rh-body-prazo-decisao" id="modal-prazo-decisao-body">
+      <p class="rh-muted rh-prazo-decisao-loading">Carregando...</p>
+    </div>
+    <footer class="modal-rh-footer modal-rh-footer-prazo-decisao">
+      <button type="button" class="rh-btn rh-btn-outline js-prazo-decisao-close">Fechar</button>
+      <a href="#" id="modal-prazo-decisao-perfil" class="rh-btn rh-btn-primary" hidden>
+        <i class="fas fa-user" aria-hidden="true"></i>
+        <span>Ver perfil</span>
+      </a>
+    </footer>
+  </div>
+</div>
+<script>
+window.RH_PRAZO_DECISAO_JSON_TMPL = "{% url 'recursos_humanos:prazo_contrato_decisao_json' 12345 %}".replace('12345', '{pk}');
+</script>
+<script src="{% static 'recursos_humanos/js/prazo_decisao_modal.js' %}?v=7"></script>

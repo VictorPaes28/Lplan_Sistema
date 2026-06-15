@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
 
-from recursos_humanos.models import Colaborador, ContratoAdmissao, DocumentoColaborador
+from recursos_humanos.models import Colaborador, ContratoAdmissao, DocumentoColaborador, PrazoContrato
 
 
 @dataclass
@@ -18,12 +18,20 @@ class DocGrupoItem:
     status: str  # ok | pending | missing
     observacao: str = ''
     tem_arquivo: bool = False
+    tem_validade: bool = False
+    data_emissao: object = None
+    vencimento: object = None
     arquivo_url: str = ''
     arquivo_nome: str = ''
     arquivo_is_image: bool = False
     arquivo_is_pdf: bool = False
     arquivo_icon: str = 'fa-file'
     aguardando_aprovacao: bool = False
+    reenvio_solicitado: bool = False
+    vencido: bool = False
+    alerta_vencimento: bool = False
+    dias_restantes: int | None = None
+    pode_solicitar_reenvio: bool = False
 
 
 @dataclass
@@ -63,7 +71,13 @@ GRUPOS_META = (
 
 
 def _status_ui(doc: DocumentoColaborador) -> str:
+    from recursos_humanos.services.documentos import documento_esta_vencido
+
+    if doc.reenvio_solicitado:
+        return 'pending'
     if doc.status == DocumentoColaborador.Status.RECEBIDO:
+        if documento_esta_vencido(doc):
+            return 'missing'
         return 'ok'
     if doc.status == DocumentoColaborador.Status.PENDENTE:
         return 'pending'
@@ -93,6 +107,12 @@ def _meta_arquivo_doc(doc: DocumentoColaborador) -> dict:
 
 
 def _observacao_padrao(doc: DocumentoColaborador) -> str:
+    from recursos_humanos.services.documentos import documento_esta_vencido
+
+    if doc.reenvio_solicitado:
+        return 'Reenvio solicitado — aguardando novo arquivo do colaborador'
+    if documento_esta_vencido(doc):
+        return 'Documento vencido — solicite reenvio ao colaborador'
     if doc.observacao:
         return doc.observacao
     nome = doc.tipo.nome.lower()
@@ -133,11 +153,19 @@ def _categoria_documento(nome: str) -> str:
 
 
 def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
+    from recursos_humanos.services.documentos import (
+        documento_alerta_vencimento,
+        documento_dias_restantes,
+        documento_esta_vencido,
+        documento_elegivel_reenvio,
+    )
+
     buckets: dict[str, list[DocGrupoItem]] = {g[0]: [] for g in GRUPOS_META}
     docs = colaborador.documentos.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
     for doc in docs:
         cat = _categoria_documento(doc.tipo.nome)
         meta = _meta_arquivo_doc(doc)
+        elegivel_reenvio, _ = documento_elegivel_reenvio(doc)
         buckets[cat].append(
             DocGrupoItem(
                 pk=doc.pk,
@@ -145,6 +173,9 @@ def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
                 status=_status_ui(doc),
                 observacao=_observacao_padrao(doc),
                 tem_arquivo=bool(doc.arquivo),
+                tem_validade=doc.tipo.tem_validade,
+                data_emissao=doc.data_emissao,
+                vencimento=doc.vencimento,
                 arquivo_url=meta.get('url', ''),
                 arquivo_nome=meta.get('nome', ''),
                 arquivo_is_image=meta.get('is_image', False),
@@ -154,6 +185,11 @@ def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
                     bool(doc.arquivo)
                     and doc.status == DocumentoColaborador.Status.PENDENTE
                 ),
+                reenvio_solicitado=doc.reenvio_solicitado,
+                vencido=documento_esta_vencido(doc),
+                alerta_vencimento=documento_alerta_vencimento(doc),
+                dias_restantes=documento_dias_restantes(doc),
+                pode_solicitar_reenvio=elegivel_reenvio,
             )
         )
 
@@ -287,7 +323,11 @@ def checklist_aprovacao_rh(colaborador: Colaborador) -> list[dict]:
     for doc in docs:
         meta = _meta_arquivo_doc(doc)
         hint = _checklist_hint_documento(doc, hoje)
-        ok = doc.status == DocumentoColaborador.Status.RECEBIDO and not hint
+        ok = (
+            doc.status == DocumentoColaborador.Status.RECEBIDO
+            and not hint
+            and not doc.reenvio_solicitado
+        )
         out.append({
             'label': doc.tipo.nome,
             'ok': ok,
@@ -321,6 +361,9 @@ def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
         contrato = colaborador.contrato_admissao
     except ContratoAdmissao.DoesNotExist:
         contrato = None
+    prazo_ativo = colaborador.prazos_contrato.filter(
+        status=PrazoContrato.Status.ATIVO,
+    ).first()
     return {
         'tipo_contrato': colaborador.tipo_contrato or 'CLT',
         'cargo': colaborador.cargo,
@@ -328,6 +371,7 @@ def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
         'data_inicio': inicio,
         'salario': formatar_salario_br(colaborador.salario),
         'contrato': contrato,
+        'prazo_ativo': prazo_ativo,
     }
 
 

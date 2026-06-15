@@ -28,7 +28,7 @@
 
       <h1 class="portal-greeting">Olá, {{ colaborador.nome }}!</h1>
 
-      <p class="portal-sub">Complete seus dados e envie os documentos para finalizar sua admissão.</p>
+      <p class="portal-sub">{% if portal_modo_reenvio %}Reenvie os documentos solicitados pelo RH pelo link abaixo.{% else %}Complete seus dados e envie os documentos para finalizar sua admissão.{% endif %}</p>
 
     </header>
 
@@ -212,7 +212,83 @@
 
       <div class="portal-doc-item">
 
-        {% if doc.status == 'received' %}
+        {% if doc.reenvio_solicitado %}
+
+        <div class="portal-doc-icon pending" aria-hidden="true"><i class="fas fa-redo"></i></div>
+
+        <div class="portal-doc-body">
+
+          <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+
+          <p class="portal-doc-status">Reenvio solicitado — envie um novo arquivo{% if doc.tipo.obrigatorio %} · Obrigatório{% endif %}</p>
+
+        </div>
+
+        {% if doc.portal_arquivo %}
+
+        <div class="portal-doc-file-actions">
+
+          <a href="{{ doc.portal_arquivo.url }}" class="portal-file-thumb-link" target="_blank" rel="noopener" title="Arquivo atual: {{ doc.portal_arquivo.nome }}">
+
+            {% if doc.portal_arquivo.is_image %}
+
+            <img src="{{ doc.portal_arquivo.url }}" alt="{{ doc.portal_arquivo.nome }}" class="portal-file-thumb">
+
+            {% elif doc.portal_arquivo.is_pdf %}
+
+            <span class="portal-file-thumb portal-file-thumb--pdf">
+
+              <iframe src="{{ doc.portal_arquivo.url }}" title="{{ doc.portal_arquivo.nome }}" tabindex="-1"></iframe>
+
+            </span>
+
+            {% else %}
+
+            <span class="portal-file-thumb portal-file-thumb--icon">
+
+              <i class="fas {{ doc.portal_arquivo.icon }}" aria-hidden="true"></i>
+
+            </span>
+
+            {% endif %}
+
+          </a>
+
+        </div>
+
+        {% endif %}
+
+        <form method="post" action="{% url 'recursos_humanos:portal_upload' token doc.pk %}" enctype="multipart/form-data" class="portal-upload-form">
+
+          {% csrf_token %}
+
+          <input type="file" name="arquivo" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+
+          <div class="portal-doc-file-actions portal-is-hidden" data-role="selected">
+
+            <a href="#" class="portal-file-thumb-link" target="_blank" rel="noopener" data-role="thumb-link" title="Visualizar arquivo">
+
+              <span data-role="thumb"></span>
+
+            </a>
+
+            <button type="button" class="portal-file-remove" data-role="clear" aria-label="Remover arquivo" title="Remover">
+
+              <i class="fas fa-times" aria-hidden="true"></i>
+
+            </button>
+
+          </div>
+
+          <button type="button" class="portal-upload-btn" data-role="picker">
+
+            <i class="fas fa-upload" aria-hidden="true"></i> Enviar novo
+
+          </button>
+
+        </form>
+
+        {% elif doc.status == 'received' %}
 
         <div class="portal-doc-icon done" aria-hidden="true"><i class="fas fa-check"></i></div>
 

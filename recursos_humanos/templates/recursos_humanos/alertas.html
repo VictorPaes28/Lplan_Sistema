@@ -25,7 +25,7 @@
       <i class="fas fa-clock" aria-hidden="true"></i>
       <div>
         <strong>{{ resumo.vencendo }}</strong>
-        <span>Documentos vencendo ({{ resumo.dias_documento_vencendo }} dias)</span>
+        <span>Documentos vencendo ({{ resumo.dias_antecedencia_documentos }} dias)</span>
       </div>
     </div>
     <div class="rh-summary-card rh-summary-red">
@@ -39,6 +39,10 @@
     <div class="rh-summary-card rh-summary-green">
       <i class="fas fa-user-plus" aria-hidden="true"></i>
       <div><strong>{{ resumo.admissoes }}</strong><span>Admissões em andamento</span></div>
+    </div>
+    <div class="rh-summary-card rh-summary-orange">
+      <i class="fas fa-file-contract" aria-hidden="true"></i>
+      <div><strong>{{ resumo.contratos }}</strong><span>Prazos de contrato</span></div>
     </div>
   </div>
 
@@ -69,7 +73,11 @@
             {% if a.urgencia == 'red' %}Urgente{% elif a.urgencia == 'yellow' %}Atenção{% else %}Informativo{% endif %}
           </span>
         </div>
+        {% if a.acao_extra.tipo == 'contrato' %}
+        <button type="button" class="rh-alert-action js-rh-prazo-decidir" data-prazo-pk="{{ a.acao_extra.prazo_id }}">Decidir <i class="fas fa-gavel" aria-hidden="true"></i></button>
+        {% else %}
         <a href="{{ a.url }}" class="rh-alert-action">{{ a.acao }} <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+        {% endif %}
       </div>
       {% empty %}
       <p class="rh-empty rh-pad">Nenhum alerta no momento.</p>
@@ -97,11 +105,11 @@
           <h3>Antecedência dos alertas</h3>
           <div class="rh-alertas-antecedencia-list">
             <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_documento_vencendo">Documentos com vencimento próximo</label>
+              <label for="id_dias_antecedencia_documentos">Documentos e prazos de contrato — avisar com antecedência</label>
               <div class="rh-alertas-antecedencia-control">
                 <div class="rh-days-field">
-                  <input type="number" name="dias_documento_vencendo" id="id_dias_documento_vencendo"
-                         class="rh-input rh-input-days" min="1" max="365" value="{{ config_alertas.dias_documento_vencendo }}" required>
+                  <input type="number" name="dias_antecedencia_documentos" id="id_dias_antecedencia_documentos"
+                         class="rh-input rh-input-days" min="1" max="365" value="{{ config_alertas.dias_antecedencia_documentos }}" required>
                   <div class="rh-days-spin" aria-hidden="true">
                     <button type="button" class="rh-days-spin-btn" data-dir="up" tabindex="-1" aria-label="Aumentar dias">
                       <i class="fas fa-chevron-up" aria-hidden="true"></i>
@@ -115,11 +123,11 @@
               </div>
             </div>
             <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_treinamento_vencer">Treinamentos a vencer</label>
+              <label for="id_dias_renotificar_vencidos">Documentos vencidos — renotificar a cada</label>
               <div class="rh-alertas-antecedencia-control">
                 <div class="rh-days-field">
-                  <input type="number" name="dias_treinamento_vencer" id="id_dias_treinamento_vencer"
-                         class="rh-input rh-input-days" min="1" max="365" value="{{ config_alertas.dias_treinamento_vencer }}" required>
+                  <input type="number" name="dias_renotificar_vencidos" id="id_dias_renotificar_vencidos"
+                         class="rh-input rh-input-days" min="1" max="90" value="{{ config_alertas.dias_renotificar_vencidos }}" required>
                   <div class="rh-days-spin" aria-hidden="true">
                     <button type="button" class="rh-days-spin-btn" data-dir="up" tabindex="-1" aria-label="Aumentar dias">
                       <i class="fas fa-chevron-up" aria-hidden="true"></i>
@@ -129,43 +137,7 @@
                     </button>
                   </div>
                 </div>
-                <span class="rh-alertas-antecedencia-suffix">dias antes</span>
-              </div>
-            </div>
-            <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_renovacao_aso">Renovação de ASO</label>
-              <div class="rh-alertas-antecedencia-control">
-                <div class="rh-days-field">
-                  <input type="number" name="dias_renovacao_aso" id="id_dias_renovacao_aso"
-                         class="rh-input rh-input-days" min="1" max="365" value="{{ config_alertas.dias_renovacao_aso }}" required>
-                  <div class="rh-days-spin" aria-hidden="true">
-                    <button type="button" class="rh-days-spin-btn" data-dir="up" tabindex="-1" aria-label="Aumentar dias">
-                      <i class="fas fa-chevron-up" aria-hidden="true"></i>
-                    </button>
-                    <button type="button" class="rh-days-spin-btn" data-dir="down" tabindex="-1" aria-label="Diminuir dias">
-                      <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                </div>
-                <span class="rh-alertas-antecedencia-suffix">dias antes</span>
-              </div>
-            </div>
-            <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_renotificar_vencido">Documentos vencidos — renotificar</label>
-              <div class="rh-alertas-antecedencia-control">
-                <div class="rh-days-field">
-                  <input type="number" name="dias_renotificar_vencido" id="id_dias_renotificar_vencido"
-                         class="rh-input rh-input-days" min="1" max="90" value="{{ config_alertas.dias_renotificar_vencido }}" required>
-                  <div class="rh-days-spin" aria-hidden="true">
-                    <button type="button" class="rh-days-spin-btn" data-dir="up" tabindex="-1" aria-label="Aumentar dias">
-                      <i class="fas fa-chevron-up" aria-hidden="true"></i>
-                    </button>
-                    <button type="button" class="rh-days-spin-btn" data-dir="down" tabindex="-1" aria-label="Diminuir dias">
-                      <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                </div>
-                <span class="rh-alertas-antecedencia-suffix">dias antes</span>
+                <span class="rh-alertas-antecedencia-suffix">dias</span>
               </div>
             </div>
           </div>
@@ -175,26 +147,19 @@
           <h3>Canais de notificação</h3>
           <div class="rh-alertas-check-grid">
             <label class="rh-alertas-check-card">
-              <input type="checkbox" name="canal_email_rh" {% if config_alertas.canal_email_rh %}checked{% endif %}>
-              E-mail para o RH
+              <input type="checkbox" name="notificar_email" {% if config_alertas.notificar_email %}checked{% endif %}>
+              E-mail para os responsáveis
             </label>
             <label class="rh-alertas-check-card">
-              <input type="checkbox" name="canal_notificacao_sistema" {% if config_alertas.canal_notificacao_sistema %}checked{% endif %}>
+              <input type="checkbox" name="notificar_sistema" {% if config_alertas.notificar_sistema %}checked{% endif %}>
               Notificação no sistema (badge/painel)
-            </label>
-            <label class="rh-alertas-check-card">
-              <input type="checkbox" name="canal_whatsapp_gestor" {% if config_alertas.canal_whatsapp_gestor %}checked{% endif %}>
-              WhatsApp para o gestor responsável
-            </label>
-            <label class="rh-alertas-check-card">
-              <input type="checkbox" name="canal_relatorio_pdf_semanal" {% if config_alertas.canal_relatorio_pdf_semanal %}checked{% endif %}>
-              Relatório semanal em PDF por e-mail
             </label>
           </div>
         </section>
 
         <section class="rh-alertas-config-section">
           <h3>Responsáveis por receber alertas</h3>
+          <p class="rh-muted rh-alertas-config-hint">Estes usuários recebem o e-mail com os alertas, se o canal de e-mail estiver ativo.</p>
           <div class="rh-alertas-check-grid">
             {% for u in usuarios_alertas %}
             <label class="rh-alertas-check-card">

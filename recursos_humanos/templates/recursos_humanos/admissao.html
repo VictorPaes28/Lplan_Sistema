@@ -29,7 +29,7 @@
   <div class="rh-admission-layout">
     <aside class="rh-admission-sidebar" aria-label="Admissões">
       {% for adm in admissoes %}
-      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}{% if adm.etapa_admissao >= 5 and adm.status == 'ativo' %} is-concluida{% endif %}">
+      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}{% if adm.admissao_concluida_flag %} is-concluida{% elif adm.admissao_pendencia_flag %} is-pendencia{% endif %}">
         <strong class="rh-admission-card-name">{{ adm.nome }}</strong>
         <span class="rh-admission-card-meta">
           {{ adm.cargo }}{% if adm.obras.all %} · {% for obra in adm.obras.all %}{{ obra.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
@@ -41,8 +41,10 @@
             {% endfor %}
           </div>
           <span class="rh-admission-card-stage">
-            {% if adm.etapa_admissao >= 5 and adm.status == 'ativo' %}
+            {% if adm.admissao_concluida_flag %}
               Concluída
+            {% elif adm.admissao_pendencia_flag %}
+              Docs pendentes
             {% elif adm.etapa_admissao == 1 and not adm.requisicao_aprovada_gestor and not adm.requisicao_reprovada %}
               Aguard. gestor
             {% else %}
@@ -77,6 +79,15 @@
           <p class="rh-muted">{{ selecionado.nome }} está ativo. Este registro permanece no fluxo para consulta do histórico.</p>
         </div>
       </div>
+      {% elif pendencia_documentos %}
+      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <div>
+          <strong>Documentação pendente</strong>
+          <p class="rh-muted">Há documentos faltando, vencidos, aguardando reenvio ou aprovação do RH. Acesse a etapa <strong>Coleta de Docs</strong> para tratar.</p>
+        </div>
+        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}&amp;ver_etapa=2" class="rh-btn rh-btn-outline">Ir para Coleta de Docs</a>
+      </div>
       {% elif selecionado.etapa_admissao == 1 and not selecionado.requisicao_aprovada_gestor and not selecionado.requisicao_reprovada and admissao_ctx.etapa_1.pode_aprovar %}
       <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
         <i class="fas fa-user-check" aria-hidden="true"></i>
@@ -103,40 +114,42 @@
       </div>
       {% endif %}
       <div class="rh-stepper" aria-label="Etapas da admissão">
-        {% for num, label in etapas %}
-        {% if num <= selecionado.etapa_admissao %}
-        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if num != selecionado.etapa_admissao %}&amp;ver_etapa={{ num }}{% endif %}"
-           class="rh-stepper-item rh-stepper-item--link {% if selecionado.etapa_admissao > num %}is-done{% elif selecionado.etapa_admissao == num and not somente_leitura %}is-current{% elif etapa_exibida == num %}is-viewing{% endif %}">
+        {% for step in etapas_stepper %}
+        {% if step.acessivel %}
+        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if step.num != etapa_fluxo %}&amp;ver_etapa={{ step.num }}{% endif %}"
+           class="rh-stepper-item rh-stepper-item--link {% if step.concluida %}is-done{% elif step.atual %}is-current is-pending{% elif step.visualizando %}is-viewing{% elif selecionado.etapa_admissao == step.num %}is-current{% endif %}">
           <div class="rh-stepper-node" aria-hidden="true">
-            {% if selecionado.etapa_admissao > num %}
+            {% if step.concluida %}
             <i class="fas fa-check"></i>
-            {% elif num == 1 %}
+            {% elif step.atual %}
+            <i class="fas fa-exclamation"></i>
+            {% elif step.num == 1 %}
             <i class="fas fa-clipboard-list"></i>
-            {% elif num == 2 %}
+            {% elif step.num == 2 %}
             <i class="fas fa-file-alt"></i>
-            {% elif num == 3 %}
+            {% elif step.num == 3 %}
             <i class="fas fa-shield-alt"></i>
-            {% elif num == 4 %}
+            {% elif step.num == 4 %}
             <i class="fas fa-pen"></i>
             {% else %}
             <i class="fas fa-user-check"></i>
             {% endif %}
           </div>
-          <span class="rh-stepper-label">{{ label }}</span>
+          <span class="rh-stepper-label">{{ step.label }}</span>
         </a>
         {% else %}
         <div class="rh-stepper-item is-future">
           <div class="rh-stepper-node" aria-hidden="true">
-            {% if num == 1 %}<i class="fas fa-clipboard-list"></i>
-            {% elif num == 2 %}<i class="fas fa-file-alt"></i>
-            {% elif num == 3 %}<i class="fas fa-shield-alt"></i>
-            {% elif num == 4 %}<i class="fas fa-pen"></i>
+            {% if step.num == 1 %}<i class="fas fa-clipboard-list"></i>
+            {% elif step.num == 2 %}<i class="fas fa-file-alt"></i>
+            {% elif step.num == 3 %}<i class="fas fa-shield-alt"></i>
+            {% elif step.num == 4 %}<i class="fas fa-pen"></i>
             {% else %}<i class="fas fa-user-check"></i>{% endif %}
           </div>
-          <span class="rh-stepper-label">{{ label }}</span>
+          <span class="rh-stepper-label">{{ step.label }}</span>
         </div>
         {% endif %}
-        {% if not forloop.last %}<div class="rh-stepper-connector {% if selecionado.etapa_admissao > num %}is-done{% endif %}" aria-hidden="true"></div>{% endif %}
+        {% if not forloop.last %}<div class="rh-stepper-connector {% if step.concluida %}is-done{% endif %}" aria-hidden="true"></div>{% endif %}
         {% endfor %}
       </div>
 

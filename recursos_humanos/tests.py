@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -39,11 +39,12 @@ class AlertasRHTests(TestCase):
         )
 
     def test_vencido_desligado_aparece_em_alertas(self):
+        ontem = timezone.localdate() - timedelta(days=1)
         DocumentoColaborador.objects.create(
             colaborador=self.colab_desligado,
             tipo=self.tipo,
             status=DocumentoColaborador.Status.RECEBIDO,
-            vencimento=date(2020, 1, 1),
+            vencimento=ontem,
         )
         tipos = {a.tipo for a in gerar_alertas() if a.colaborador_id == self.colab_desligado.pk}
         self.assertIn('Documento vencido', tipos)
@@ -58,6 +59,21 @@ class AlertasRHTests(TestCase):
         self.assertEqual(self.colab_ativo.proximo_prazo(), date(2020, 1, 1))
         self.assertLess(self.colab_ativo.dias_proximo_prazo(), 0)
 
+    def test_alerta_documento_abre_modal_na_aba_documentos(self):
+        future = timezone.localdate() + timedelta(days=20)
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab_ativo,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            vencimento=future,
+        )
+        alertas = [
+            a for a in gerar_alertas()
+            if a.colaborador_id == self.colab_ativo.pk and a.acao == 'Agendar'
+        ]
+        self.assertEqual(len(alertas), 1)
+        self.assertIn('abrir_colaborador_tab=documentos', alertas[0].url)
+
     def test_admissao_etapa_3_gera_alerta_mesmo_com_docs_ok(self):
         colab = Colaborador.objects.create(
             nome='Ricardo Teste',
@@ -71,6 +87,144 @@ class AlertasRHTests(TestCase):
         self.assertEqual(len(alertas_adm), 1)
         self.assertIn('aprovação', alertas_adm[0].detalhe.lower())
         self.assertIn(f'id={colab.pk}', alertas_adm[0].url)
+
+
+class ConfiguracaoAlertasTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.user = User.objects.create_user(
+            'rh_config',
+            password='test',
+            email='rh_config@example.com',
+            is_staff=True,
+        )
+        self.user.groups.add(grupo)
+        self.tipo = TipoDocumento.objects.create(nome='ASO Teste', tem_validade=True, ordem=1)
+        self.colab = Colaborador.objects.create(
+            nome='Config Teste',
+            cpf='777.777.777-77',
+            cargo='Pedreiro',
+            status=Colaborador.Status.ATIVO,
+        )
+
+    def test_singleton_criado_com_defaults(self):
+        from recursos_humanos.models import ConfiguracaoAlertasRH
+        from recursos_humanos.services.alertas_config import obter_configuracao_alertas
+
+        ConfiguracaoAlertasRH.objects.all().delete()
+        config = obter_configuracao_alertas()
+        self.assertEqual(config.pk, 1)
+        self.assertEqual(config.dias_antecedencia_documentos, 30)
+        self.assertEqual(config.dias_renotificar_vencidos, 7)
+        self.assertTrue(config.notificar_email)
+        self.assertTrue(config.notificar_sistema)
+
+    def test_antecedencia_configuravel(self):
+        from recursos_humanos.models import ConfiguracaoAlertasRH
+
+        config = ConfiguracaoAlertasRH.get_solo()
+        config.dias_antecedencia_documentos = 10
+        config.save()
+
+        tipo_b = TipoDocumento.objects.create(nome='NR Teste', tem_validade=True, ordem=2)
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            vencimento=timezone.localdate() + timedelta(days=20),
+        )
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=tipo_b,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            vencimento=timezone.localdate() + timedelta(days=5),
+        )
+        alertas = [a for a in gerar_alertas() if a.colaborador_id == self.colab.pk]
+        self.assertEqual(len(alertas), 1)
+        self.assertEqual(alertas[0].dias_restantes, 5)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}},
+    )
+    def test_envia_email_agrupado_para_responsavel(self):
+        from django.core import mail
+        from django.core.cache import cache
+
+        from recursos_humanos.models import ConfiguracaoAlertasRH
+        from recursos_humanos.services.alertas_email import enviar_emails_alertas_diarios
+
+        cache.clear()
+        config = ConfiguracaoAlertasRH.get_solo()
+        config.notificar_email = True
+        config.save()
+        config.responsaveis.set([self.user])
+
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            vencimento=timezone.localdate() + timedelta(days=5),
+        )
+        alertas = gerar_alertas()
+        enviados = enviar_emails_alertas_diarios(alertas)
+
+        self.assertEqual(enviados, 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['rh_config@example.com'])
+        self.assertIn('Config Teste', mail.outbox[0].body)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}},
+    )
+    def test_nao_envia_email_quando_desativado(self):
+        from django.core import mail
+        from django.core.cache import cache
+
+        from recursos_humanos.models import ConfiguracaoAlertasRH
+        from recursos_humanos.services.alertas_email import enviar_emails_alertas_diarios
+
+        cache.clear()
+        config = ConfiguracaoAlertasRH.get_solo()
+        config.notificar_email = False
+        config.save()
+        config.responsaveis.set([self.user])
+
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            vencimento=timezone.localdate() + timedelta(days=5),
+        )
+        enviar_emails_alertas_diarios(gerar_alertas())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_view_configuracao_salva_campos(self):
+        staff = User.objects.create_user(
+            'staff_alertas',
+            password='test',
+            email='staff@example.com',
+            is_staff=True,
+        )
+        self.client.force_login(self.user)
+        url = reverse('recursos_humanos:alertas_configurar')
+        resp = self.client.post(url, {
+            'dias_antecedencia_documentos': '15',
+            'dias_renotificar_vencidos': '3',
+            'notificar_email': 'on',
+            'responsaveis': [str(staff.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        from recursos_humanos.models import ConfiguracaoAlertasRH
+
+        config = ConfiguracaoAlertasRH.get_solo()
+        self.assertEqual(config.dias_antecedencia_documentos, 15)
+        self.assertEqual(config.dias_renotificar_vencidos, 3)
+        self.assertTrue(config.notificar_email)
+        self.assertFalse(config.notificar_sistema)
+        self.assertEqual(list(config.responsaveis.values_list('pk', flat=True)), [staff.pk])
 
 
 class ColaboradoresListTests(TestCase):
@@ -555,6 +709,8 @@ class AdmissaoWriteTests(TestCase):
         self.assertEqual(colab.etapa_admissao, 2)
 
     def test_admissao_concluida_permanece_no_fluxo(self):
+        from unittest.mock import patch
+
         colab = Colaborador.objects.create(
             nome='Concluido Fluxo',
             cpf='505.505.505-50',
@@ -563,8 +719,390 @@ class AdmissaoWriteTests(TestCase):
             etapa_admissao=5,
             data_admissao=timezone.localdate(),
         )
+        tipo = TipoDocumento.objects.create(nome='Doc OK', ordem=99, obrigatorio=True)
+        DocumentoColaborador.objects.create(
+            colaborador=colab,
+            tipo=tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+        )
         self.client.force_login(self.user)
-        resp = self.client.get(reverse('recursos_humanos:admissao'), {'id': colab.pk})
+        with patch('recursos_humanos.views.instanciar_documentos'):
+            resp = self.client.get(reverse('recursos_humanos:admissao'), {'id': colab.pk})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Concluido Fluxo')
         self.assertContains(resp, 'Admissão concluída')
+
+
+class SolicitarReenvioDocumentoTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.user = User.objects.create_user('rh_reenvio', password='test')
+        self.user.groups.add(grupo)
+        self.tipo = TipoDocumento.objects.create(
+            nome='ASO Reenvio',
+            tem_validade=True,
+            dias_validade=365,
+            ordem=1,
+        )
+        self.colab = Colaborador.objects.create(
+            nome='Colab Reenvio',
+            cpf='707.707.707-70',
+            email='reenvio@example.com',
+            cargo='Pedreiro',
+            status=Colaborador.Status.ATIVO,
+        )
+        self.colab.gerar_token_portal(dias=30)
+        self.doc = DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.RECEBIDO,
+            data_emissao=date(2024, 1, 1),
+            vencimento=timezone.localdate() - timedelta(days=5),
+        )
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_solicitar_reenvio_mantem_arquivo_e_envia_email(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.core import mail
+        from recursos_humanos.services.documentos import solicitar_reenvio_documento
+
+        self.doc.arquivo.save('aso.pdf', SimpleUploadedFile('aso.pdf', b'pdf'), save=True)
+        ok, _ = solicitar_reenvio_documento(self.doc, self.user)
+        self.assertTrue(ok)
+        self.doc.refresh_from_db()
+        self.assertEqual(self.doc.status, DocumentoColaborador.Status.RECEBIDO)
+        self.assertTrue(self.doc.reenvio_solicitado)
+        self.assertTrue(self.doc.arquivo)
+        self.assertIsNotNone(self.doc.vencimento)
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_view_solicitar_reenvio_redireciona_com_modal(self):
+        self.client.force_login(self.user)
+        url = reverse(
+            'recursos_humanos:documento_solicitar_reenvio',
+            kwargs={'pk': self.colab.pk, 'doc_pk': self.doc.pk},
+        )
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('abrir_colaborador=' + str(self.colab.pk), resp.url)
+        self.doc.refresh_from_db()
+        self.assertTrue(self.doc.reenvio_solicitado)
+
+    def test_etapa_fluxo_pendente_vai_para_coleta(self):
+        from recursos_humanos.services.documentos import etapa_fluxo_efetiva
+
+        self.colab.etapa_admissao = 5
+        self.colab.save(update_fields=['etapa_admissao'])
+        self.doc.status = DocumentoColaborador.Status.PENDENTE
+        self.doc.save(update_fields=['status'])
+        self.assertEqual(etapa_fluxo_efetiva(self.colab), 2)
+
+    def test_documento_faltando_obrigatorio_impede_admissao_concluida(self):
+        from recursos_humanos.services.admissao_actions import colaborador_admissao_concluida
+
+        self.tipo.obrigatorio = True
+        self.tipo.save(update_fields=['obrigatorio'])
+        self.doc.status = DocumentoColaborador.Status.FALTANDO
+        self.doc.observacao = 'Rejeitado pelo RH'
+        self.doc.save(update_fields=['status', 'observacao'])
+        self.colab.etapa_admissao = 5
+        self.colab.save(update_fields=['etapa_admissao'])
+        self.assertFalse(colaborador_admissao_concluida(self.colab))
+
+    def test_pendencia_documento_impede_admissao_concluida(self):
+        from recursos_humanos.services.admissao_actions import colaborador_admissao_concluida
+
+        self.colab.etapa_admissao = 5
+        self.colab.save(update_fields=['etapa_admissao'])
+        self.assertFalse(colaborador_admissao_concluida(self.colab))
+
+    def test_portal_ativo_com_token_acessa_upload(self):
+        url = reverse('recursos_humanos:portal', args=[self.colab.token_portal])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'ASO Reenvio')
+
+
+class EnviarLembreteColetaTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.user = User.objects.create_user('rh_lembrete', password='test')
+        self.user.groups.add(grupo)
+        self.tipo_cnh = TipoDocumento.objects.create(
+            nome='CNH',
+            tem_validade=True,
+            dias_validade=365,
+            ordem=1,
+            obrigatorio=True,
+        )
+        self.tipo_rg = TipoDocumento.objects.create(
+            nome='Carteira de Identidade',
+            ordem=2,
+            obrigatorio=True,
+        )
+        self.colab = Colaborador.objects.create(
+            nome='Felipe',
+            cpf='909.909.909-90',
+            email='felipe@example.com',
+            cargo='Pedreiro',
+            status=Colaborador.Status.EM_ADMISSAO,
+            etapa_admissao=2,
+            requisicao_aprovada_gestor=True,
+        )
+        self.colab.gerar_token_portal(dias=30)
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo_cnh,
+            status=DocumentoColaborador.Status.FALTANDO,
+        )
+        DocumentoColaborador.objects.create(
+            colaborador=self.colab,
+            tipo=self.tipo_rg,
+            status=DocumentoColaborador.Status.FALTANDO,
+        )
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_enviar_lembrete_manda_email_com_documentos_pendentes(self):
+        from django.core import mail
+        from recursos_humanos.services.admissao_actions import enviar_lembrete_coleta_documentos
+
+        ok, msg = enviar_lembrete_coleta_documentos(self.colab, self.user)
+        self.assertTrue(ok)
+        self.assertIn('felipe@example.com', msg)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('CNH', mail.outbox[0].body)
+        self.assertIn('Carteira de Identidade', mail.outbox[0].body)
+        self.assertIn(self.colab.token_portal, mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_view_enviar_lembrete_via_admissao_acao(self):
+        from django.core import mail
+
+        self.client.force_login(self.user)
+        url = reverse('recursos_humanos:admissao_acao', args=[self.colab.pk])
+        resp = self.client.post(url, {'acao': 'enviar_lembrete'})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['felipe@example.com'])
+
+    def test_lembrete_falha_sem_documentos_pendentes(self):
+        from recursos_humanos.services.admissao_actions import enviar_lembrete_coleta_documentos
+
+        self.colab.documentos.update(status=DocumentoColaborador.Status.RECEBIDO)
+        ok, msg = enviar_lembrete_coleta_documentos(self.colab, self.user)
+        self.assertFalse(ok)
+        self.assertIn('pendentes', msg.lower())
+
+
+class PrazoContratoEncerrarTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.user = User.objects.create_user('rh_prazo', password='test')
+        self.user.groups.add(grupo)
+        self.colab = Colaborador.objects.create(
+            nome='Felipe Prazo',
+            cpf='808.808.808-80',
+            cargo='Engenheiro',
+            status=Colaborador.Status.ATIVO,
+        )
+        from recursos_humanos.models import AdmissaoHistorico, PrazoContrato
+
+        self.PrazoContrato = PrazoContrato
+        self.AdmissaoHistorico = AdmissaoHistorico
+        hoje = timezone.localdate()
+        self.prazo = PrazoContrato.objects.create(
+            colaborador=self.colab,
+            tipo=PrazoContrato.Tipo.DETERMINADO,
+            data_inicio=hoje,
+            data_fim=hoje + timedelta(days=365),
+            status=PrazoContrato.Status.ATIVO,
+        )
+        self.url_decisao = reverse(
+            'recursos_humanos:prazo_contrato_decisao',
+            kwargs={'pk': self.prazo.pk},
+        )
+        self.url_reativar = reverse(
+            'recursos_humanos:prazo_contrato_reativar',
+            kwargs={'pk': self.prazo.pk},
+        )
+        self.url_json = reverse(
+            'recursos_humanos:colaborador_json',
+            kwargs={'pk': self.colab.pk},
+        )
+
+    def _post_decisao(self, **data):
+        self.client.force_login(self.user)
+        payload = {'acao': 'encerrar', **data}
+        return self.client.post(
+            self.url_decisao,
+            payload,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+    def test_encerrar_sem_motivo_retorna_erro(self):
+        resp = self._post_decisao(motivo='')
+        self.assertEqual(resp.status_code, 400)
+        self.prazo.refresh_from_db()
+        self.colab.refresh_from_db()
+        self.assertEqual(self.prazo.status, self.PrazoContrato.Status.ATIVO)
+        self.assertEqual(self.colab.status, Colaborador.Status.ATIVO)
+
+    def test_encerrar_com_motivo_desliga_e_registra_historico(self):
+        motivo = 'Fim do projeto contratado'
+        resp = self._post_decisao(motivo=motivo)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+
+        self.prazo.refresh_from_db()
+        self.colab.refresh_from_db()
+        self.assertEqual(self.prazo.status, self.PrazoContrato.Status.ENCERRADO)
+        self.assertEqual(self.prazo.observacoes, motivo)
+        self.assertEqual(self.colab.status, Colaborador.Status.DESLIGADO)
+
+        historico = self.AdmissaoHistorico.objects.filter(colaborador=self.colab)
+        self.assertEqual(historico.count(), 1)
+        self.assertIn('encerrado', historico.first().descricao.lower())
+        self.assertIn('desligado', historico.first().descricao.lower())
+        self.assertIn(motivo, historico.first().descricao)
+
+    def test_perfil_json_prazo_ativo_nao_exibe_reativar(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(self.url_json)
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()['prazo_contrato']
+        self.assertFalse(payload['encerrado'])
+        self.assertFalse(payload['pode_reativar'])
+        self.assertIsNone(payload['url_reativar'])
+        self.assertTrue(payload['pode_decidir'])
+
+    def test_perfil_json_exibe_prazo_convertido(self):
+        from recursos_humanos.services.prazo_contrato import executar_acao_prazo
+
+        executar_acao_prazo(self.prazo, 'converter', self.user)
+        self.client.force_login(self.user)
+        resp = self.client.get(self.url_json)
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()['prazo_contrato']
+        self.assertTrue(payload['convertido'])
+        self.assertEqual(payload['status'], 'convertido')
+        self.assertTrue(payload['pode_decidir'])
+        self.assertFalse(payload['pode_reativar'])
+        self.assertTrue(payload['exibir_decidir'])
+        self.assertFalse(payload['exibir_reativar'])
+        self.assertEqual(payload['data_fim'], 'Indeterminado')
+        self.assertTrue(payload['data_fim_indeterminado'])
+
+    def test_decisao_json_aceita_prazo_convertido(self):
+        from recursos_humanos.services.prazo_contrato import executar_acao_prazo
+
+        executar_acao_prazo(self.prazo, 'converter', self.user)
+        self.client.force_login(self.user)
+        url = reverse('recursos_humanos:prazo_contrato_decisao_json', args=[self.prazo.pk])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['id'], self.prazo.pk)
+
+    def test_perfil_json_exibe_prazo_encerrado_com_motivo(self):
+        from recursos_humanos.services.prazo_contrato import executar_acao_prazo
+
+        executar_acao_prazo(
+            self.prazo,
+            'encerrar',
+            self.user,
+            motivo='Motivo de teste para encerramento',
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(self.url_json)
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertTrue(payload['prazo_contrato']['encerrado'])
+        self.assertEqual(
+            payload['prazo_contrato']['motivo_encerramento'],
+            'Motivo de teste para encerramento',
+        )
+        self.assertFalse(payload['prazo_contrato']['pode_decidir'])
+        self.assertTrue(payload['prazo_contrato']['pode_reativar'])
+        self.assertIsNotNone(payload['prazo_contrato']['url_reativar'])
+
+    def test_renovar_mantem_prazo_ativo_no_perfil(self):
+        from recursos_humanos.services.prazo_contrato import executar_acao_prazo
+
+        nova_fim = timezone.localdate() + timedelta(days=400)
+        ok, _ = executar_acao_prazo(
+            self.prazo,
+            'renovar',
+            self.user,
+            nova_data_fim=nova_fim,
+        )
+        self.assertTrue(ok)
+        self.client.force_login(self.user)
+        resp = self.client.get(self.url_json)
+        payload = resp.json()['prazo_contrato']
+        self.assertTrue(payload['pode_decidir'])
+        self.assertFalse(payload.get('convertido'))
+        self.assertEqual(payload['data_fim'], nova_fim.strftime('%d/%m/%Y'))
+
+    def test_reativar_volta_contrato_e_colaborador_para_ativo(self):
+        from recursos_humanos.services.prazo_contrato import executar_acao_prazo
+
+        executar_acao_prazo(
+            self.prazo,
+            'encerrar',
+            self.user,
+            motivo='Encerramento temporário para teste',
+        )
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            self.url_reativar,
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+
+        self.prazo.refresh_from_db()
+        self.colab.refresh_from_db()
+        self.assertEqual(self.prazo.status, self.PrazoContrato.Status.ATIVO)
+        self.assertIsNone(self.prazo.finalizado_em)
+        self.assertEqual(self.colab.status, Colaborador.Status.ATIVO)
+
+        reativacao = self.AdmissaoHistorico.objects.filter(
+            colaborador=self.colab,
+            descricao__icontains='reativado',
+        )
+        self.assertEqual(reativacao.count(), 1)
+
+
+class ColaboradorDesligarTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.user = User.objects.create_user('rh_deslig', password='test')
+        self.user.groups.add(grupo)
+        self.colab = Colaborador.objects.create(
+            nome='Desligar Teste',
+            cpf='909.909.909-90',
+            cargo='Auxiliar',
+            status=Colaborador.Status.ATIVO,
+        )
+        self.url = reverse(
+            'recursos_humanos:colaborador_desligar',
+            kwargs={'pk': self.colab.pk},
+        )
+
+    def test_desligar_com_motivo_registra_historico(self):
+        from recursos_humanos.models import AdmissaoHistorico
+
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            self.url,
+            {
+                'data_desligamento': timezone.localdate().isoformat(),
+                'motivo': 'Pedido de demissão do colaborador',
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.colab.refresh_from_db()
+        self.assertEqual(self.colab.status, Colaborador.Status.DESLIGADO)
+        self.assertEqual(AdmissaoHistorico.objects.filter(colaborador=self.colab).count(), 1)

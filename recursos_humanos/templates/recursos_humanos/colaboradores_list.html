@@ -311,6 +311,40 @@
       </div>
       <div class="rh-colab-tab-panel" data-colab-panel="profissional" role="tabpanel" hidden>
         <div class="modal-rh-grid" id="modal-perfil-dados-profissionais"></div>
+        <div id="modal-prazo-contrato" class="modal-rh-prazo-section" hidden>
+          <div class="rh-modal-section-title">
+            <i class="fas fa-file-contract" aria-hidden="true"></i>
+            Prazo de Contrato
+          </div>
+          <div class="rh-data-grid">
+            <div class="rh-data-field">
+              <label>Tipo</label>
+              <span id="modal-prazo-tipo"></span>
+            </div>
+            <div class="rh-data-field">
+              <label>Início</label>
+              <span id="modal-prazo-inicio"></span>
+            </div>
+            <div class="rh-data-field">
+              <label>Fim</label>
+              <span id="modal-prazo-fim"></span>
+            </div>
+            <div class="rh-data-field">
+              <label id="modal-prazo-situacao-label">Dias restantes</label>
+              <span id="modal-prazo-dias"></span>
+            </div>
+          </div>
+          <div id="modal-prazo-status-extra" class="modal-prazo-status-extra" hidden>
+            <span class="rh-prazo-status-badge" id="modal-prazo-status-badge"></span>
+            <p class="modal-prazo-motivo" id="modal-prazo-motivo" hidden></p>
+            <button type="button" id="modal-prazo-reativar" class="rh-btn rh-btn-outline modal-rh-prazo-reativar" hidden>
+              <i class="fas fa-undo" aria-hidden="true"></i> Reativar contrato
+            </button>
+          </div>
+          <button type="button" id="modal-prazo-decidir" class="rh-btn rh-btn-primary modal-rh-prazo-decidir js-rh-prazo-decidir" hidden>
+            <i class="fas fa-gavel" aria-hidden="true"></i> Decidir
+          </button>
+        </div>
       </div>
       <div class="rh-colab-tab-panel" data-colab-panel="documentos" role="tabpanel" hidden>
         <div class="modal-rh-doc-progress" id="modal-perfil-doc-progress"></div>
@@ -386,6 +420,14 @@
       <div class="rh-colab-tab-panel" data-colab-panel="profissional" role="tabpanel" hidden>
         <div class="modal-rh-form-grid">
           <label class="modal-rh-field">Cargo *<input type="text" name="cargo" id="edit-cargo" class="rh-input" required></label>
+          <label class="modal-rh-field">Cargo (RH)
+            <select name="cargo_rh" id="edit-cargo_rh" class="rh-select">
+              <option value="">— Nenhum —</option>
+              {% for cargo in rh_cargos_rh %}
+              <option value="{{ cargo.pk }}">{{ cargo.nome }}</option>
+              {% endfor %}
+            </select>
+          </label>
           <label class="modal-rh-field">Status
             <select name="status" id="edit-status" class="rh-select">
               <option value="em_admissao">Em Admissão</option>
@@ -498,6 +540,7 @@
   var editUrlBase = '{% url "recursos_humanos:colaborador_detalhe" 0 %}';
   var excluirUrlBase = '{% url "recursos_humanos:colaborador_excluir" 0 %}';
   var desligarUrlBase = '{% url "recursos_humanos:colaborador_desligar" 0 %}';
+  var reativarPrazoUrlBase = '{% url "recursos_humanos:prazo_contrato_reativar" 0 %}';
   var perfilData = null;
   var editPk = null;
   var desligarPk = null;
@@ -514,6 +557,7 @@
   function getEditUrl(pk) { return urlFor(editUrlBase, pk); }
   function getExcluirUrl(pk) { return urlFor(excluirUrlBase, pk); }
   function getDesligarUrl(pk) { return urlFor(desligarUrlBase, pk); }
+  function getReativarPrazoUrl(pk) { return urlFor(reativarPrazoUrlBase, pk); }
 
   function fecharModais() {
     document.querySelectorAll('.modal-overlay.open').forEach(function (m) {
@@ -584,16 +628,28 @@
     outros: 'Outros documentos'
   };
 
-  function docIcon(status) {
-    if (status === 'received') return '<span class="modal-doc-icon ok"><i class="fas fa-check"></i></span>';
-    if (status === 'pending') return '<span class="modal-doc-icon warn"><i class="fas fa-clock"></i></span>';
+  function docIconFor(doc) {
+    if (doc.pode_aprovar || doc.status === 'pending') return '<span class="modal-doc-icon warn"><i class="fas fa-clock"></i></span>';
+    if (doc.vencido || doc.status === 'missing') return '<span class="modal-doc-icon bad"><i class="fas fa-exclamation-circle"></i></span>';
+    if (doc.reenvio_solicitado) return '<span class="modal-doc-icon warn"><i class="fas fa-redo"></i></span>';
+    if (doc.status === 'received') return '<span class="modal-doc-icon ok"><i class="fas fa-check"></i></span>';
     return '<span class="modal-doc-icon bad"><i class="fas fa-times"></i></span>';
   }
 
-  function docStatusLabel(status) {
-    if (status === 'received') return 'Recebido';
-    if (status === 'pending') return 'Pendente';
+  function docStatusLabelFor(doc) {
+    if (doc.pode_aprovar || doc.status === 'pending') return 'Aguardando aprovação';
+    if (doc.vencido) return 'Vencido';
+    if (doc.reenvio_solicitado) return 'Reenvio solicitado';
+    if (doc.status === 'received') return 'Recebido';
+    if (doc.status === 'pending') return 'Pendente';
     return 'Faltando';
+  }
+
+  function docPillClass(doc) {
+    if (doc.pode_aprovar || doc.status === 'pending' || doc.reenvio_solicitado) return 'pending';
+    if (doc.vencido || doc.status === 'missing') return 'missing';
+    if (doc.status === 'received') return 'ok';
+    return 'missing';
   }
 
   function popularModalPerfil(data) {
@@ -634,6 +690,95 @@
       return campo(d[0], d[1]);
     }).join('');
 
+    var prazoDiv = document.getElementById('modal-prazo-contrato');
+    var btnDecidir = document.getElementById('modal-prazo-decidir');
+    var btnReativar = document.getElementById('modal-prazo-reativar');
+    var statusExtra = document.getElementById('modal-prazo-status-extra');
+    var statusBadge = document.getElementById('modal-prazo-status-badge');
+    var motivoEl = document.getElementById('modal-prazo-motivo');
+    var situacaoLabel = document.getElementById('modal-prazo-situacao-label');
+    if (data.prazo_contrato && prazoDiv) {
+      var p = data.prazo_contrato;
+      var isEncerrado = p.status === 'encerrado' && p.exibir_reativar === true;
+      var isConvertido = p.status === 'convertido' || p.convertido === true;
+      var isTerminal = isEncerrado || isConvertido;
+
+      function setPrazoBtn(btn, visible, dataset) {
+        if (!btn) return;
+        btn.hidden = !visible;
+        if (visible) {
+          btn.removeAttribute('hidden');
+          if (dataset) {
+            Object.keys(dataset).forEach(function (key) {
+              if (dataset[key] != null && dataset[key] !== '') {
+                btn.dataset[key] = String(dataset[key]);
+              } else {
+                delete btn.dataset[key];
+              }
+            });
+          }
+        } else {
+          btn.setAttribute('hidden', 'hidden');
+          btn.dataset.podeDecidir = '0';
+          delete btn.dataset.prazoPk;
+          delete btn.dataset.urlReativar;
+        }
+      }
+
+      document.getElementById('modal-prazo-tipo').textContent = p.tipo;
+      document.getElementById('modal-prazo-inicio').textContent = p.data_inicio;
+      document.getElementById('modal-prazo-fim').textContent = p.data_fim;
+      setPrazoBtn(btnReativar, false);
+      setPrazoBtn(btnDecidir, false);
+      if (statusExtra) statusExtra.hidden = true;
+      if (motivoEl) motivoEl.hidden = true;
+      if (statusBadge) statusBadge.className = 'rh-prazo-status-badge';
+      if (isEncerrado) {
+        situacaoLabel.textContent = 'Situação';
+        document.getElementById('modal-prazo-dias').textContent = p.situacao || 'Encerrado';
+        if (statusExtra) statusExtra.hidden = false;
+        if (statusBadge) {
+          statusBadge.textContent = 'Encerrado';
+          statusBadge.classList.add('rh-prazo-status-badge--encerrado');
+        }
+        if (motivoEl) {
+          motivoEl.textContent = p.motivo_encerramento
+            ? 'Motivo: ' + p.motivo_encerramento
+            : '';
+          motivoEl.hidden = !p.motivo_encerramento;
+        }
+        if (p.url_reativar) {
+          setPrazoBtn(btnReativar, true, { prazoPk: p.id, urlReativar: p.url_reativar });
+        }
+      } else if (isConvertido) {
+        situacaoLabel.textContent = 'Situação';
+        document.getElementById('modal-prazo-dias').textContent = p.situacao || 'Convertido para indeterminado';
+        if (statusExtra) statusExtra.hidden = false;
+        if (statusBadge) {
+          statusBadge.textContent = 'Convertido para indeterminado';
+          statusBadge.classList.add('rh-prazo-status-badge--convertido');
+        }
+        setPrazoBtn(btnReativar, false);
+        if (p.pode_decidir) {
+          setPrazoBtn(btnDecidir, true, { prazoPk: p.id, podeDecidir: '1' });
+        }
+      } else if (!isTerminal) {
+        situacaoLabel.textContent = 'Dias restantes';
+        var diasTxt = p.dias_restantes + ' dia(s)';
+        if (p.dias_restantes < 0) diasTxt += ' (vencido)';
+        document.getElementById('modal-prazo-dias').textContent = diasTxt;
+        if (p.pode_decidir) {
+          setPrazoBtn(btnDecidir, true, { prazoPk: p.id, podeDecidir: '1' });
+        }
+      }
+      prazoDiv.hidden = false;
+    } else if (prazoDiv) {
+      prazoDiv.hidden = true;
+      if (btnDecidir) btnDecidir.hidden = true;
+      if (btnReativar) btnReativar.hidden = true;
+      if (statusExtra) statusExtra.hidden = true;
+    }
+
     var pct = data.docs_total ? Math.round(data.docs_recebidos / data.docs_total * 100) : 0;
     document.getElementById('modal-perfil-doc-progress').innerHTML =
       '<div class="rh-progress-bar rh-progress-bar--lg"><div class="rh-progress-fill ok" style="width:' + pct + '%"></div></div>' +
@@ -650,10 +795,45 @@
       if (!docs.length) return;
       html += '<div class="modal-rh-doc-grupo"><h4 class="modal-rh-doc-grupo-title">' + catLabels[key] + '</h4><ul class="modal-rh-doc-list">';
       docs.forEach(function (doc) {
-        html += '<li class="modal-rh-doc-item">' + docIcon(doc.status) +
+        var pillCls = docPillClass(doc);
+        html += '<li class="modal-rh-doc-item">' + docIconFor(doc) +
+          '<div class="modal-rh-doc-body">' +
           '<span class="modal-rh-doc-name">' + esc(doc.nome) + '</span>' +
-          '<span class="modal-rh-doc-meta">' + docStatusLabel(doc.status) +
-          (doc.vencimento ? ' · ' + esc(doc.vencimento) : '') + '</span></li>';
+          '<span class="modal-rh-doc-meta">' + docStatusLabelFor(doc);
+        if (doc.data_emissao) {
+          html += ' · Emitido: ' + esc(doc.data_emissao);
+          if (doc.vencimento) html += ' · Vence: ' + esc(doc.vencimento);
+        } else if (doc.vencimento) {
+          html += ' · ' + esc(doc.vencimento);
+        }
+        html += '</span></div>' +
+          '<div class="modal-rh-doc-actions">';
+        if (doc.alerta_vencimento) {
+          var badgeCls = doc.dias_restantes < 0 ? 'rh-doc-venc-badge--expired' : 'rh-doc-venc-badge--soon';
+          var badgeTxt = doc.dias_restantes < 0 ? 'Vencido' : (doc.dias_restantes === 0 ? 'Hoje' : doc.dias_restantes + ' dias');
+          html += '<span class="rh-doc-venc-badge ' + badgeCls + '">' + esc(badgeTxt) + '</span>';
+        }
+        if (doc.url_arquivo) {
+          html += '<a href="' + esc(doc.url_arquivo) + '" target="_blank" rel="noopener" class="rh-doc-ver-btn" title="Ver documento">' +
+            '<i class="fas fa-eye" aria-hidden="true"></i> Ver</a>';
+        }
+        if (doc.pode_solicitar_reenvio && doc.url_solicitar_reenvio) {
+          html += '<form method="post" action="' + esc(doc.url_solicitar_reenvio) + '" class="rh-doc-reenvio-form" ' +
+            'onsubmit="return confirm(\'Solicitar reenvio deste documento ao colaborador?\');">' +
+            '<input type="hidden" name="csrfmiddlewaretoken" value="' + esc(getCsrfToken()) + '">' +
+            '<button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button></form>';
+        }
+        if (doc.pode_aprovar && doc.url_aprovar) {
+          html += '<form method="post" action="' + esc(doc.url_aprovar) + '" class="rh-doc-approve-form-modal">';
+          html += '<input type="hidden" name="csrfmiddlewaretoken" value="' + esc(getCsrfToken()) + '">';
+          html += '<input type="hidden" name="next" value="' + esc(doc.url_redirect || '') + '">';
+          if (doc.tem_validade) {
+            html += '<input type="date" name="data_emissao" class="rh-doc-emissao-input-modal" required title="Data de emissão">';
+          }
+          html += '<button type="submit" class="rh-doc-approve-btn-modal" title="Aprovar documento"><i class="fas fa-check"></i> Aprovar</button></form>';
+        }
+        html += '<span class="rh-doc-pill rh-doc-pill--' + pillCls + '">' + docStatusLabelFor(doc) + '</span>' +
+          '</div></li>';
       });
       html += '</ul></div>';
     });
@@ -707,6 +887,7 @@
     document.getElementById('edit-endereco').value = data.endereco || '';
     document.getElementById('edit-dados_bancarios').value = data.dados_bancarios || '';
     document.getElementById('edit-cargo').value = data.cargo || '';
+    document.getElementById('edit-cargo_rh').value = data.cargo_rh ? String(data.cargo_rh) : '';
     document.getElementById('edit-empresa').value = data.empresa || '';
     document.getElementById('edit-status').value = data.status || 'em_admissao';
     document.getElementById('edit-tipo_contrato').value = data.tipo_contrato || 'CLT';
@@ -725,12 +906,12 @@
     ativarColabTab(document.getElementById('modal-editar'), 'pessoal');
   }
 
-  function abrirModalPerfil(pk) {
+  function abrirModalPerfil(pk, tabId) {
     fetch(getJsonUrl(pk), { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         popularModalPerfil(data);
-        ativarColabTab(document.getElementById('modal-perfil'), 'pessoal');
+        ativarColabTab(document.getElementById('modal-perfil'), tabId || 'pessoal');
         abrirModal('modal-perfil');
       });
   }
@@ -993,6 +1174,38 @@
       });
   });
 
+  document.getElementById('modal-prazo-reativar').addEventListener('click', function () {
+    var btn = this;
+    var url = btn.dataset.urlReativar;
+    if (!url) return;
+    if (!window.confirm('Reativar este contrato e o colaborador?')) return;
+    btn.disabled = true;
+    fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': getCsrfToken(),
+      },
+    })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, data: j }; });
+      })
+      .then(function (res) {
+        if (res.ok && res.data.ok) {
+          window.location.reload();
+          return;
+        }
+        alert((res.data && res.data.message) || 'Não foi possível reativar o contrato.');
+      })
+      .catch(function () {
+        alert('Erro ao reativar contrato. Tente novamente.');
+      })
+      .finally(function () {
+        btn.disabled = false;
+      });
+  });
+
   initColabTabs(document.getElementById('modal-perfil'));
   initColabTabs(document.getElementById('modal-editar'));
 
@@ -1035,6 +1248,17 @@
         btn.disabled = modal.dataset.status === 'ativo';
       });
   });
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var abrirColabPk = urlParams.get('abrir_colaborador');
+  var abrirColabTab = urlParams.get('abrir_colaborador_tab');
+  if (abrirColabPk) {
+    abrirModalPerfil(abrirColabPk, abrirColabTab);
+    var cleanUrl = new URL(window.location);
+    cleanUrl.searchParams.delete('abrir_colaborador');
+    cleanUrl.searchParams.delete('abrir_colaborador_tab');
+    window.history.replaceState({}, '', cleanUrl);
+  }
 })();
 </script>
 {% endblock %}

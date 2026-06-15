@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from core.notification_utils import criar_notificacao, marcar_lidas_por_event_key
 from recursos_humanos.models import Colaborador, DocumentoColaborador
-from recursos_humanos.services.alertas_config import obter_configuracao_alertas, usuarios_elegiveis_alertas
+from recursos_humanos.services.alertas_config import obter_configuracao_alertas, usuarios_staff_alertas
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _event_colab(colaborador_id: int, sufixo: str = '') -> str:
 
 
 def _canal_sistema_ativo() -> bool:
-    return obter_configuracao_alertas().canal_notificacao_sistema
+    return obter_configuracao_alertas().notificar_sistema
 
 
 def _usuarios_rh() -> list[User]:
@@ -41,7 +41,7 @@ def _usuarios_rh() -> list[User]:
     qs = config.responsaveis.filter(is_active=True)
     if qs.exists():
         return list(qs)
-    return list(usuarios_elegiveis_alertas())
+    return list(usuarios_staff_alertas())
 
 
 def _notificar_usuarios(

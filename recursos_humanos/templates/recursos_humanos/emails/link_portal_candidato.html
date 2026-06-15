@@ -95,12 +95,29 @@
     </div>
     <div class="email-body">
       <p>Olá, <strong>{{ nome }}</strong>!</p>
+      {% if lembrete and documentos_pendentes %}
+      <p>
+        Lembramos que ainda há documentos pendentes na sua admissão.
+        Acesse o portal pelo link abaixo para enviá-los:
+      </p>
+      <ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 15px;">
+        {% for doc in documentos_pendentes %}
+        <li>{{ doc }}</li>
+        {% endfor %}
+      </ul>
+      {% elif reenvio and documento_nome %}
+      <p>
+        O documento <strong>{{ documento_nome }}</strong> {{ motivo_texto }}
+        e precisa ser reenviado pelo portal abaixo.
+      </p>
+      {% else %}
       <p>
         Sua admissão na Lplan foi iniciada.
         Para concluir o processo, envie seus documentos pelo link abaixo:
       </p>
+      {% endif %}
       <div class="btn-wrap">
-        <a href="{{ link }}" class="btn">Enviar meus documentos</a>
+        <a href="{{ link }}" class="btn">{% if lembrete %}Acessar portal e enviar documentos{% elif reenvio %}Acessar portal e reenviar{% else %}Enviar meus documentos{% endif %}</a>
       </div>
       <p class="info-note">⏰ O link é válido por 30 dias.</p>
     </div>

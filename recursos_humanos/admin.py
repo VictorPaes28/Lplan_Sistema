@@ -8,6 +8,7 @@ from .models import (
     ContratoAdmissao,
     DocumentoColaborador,
     ObraLocal,
+    PrazoContrato,
     TipoDocumento,
 )
 
@@ -59,3 +60,16 @@ class ContratoAdmissaoAdmin(admin.ModelAdmin):
     list_display = ['colaborador', 'status', 'criado_em', 'concluido_em']
     list_filter = ['status']
     readonly_fields = ['criado_em', 'concluido_em']
+
+
+@admin.register(PrazoContrato)
+class PrazoContratoAdmin(admin.ModelAdmin):
+    list_display = [
+        'colaborador',
+        'tipo',
+        'data_inicio',
+        'data_fim',
+        'status',
+        'renovacao_numero',
+    ]
+    list_filter = ['tipo', 'status']

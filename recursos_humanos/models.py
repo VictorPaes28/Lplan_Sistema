@@ -266,7 +266,18 @@ class DocumentoColaborador(models.Model):
         choices=Status.choices,
         default=Status.FALTANDO,
     )
+    data_emissao = models.DateField(
+        'Data de emissão',
+        null=True,
+        blank=True,
+        help_text='Data em que o documento foi emitido (usada para calcular o vencimento)',
+    )
     vencimento = models.DateField('Vencimento', null=True, blank=True)
+    reenvio_solicitado = models.BooleanField(
+        'Reenvio solicitado',
+        default=False,
+        help_text='RH solicitou novo envio; o arquivo atual permanece até o colaborador enviar outro.',
+    )
     observacao = models.CharField('Observação', max_length=300, blank=True)
     arquivo = models.FileField('Arquivo', upload_to=rh_upload_path, blank=True, null=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -305,26 +316,16 @@ class AdmissaoHistorico(models.Model):
 class ConfiguracaoAlertasRH(models.Model):
     """Configuração global (singleton) de prazos e canais de alerta do RH."""
 
-    dias_documento_vencendo = models.PositiveSmallIntegerField(
-        'Documentos com vencimento próximo (dias)',
+    dias_antecedencia_documentos = models.PositiveSmallIntegerField(
+        'Antecedência documentos e prazos de contrato (dias)',
         default=30,
     )
-    dias_treinamento_vencer = models.PositiveSmallIntegerField(
-        'Treinamentos a vencer (dias)',
-        default=60,
-    )
-    dias_renovacao_aso = models.PositiveSmallIntegerField(
-        'Renovação de ASO (dias)',
-        default=45,
-    )
-    dias_renotificar_vencido = models.PositiveSmallIntegerField(
+    dias_renotificar_vencidos = models.PositiveSmallIntegerField(
         'Documentos vencidos — renotificar (dias)',
         default=7,
     )
-    canal_email_rh = models.BooleanField('E-mail para o RH', default=True)
-    canal_notificacao_sistema = models.BooleanField('Notificação no sistema', default=True)
-    canal_whatsapp_gestor = models.BooleanField('WhatsApp para o gestor', default=False)
-    canal_relatorio_pdf_semanal = models.BooleanField('Relatório semanal PDF', default=True)
+    notificar_email = models.BooleanField('E-mail para responsáveis', default=True)
+    notificar_sistema = models.BooleanField('Notificação no sistema', default=True)
     responsaveis = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -376,3 +377,100 @@ class ContratoAdmissao(models.Model):
 
     def __str__(self):
         return f'Contrato — {self.colaborador.nome}'
+
+
+class PrazoContrato(models.Model):
+    class Tipo(models.TextChoices):
+        EXPERIENCIA = 'experiencia', 'Período de Experiência'
+        DETERMINADO = 'determinado', 'Contrato Determinado'
+        ESTAGIO = 'estagio', 'Estágio'
+        PJ = 'pj', 'Pessoa Jurídica'
+
+    class Status(models.TextChoices):
+        ATIVO = 'ativo', 'Ativo'
+        RENOVADO = 'renovado', 'Renovado'
+        CONVERTIDO = 'convertido', 'Convertido para indeterminado'
+        ENCERRADO = 'encerrado', 'Encerrado'
+
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.CASCADE,
+        related_name='prazos_contrato',
+    )
+    tipo = models.CharField(
+        max_length=20,
+        choices=Tipo.choices,
+    )
+    data_inicio = models.DateField('Data de início')
+    data_fim = models.DateField('Data de fim', null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ATIVO,
+    )
+    renovacao_numero = models.PositiveSmallIntegerField(
+        'Número da renovação',
+        default=0,
+        help_text='0 = original, 1 = primeira renovação, etc.',
+    )
+    prazo_anterior = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='renovacoes',
+    )
+    observacoes = models.TextField(blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    finalizado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Prazo de contrato'
+        verbose_name_plural = 'Prazos de contrato'
+        ordering = ['-data_inicio']
+
+    def __str__(self):
+        fim = self.data_fim.strftime('%d/%m/%Y') if self.data_fim else 'indeterminado'
+        return (
+            f'{self.colaborador.nome} — '
+            f'{self.get_tipo_display()} '
+            f'({self.data_inicio} a {fim})'
+        )
+
+    def dias_restantes(self):
+        if self.data_fim is None:
+            return None
+        return (self.data_fim - timezone.localdate()).days
+
+    def vencido(self):
+        dias = self.dias_restantes()
+        return dias is not None and dias < 0
+
+    @property
+    def limite_legal_dias(self):
+        """Limite legal total para o tipo (referência)."""
+        limites = {
+            self.Tipo.EXPERIENCIA: 90,
+            self.Tipo.ESTAGIO: 730,
+            self.Tipo.DETERMINADO: 730,
+            self.Tipo.PJ: None,
+        }
+        return limites.get(self.tipo)
+
+    def acoes_disponiveis(self):
+        """Retorna lista de ações possíveis para este tipo e status."""
+        if self.status == self.Status.ENCERRADO:
+            return []
+        if self.tipo == self.Tipo.EXPERIENCIA:
+            acoes = ['efetivar', 'prorrogar', 'desligar']
+        elif self.tipo == self.Tipo.DETERMINADO:
+            acoes = ['converter', 'renovar', 'encerrar']
+        elif self.tipo == self.Tipo.ESTAGIO:
+            acoes = ['renovar', 'efetivar', 'encerrar']
+        elif self.tipo == self.Tipo.PJ:
+            acoes = ['renovar', 'encerrar']
+        else:
+            return []
+        if self.status == self.Status.CONVERTIDO:
+            acoes = [a for a in acoes if a not in ('converter', 'efetivar')]
+        return acoes

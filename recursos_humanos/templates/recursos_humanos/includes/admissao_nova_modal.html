@@ -155,13 +155,26 @@
             <h3>Dados Contratuais</h3>
           </div>
           <div class="rh-wizard-fields rh-wizard-fields-grid">
-            <div class="rh-form-field">
-              <label for="req-tipo-contrato">Tipo de contrato</label>
-              <select name="tipo_contrato" id="req-tipo-contrato" class="rh-select">
-                {% for val, label in rh_form_requisicao.fields.tipo_contrato.choices %}
-                <option value="{{ val }}" {% if val == 'CLT' %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
+            <div class="rh-wizard-fields-row rh-wizard-field-full">
+              <div class="rh-form-field">
+                <label for="id_tipo_contrato">Tipo de contrato</label>
+                <select name="tipo_contrato" id="id_tipo_contrato" class="rh-select">
+                  {% for val, label in rh_form_requisicao.fields.tipo_contrato.choices %}
+                  <option value="{{ val }}" {% if val == 'CLT' %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="rh-form-field">
+                <label for="id_prazo_duracao_dias" id="duracao-label">Duração do contrato (dias)</label>
+                <input type="number" name="prazo_duracao_dias" id="id_prazo_duracao_dias" class="rh-input" min="1" placeholder="Indeterminado">
+                <span class="rh-field-hint" id="duracao-limite-hint"></span>
+              </div>
+            </div>
+            <div id="clt-experiencia-wrap" class="rh-form-field rh-wizard-field-full" hidden>
+              <label class="rh-wizard-checkbox-label">
+                <input type="checkbox" name="clt_periodo_experiencia" id="id_clt_periodo_experiencia" value="1">
+                Marcar como período de experiência (máx. 90 dias)
+              </label>
             </div>
             <div class="rh-form-field">
               <label for="req-data-inicio">Data prevista de início <span class="rh-required">*</span></label>
@@ -210,6 +223,8 @@
                 <div><dt>Tipo</dt><dd id="sum-tipo">—</dd></div>
                 <div><dt>Salário</dt><dd id="sum-salario">—</dd></div>
                 <div><dt>Início previsto</dt><dd id="sum-inicio">—</dd></div>
+                <div id="sum-prazo-wrap" class="rh-wizard-field-full" hidden><dt>Prazo</dt><dd id="sum-prazo">—</dd></div>
+                <div id="sum-clt-indeterminado-wrap" class="rh-wizard-field-full" hidden><dt>Prazo</dt><dd>Contrato CLT por tempo indeterminado.</dd></div>
                 <div><dt>Observações</dt><dd id="sum-observacoes">—</dd></div>
               </dl>
             </div>
@@ -507,7 +522,7 @@
     document.querySelectorAll('.req-obra-cb').forEach(function (cb) {
       cb.checked = (d.obra || []).indexOf(cb.value) >= 0 || (d.obra || []).indexOf(String(cb.value)) >= 0;
     });
-    var tipo = document.getElementById('req-tipo-contrato');
+    var tipo = document.getElementById('id_tipo_contrato');
     if (tipo && d.tipo_contrato) tipo.value = d.tipo_contrato;
     var gestor = document.getElementById('req-gestor');
     var gestorId = document.getElementById('req-gestor-id');
@@ -524,6 +539,12 @@
     if (salario) salario.value = d.salario || '';
     var obs = document.getElementById('req-observacoes');
     if (obs) obs.value = d.observacoes || '';
+    var prazoDias = document.getElementById('id_prazo_duracao_dias');
+    var chkExp = document.getElementById('id_clt_periodo_experiencia');
+    atualizarDuracao();
+    if (chkExp) chkExp.checked = !!d.clt_periodo_experiencia;
+    if (prazoDias && d.prazo_duracao_dias) prazoDias.value = d.prazo_duracao_dias;
+    atualizarDuracao();
     ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.hidden = true;
@@ -602,13 +623,104 @@
     document.getElementById('sum-gestor').textContent = gestorNome;
     var sumGestorNome = document.getElementById('sum-gestor-nome');
     if (sumGestorNome) sumGestorNome.textContent = gestorNome;
-    document.getElementById('sum-tipo').textContent = document.getElementById('req-tipo-contrato').value || '—';
+    document.getElementById('sum-tipo').textContent = document.getElementById('id_tipo_contrato').value || '—';
     document.getElementById('sum-inicio').textContent = dataFmt;
     document.getElementById('sum-salario').textContent = document.getElementById('req-salario').value || '—';
     var obsEl = document.getElementById('req-observacoes');
     var sumObs = document.getElementById('sum-observacoes');
     if (sumObs) sumObs.textContent = (obsEl && obsEl.value.trim()) ? obsEl.value.trim() : '—';
+    var sumPrazoWrap = document.getElementById('sum-prazo-wrap');
+    var sumPrazo = document.getElementById('sum-prazo');
+    var sumCltIndet = document.getElementById('sum-clt-indeterminado-wrap');
+    var tipoContrato = document.getElementById('id_tipo_contrato');
+    var prazoDias = document.getElementById('id_prazo_duracao_dias');
+    var chkExp = document.getElementById('id_clt_periodo_experiencia');
+    var tipoVal = tipoContrato ? tipoContrato.value : '';
+    var diasVal = prazoDias && prazoDias.value ? parseInt(prazoDias.value, 10) : 0;
+    if (sumPrazoWrap) sumPrazoWrap.hidden = true;
+    if (sumCltIndet) sumCltIndet.hidden = true;
+    if (diasVal > 0 && sumPrazoWrap && sumPrazo) {
+      var resumoTexto = '';
+      if (tipoVal === 'CLT') {
+        if (chkExp && chkExp.checked) {
+          resumoTexto = 'Período de Experiência — ' + diasVal + ' dias a partir de ' + dataFmt;
+        } else {
+          resumoTexto = 'Contrato CLT por prazo determinado — ' + diasVal + ' dias a partir de ' + dataFmt;
+        }
+      } else if (tipoVal === 'Temporário') {
+        resumoTexto = 'Contrato Temporário — ' + diasVal + ' dias a partir de ' + dataFmt;
+      } else if (tipoVal === 'Estágio') {
+        resumoTexto = 'Estágio — ' + diasVal + ' dias a partir de ' + dataFmt;
+      } else if (tipoVal === 'Pessoa Jurídica') {
+        resumoTexto = 'Pessoa Jurídica — ' + diasVal + ' dias a partir de ' + dataFmt;
+      } else {
+        resumoTexto = diasVal + ' dias a partir de ' + dataFmt;
+      }
+      sumPrazo.textContent = '📅 Esta admissão terá prazo: ' + resumoTexto;
+      sumPrazoWrap.hidden = false;
+    } else if (tipoVal === 'CLT' && sumCltIndet) {
+      sumCltIndet.hidden = false;
+    }
   }
+
+  var hints = {
+    'CLT_experiencia': 'Máximo legal: 90 dias (CLT art. 445).',
+    'CLT_determinado': 'Máximo legal: 730 dias / 2 anos (CLT art. 445).',
+    'Temporário': '',
+    'Estágio': 'Máximo legal: 730 dias / 2 anos (Lei 11.788/2008).',
+    'Pessoa Jurídica': '',
+  };
+
+  function atualizarDuracao() {
+    var tipoEl = document.getElementById('id_tipo_contrato');
+    var input = document.getElementById('id_prazo_duracao_dias');
+    var expWrap = document.getElementById('clt-experiencia-wrap');
+    var chkExp = document.getElementById('id_clt_periodo_experiencia');
+    var hint = document.getElementById('duracao-limite-hint');
+    var label = document.getElementById('duracao-label');
+    if (!tipoEl || !input) return;
+
+    var tipo = tipoEl.value;
+    var defaults = {
+      'Temporário': 180,
+      'Estágio': 365,
+      'Pessoa Jurídica': 365,
+    };
+
+    if (tipo === 'CLT') {
+      if (expWrap) expWrap.hidden = false;
+      if (chkExp && chkExp.checked) {
+        if (!input.value) input.value = 90;
+        input.placeholder = '';
+        if (label) label.textContent = 'Duração do período de experiência (dias)';
+        if (hint) hint.textContent = hints['CLT_experiencia'];
+        input.required = true;
+      } else {
+        input.placeholder = 'Indeterminado';
+        if (label) label.textContent = 'Duração do contrato (dias)';
+        if (hint) hint.textContent = hints['CLT_determinado'];
+        input.required = false;
+      }
+    } else {
+      if (expWrap) expWrap.hidden = true;
+      if (chkExp) chkExp.checked = false;
+      input.value = defaults[tipo] || 180;
+      input.placeholder = '';
+      if (label) label.textContent = 'Duração do contrato (dias)';
+      if (hint) hint.textContent = hints[tipo] || '';
+      input.required = true;
+    }
+  }
+
+  var tipoContratoEl = document.getElementById('id_tipo_contrato');
+  if (tipoContratoEl) {
+    tipoContratoEl.addEventListener('change', atualizarDuracao);
+  }
+  var chkExpEl = document.getElementById('id_clt_periodo_experiencia');
+  if (chkExpEl) {
+    chkExpEl.addEventListener('change', atualizarDuracao);
+  }
+  atualizarDuracao();
 
   function validateStep(step) {
     var panel = modal.querySelector('[data-panel="' + step + '"]');
@@ -655,6 +767,8 @@
       if (f.id === 'req-gestor') continue;
       if (f.id === 'req-cargo-rh' && f.value === '__novo__') continue;
       if (f.classList && f.classList.contains('req-obra-cb')) continue;
+      if (step === 3 && f.id === 'id_clt_periodo_experiencia') continue;
+      if (step === 3 && f.id === 'id_prazo_duracao_dias' && f.value === '') continue;
       if (!f.checkValidity()) {
         f.reportValidity();
         f.focus();

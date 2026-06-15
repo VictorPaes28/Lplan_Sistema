@@ -15,6 +15,7 @@ from recursos_humanos.models import (
     Colaborador,
     DocumentoColaborador,
     ObraLocal,
+    PrazoContrato,
     TipoDocumento,
 )
 
@@ -35,6 +36,49 @@ def registrar_historico(colaborador, etapa: int, descricao: str, autor: str, *, 
         autor=autor,
         concluido=concluido,
     )
+
+
+def desligar_colaborador(
+    colaborador: Colaborador,
+    motivo: str,
+    data_desligamento,
+    user,
+    *,
+    registrar_historico_entry: bool = True,
+) -> tuple[bool, str]:
+    """Desliga colaborador ativo (mesma regra do formulário Desligar)."""
+    motivo = (motivo or '').strip()
+    erros = []
+
+    if colaborador.status != Colaborador.Status.ATIVO:
+        erros.append('Apenas colaboradores ativos podem ser desligados.')
+    if not data_desligamento:
+        erros.append('Informe a data de desligamento.')
+    elif data_desligamento > timezone.localdate():
+        erros.append('A data de desligamento não pode ser futura.')
+    if len(motivo) < 10:
+        erros.append('O motivo deve ter pelo menos 10 caracteres.')
+
+    if erros:
+        return False, erros[0]
+
+    autor = _autor(user)
+    colaborador.status = Colaborador.Status.DESLIGADO
+    colaborador.save(update_fields=['status', 'atualizado_em'])
+
+    if registrar_historico_entry:
+        data_fmt = (
+            data_desligamento.strftime('%d/%m/%Y')
+            if hasattr(data_desligamento, 'strftime')
+            else str(data_desligamento)
+        )
+        registrar_historico(
+            colaborador,
+            etapa=0,
+            descricao=f'Colaborador desligado. Data: {data_fmt}. Motivo: {motivo}',
+            autor=autor,
+        )
+    return True, 'Colaborador desligado com sucesso.'
 
 
 def listar_historico_colaborador(
@@ -120,7 +164,7 @@ def instanciar_documentos(colaborador: Colaborador) -> int:
                 tipo=tipo,
                 defaults={
                     'status': DocumentoColaborador.Status.FALTANDO,
-                    'vencimento': _calcular_vencimento(tipo),
+                    'vencimento': None,
                 },
             )
             if created:
@@ -220,10 +264,13 @@ def queryset_fluxo_admissao(user=None):
 
 
 def colaborador_admissao_concluida(colaborador: Colaborador) -> bool:
-    return (
-        colaborador.etapa_admissao >= 5
-        and colaborador.status == Colaborador.Status.ATIVO
-    )
+    if colaborador.etapa_admissao < 5:
+        return False
+    if colaborador.status != Colaborador.Status.ATIVO:
+        return False
+    from recursos_humanos.services.documentos import colaborador_tem_pendencia_documentos
+
+    return not colaborador_tem_pendencia_documentos(colaborador)
 
 
 def _usuario_e_criador_requisicao(colaborador: Colaborador, user) -> bool:
@@ -290,8 +337,36 @@ def _usuario_pode_corrigir_requisicao(colaborador: Colaborador, user) -> bool:
     return _usuario_eh_rh(user)
 
 
+def _criar_prazo_requisicao_se_necessario(colaborador: Colaborador, form, user) -> None:
+    if not form.tem_prazo():
+        return
+    from recursos_humanos.services.prazo_contrato import criar_prazo_contrato
+
+    cleaned_data = form.cleaned_data
+    tipo_prazo = form.get_tipo_prazo()
+    data_inicio = cleaned_data.get('data_inicio') or timezone.localdate()
+    duracao = cleaned_data['prazo_duracao_dias']
+    data_fim = data_inicio + timedelta(days=duracao)
+    criar_prazo_contrato(
+        colaborador,
+        tipo_prazo,
+        data_inicio,
+        data_fim,
+    )
+    autor = _autor(user)
+    tipo_labels = dict(PrazoContrato.Tipo.choices)
+    tipo_label = tipo_labels.get(tipo_prazo, tipo_prazo)
+    registrar_historico(
+        colaborador,
+        1,
+        f'Prazo de contrato registrado: {tipo_label} até {data_fim.strftime("%d/%m/%Y")}.',
+        f'RH — {autor}',
+    )
+
+
 @transaction.atomic
-def criar_requisicao(cleaned_data, user) -> Colaborador:
+def criar_requisicao(form, user) -> Colaborador:
+    cleaned_data = form.cleaned_data
     obras = list(cleaned_data.get('obra') or [])
     if not obras:
         raise ValueError('Selecione ao menos uma obra.')
@@ -321,6 +396,8 @@ def criar_requisicao(cleaned_data, user) -> Colaborador:
         observacoes_requisicao=cleaned_data.get('observacoes', ''),
     )
     colab.obras.set(obras)
+
+    _criar_prazo_requisicao_se_necessario(colab, form, user)
 
     autor = _autor(user)
     registrar_historico(colab, 1, 'Requisição criada', f'RH — {autor}')
@@ -528,9 +605,13 @@ def aprovar_requisicao_gestor(colaborador: Colaborador, user) -> tuple[bool, str
     return True, 'Requisição aprovada. Link enviado por e-mail ao candidato.'
 
 
-def _calcular_vencimento(tipo: TipoDocumento):
-    if tipo.tem_validade and tipo.dias_validade:
-        return timezone.localdate() + timedelta(days=tipo.dias_validade)
+def _calcular_vencimento(tipo: TipoDocumento, data_base=None):
+    """
+    Calcula vencimento a partir de uma data base (data de emissão do documento).
+    Se data_base não informada, retorna None (vencimento fica pendente até informar emissão).
+    """
+    if tipo.tem_validade and tipo.dias_validade and data_base:
+        return data_base + timedelta(days=tipo.dias_validade)
     return None
 
 
@@ -539,10 +620,11 @@ def atualizar_status_documento(doc: DocumentoColaborador, status: str, observaca
     doc.status = status
     doc.observacao = (observacao or '').strip()
     if status == DocumentoColaborador.Status.RECEBIDO:
-        doc.vencimento = _calcular_vencimento(doc.tipo)
+        doc.vencimento = _calcular_vencimento(doc.tipo, doc.data_emissao)
     elif status == DocumentoColaborador.Status.FALTANDO:
+        doc.data_emissao = None
         doc.vencimento = None
-    doc.save(update_fields=['status', 'observacao', 'vencimento', 'atualizado_em'])
+    doc.save(update_fields=['status', 'observacao', 'data_emissao', 'vencimento', 'atualizado_em'])
     registrar_historico(
         doc.colaborador,
         doc.colaborador.etapa_admissao,
@@ -552,22 +634,36 @@ def atualizar_status_documento(doc: DocumentoColaborador, status: str, observaca
 
 
 @transaction.atomic
-def aprovar_documento_arquivo(doc: DocumentoColaborador, user) -> tuple[bool, str]:
+def aprovar_documento_arquivo(
+    doc: DocumentoColaborador,
+    user,
+    data_emissao=None,
+) -> tuple[bool, str]:
     if not doc.arquivo:
         return False, 'Nenhum arquivo para aprovar.'
     if doc.status == DocumentoColaborador.Status.RECEBIDO:
         return True, 'Documento já aprovado.'
     doc.status = DocumentoColaborador.Status.RECEBIDO
     doc.observacao = ''
-    doc.vencimento = _calcular_vencimento(doc.tipo)
-    doc.save(update_fields=['status', 'observacao', 'vencimento', 'atualizado_em'])
+    doc.reenvio_solicitado = False
+    if data_emissao:
+        doc.data_emissao = data_emissao
+        doc.vencimento = _calcular_vencimento(doc.tipo, data_emissao)
+    elif doc.tipo.tem_validade:
+        doc.vencimento = _calcular_vencimento(doc.tipo, doc.data_emissao)
+    doc.save(update_fields=[
+        'status', 'observacao', 'reenvio_solicitado', 'data_emissao', 'vencimento', 'atualizado_em',
+    ])
     registrar_historico(
         doc.colaborador,
         doc.colaborador.etapa_admissao,
         f'Documento aprovado: {doc.tipo.nome}',
         _autor(user),
     )
-    return True, f'"{doc.tipo.nome}" aprovado.'
+    msg = f'"{doc.tipo.nome}" aprovado.'
+    if doc.vencimento:
+        msg += f' Vencimento: {doc.vencimento.strftime("%d/%m/%Y")}.'
+    return True, msg
 
 
 @transaction.atomic
@@ -581,8 +677,10 @@ def rejeitar_documento_arquivo(doc: DocumentoColaborador, observacao: str, user)
         doc.arquivo = None
     doc.status = DocumentoColaborador.Status.FALTANDO
     doc.observacao = obs
+    doc.reenvio_solicitado = False
+    doc.data_emissao = None
     doc.vencimento = None
-    doc.save(update_fields=['arquivo', 'status', 'observacao', 'vencimento', 'atualizado_em'])
+    doc.save(update_fields=['arquivo', 'status', 'observacao', 'reenvio_solicitado', 'data_emissao', 'vencimento', 'atualizado_em'])
     registrar_historico(
         doc.colaborador,
         doc.colaborador.etapa_admissao,
@@ -599,8 +697,12 @@ def remover_documento_arquivo(doc: DocumentoColaborador, user):
         doc.arquivo.delete(save=False)
         doc.arquivo = None
     doc.status = DocumentoColaborador.Status.FALTANDO
+    doc.reenvio_solicitado = False
+    doc.data_emissao = None
     doc.vencimento = None
-    doc.save(update_fields=['arquivo', 'status', 'vencimento', 'atualizado_em'])
+    doc.save(update_fields=[
+        'arquivo', 'status', 'reenvio_solicitado', 'data_emissao', 'vencimento', 'atualizado_em',
+    ])
     registrar_historico(
         doc.colaborador,
         doc.colaborador.etapa_admissao,
@@ -610,7 +712,12 @@ def remover_documento_arquivo(doc: DocumentoColaborador, user):
 
 
 @transaction.atomic
-def upload_documento_arquivo(doc: DocumentoColaborador, arquivo, user):
+def upload_documento_arquivo(
+    doc: DocumentoColaborador,
+    arquivo,
+    user,
+    data_emissao=None,
+):
     if doc.arquivo:
         doc.arquivo.delete(save=False)
     doc.arquivo = arquivo
@@ -618,13 +725,26 @@ def upload_documento_arquivo(doc: DocumentoColaborador, arquivo, user):
     if via_portal:
         doc.status = DocumentoColaborador.Status.PENDENTE
         doc.observacao = ''
+        doc.reenvio_solicitado = False
+        doc.data_emissao = None
         doc.vencimento = None
-        update_fields = ['arquivo', 'status', 'observacao', 'vencimento', 'atualizado_em']
+        update_fields = [
+            'arquivo', 'status', 'observacao', 'reenvio_solicitado',
+            'data_emissao', 'vencimento', 'atualizado_em',
+        ]
     else:
         doc.status = DocumentoColaborador.Status.RECEBIDO
         doc.observacao = ''
-        doc.vencimento = _calcular_vencimento(doc.tipo)
-        update_fields = ['arquivo', 'status', 'observacao', 'vencimento', 'atualizado_em']
+        if data_emissao:
+            doc.data_emissao = data_emissao
+            doc.vencimento = _calcular_vencimento(doc.tipo, data_emissao)
+        elif doc.tipo.tem_validade:
+            pass
+        else:
+            doc.vencimento = None
+        update_fields = [
+            'arquivo', 'status', 'observacao', 'data_emissao', 'vencimento', 'atualizado_em',
+        ]
     doc.save(update_fields=update_fields)
     registrar_historico(
         doc.colaborador,
@@ -645,6 +765,49 @@ def upload_documento_arquivo(doc: DocumentoColaborador, arquivo, user):
 
 def _docs_obrigatorios_ok(colaborador: Colaborador) -> bool:
     return colaborador.documentos_obrigatorios_pendentes() == 0
+
+
+def enviar_lembrete_coleta_documentos(colaborador: Colaborador, user) -> tuple[bool, str]:
+    """Reenvia e-mail ao candidato lembrando documentos pendentes no portal."""
+    from recursos_humanos.services.documentos import documentos_pendentes_candidato
+    from recursos_humanos.services.notificacoes import enviar_email_lembrete_coleta
+
+    if colaborador.etapa_admissao < 2:
+        return False, 'A coleta de documentos ainda não foi iniciada.'
+    if not colaborador.requisicao_aprovada_gestor:
+        return False, 'Requisição ainda não aprovada pelo gestor.'
+    if not (colaborador.email or '').strip():
+        return False, 'Colaborador sem e-mail cadastrado.'
+
+    pendentes = documentos_pendentes_candidato(colaborador)
+    if not pendentes:
+        return False, 'Não há documentos pendentes para lembrar.'
+
+    if not colaborador.token_portal:
+        colaborador.gerar_token_portal(dias=30)
+
+    email_ok = enviar_email_lembrete_coleta(colaborador, pendentes)
+    autor = _autor(user)
+    if email_ok:
+        lista = ', '.join(pendentes[:5])
+        if len(pendentes) > 5:
+            lista += f' e mais {len(pendentes) - 5}'
+        registrar_historico(
+            colaborador,
+            2,
+            f'Lembrete de documentos enviado por e-mail para {colaborador.email} ({lista})',
+            autor,
+        )
+        return True, f'Lembrete enviado por e-mail para {colaborador.email}.'
+
+    registrar_historico(
+        colaborador,
+        2,
+        f'Falha ao enviar lembrete por e-mail para {colaborador.email}',
+        autor,
+        concluido=False,
+    )
+    return False, 'Não foi possível enviar o lembrete por e-mail.'
 
 
 @transaction.atomic

@@ -4,7 +4,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
-from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, TipoDocumento
+from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, PrazoContrato, TipoDocumento
 from .services.admissao import formatar_salario_br
 from .services.admissao_actions import obras_reais_queryset, usuarios_gestor_list
 
@@ -14,6 +14,33 @@ TIPO_CONTRATO_CHOICES = [
     ('Estágio', 'Estágio'),
     ('Pessoa Jurídica', 'Pessoa Jurídica'),
 ]
+
+MAPA_TIPO_PRAZO = {
+    'Temporário': 'determinado',
+    'Estágio': 'estagio',
+    'Pessoa Jurídica': 'pj',
+}
+
+DEFAULT_DURACAO_POR_TIPO_CONTRATO = {
+    'Temporário': 180,
+    'Estágio': 365,
+    'Pessoa Jurídica': 365,
+}
+
+LIMITES_LEGAIS = {
+    'experiencia': (
+        90,
+        'Período de experiência não pode exceder 90 dias (CLT art. 445, parágrafo único).',
+    ),
+    'determinado': (
+        730,
+        'Contrato por prazo determinado não pode exceder 2 anos (CLT art. 445).',
+    ),
+    'estagio': (
+        730,
+        'Estágio não pode exceder 2 anos (Lei 11.788/2008, art. 11).',
+    ),
+}
 
 ESCOLARIDADE_CHOICES = [
     ('', 'Selecione...'),
@@ -87,6 +114,15 @@ class NovaRequisicaoForm(forms.Form):
         ],
     )
     observacoes = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 3}))
+    clt_periodo_experiencia = forms.BooleanField(
+        required=False,
+        label='Período de experiência',
+    )
+    prazo_duracao_dias = forms.IntegerField(
+        required=False,
+        label='Duração do contrato (dias)',
+        min_value=1,
+    )
 
     def __init__(self, *args, colaborador_pk=None, **kwargs):
         self.colaborador_pk = colaborador_pk
@@ -106,6 +142,57 @@ class NovaRequisicaoForm(forms.Form):
             elif isinstance(field.widget, forms.Select):
                 field.widget.attrs.setdefault('class', 'rh-select')
         self.fields['observacoes'].widget.attrs.setdefault('class', 'rh-input rh-textarea')
+        self.fields['prazo_duracao_dias'].widget.attrs.setdefault('class', 'rh-input')
+
+    def get_tipo_prazo(self):
+        if not self.tem_prazo():
+            return None
+        tipo_contrato = self.cleaned_data.get('tipo_contrato')
+        if tipo_contrato == 'CLT':
+            if self.cleaned_data.get('clt_periodo_experiencia'):
+                return PrazoContrato.Tipo.EXPERIENCIA
+            return PrazoContrato.Tipo.DETERMINADO
+        return MAPA_TIPO_PRAZO.get(tipo_contrato)
+
+    def tem_prazo(self):
+        duracao = self.cleaned_data.get('prazo_duracao_dias')
+        return bool(duracao and duracao > 0)
+
+    def clean(self):
+        cleaned = super().clean()
+        tipo_contrato = cleaned.get('tipo_contrato')
+
+        if tipo_contrato == 'CLT':
+            duracao = cleaned.get('prazo_duracao_dias')
+            is_experiencia = cleaned.get('clt_periodo_experiencia')
+
+            if is_experiencia and not duracao:
+                cleaned['prazo_duracao_dias'] = 90
+                duracao = 90
+
+            if duracao:
+                tipo_prazo = (
+                    PrazoContrato.Tipo.EXPERIENCIA
+                    if is_experiencia
+                    else PrazoContrato.Tipo.DETERMINADO
+                )
+                limite, msg_erro = LIMITES_LEGAIS[tipo_prazo]
+                if duracao > limite:
+                    self.add_error('prazo_duracao_dias', msg_erro)
+            elif not is_experiencia:
+                cleaned['prazo_duracao_dias'] = None
+
+        elif tipo_contrato == 'Estágio':
+            duracao = cleaned.get('prazo_duracao_dias') or DEFAULT_DURACAO_POR_TIPO_CONTRATO['Estágio']
+            cleaned['prazo_duracao_dias'] = duracao
+            limite, msg_erro = LIMITES_LEGAIS['estagio']
+            if duracao > limite:
+                self.add_error('prazo_duracao_dias', msg_erro)
+
+        elif tipo_contrato and tipo_contrato != 'CLT' and not cleaned.get('prazo_duracao_dias'):
+            cleaned['prazo_duracao_dias'] = DEFAULT_DURACAO_POR_TIPO_CONTRATO.get(tipo_contrato)
+
+        return cleaned
 
     def clean_cpf(self):
         return normalizar_cpf(
@@ -248,7 +335,7 @@ class ColaboradorBasicoForm(forms.ModelForm):
     class Meta:
         model = Colaborador
         fields = (
-            'nome', 'cpf', 'email', 'telefone', 'rg', 'cargo', 'empresa', 'endereco', 'dados_bancarios',
+            'nome', 'cpf', 'email', 'telefone', 'rg', 'cargo', 'cargo_rh', 'empresa', 'endereco', 'dados_bancarios',
             'pis', 'escolaridade', 'tamanho_camisa', 'tamanho_bota', 'data_nascimento',
             'tipo_contrato', 'salario', 'data_admissao', 'status', 'observacoes_requisicao', 'obras',
         )
@@ -257,6 +344,7 @@ class ColaboradorBasicoForm(forms.ModelForm):
             'data_admissao': forms.DateInput(attrs={'type': 'date', 'class': 'rh-input'}),
             'tipo_contrato': forms.Select(attrs={'class': 'rh-select'}),
             'status': forms.Select(attrs={'class': 'rh-select'}),
+            'cargo_rh': forms.Select(attrs={'class': 'rh-select'}),
             'observacoes_requisicao': forms.Textarea(attrs={'class': 'rh-input rh-textarea', 'rows': 3}),
             'obras': forms.CheckboxSelectMultiple(attrs={'class': 'rh-checkbox-list'}),
         }
@@ -267,13 +355,16 @@ class ColaboradorBasicoForm(forms.ModelForm):
 
         self.fields['obras'].queryset = obras_reais_queryset()
         self.fields['obras'].required = False
+        self.fields['cargo_rh'].queryset = CargoRH.objects.all()
+        self.fields['cargo_rh'].required = False
+        self.fields['cargo_rh'].empty_label = '— Nenhum —'
         self.fields['tipo_contrato'].widget = forms.Select(
             choices=TIPO_CONTRATO_CHOICES,
             attrs={'class': 'rh-select'},
         )
         self.fields['status'].choices = Colaborador.Status.choices
         for name, field in self.fields.items():
-            if name == 'obras':
+            if name in ('obras', 'cargo_rh'):
                 continue
             if 'class' not in field.widget.attrs:
                 field.widget.attrs['class'] = 'rh-input'
@@ -284,14 +375,18 @@ class ColaboradorBasicoForm(forms.ModelForm):
 
 
 class ConfigurarAlertasForm(forms.Form):
-    dias_documento_vencendo = forms.IntegerField(min_value=1, max_value=365, label='Documentos com vencimento próximo')
-    dias_treinamento_vencer = forms.IntegerField(min_value=1, max_value=365, label='Treinamentos a vencer')
-    dias_renovacao_aso = forms.IntegerField(min_value=1, max_value=365, label='Renovação de ASO')
-    dias_renotificar_vencido = forms.IntegerField(min_value=1, max_value=90, label='Documentos vencidos — renotificar')
-    canal_email_rh = forms.BooleanField(required=False, label='E-mail para o RH')
-    canal_notificacao_sistema = forms.BooleanField(required=False, label='Notificação no sistema')
-    canal_whatsapp_gestor = forms.BooleanField(required=False, label='WhatsApp para o gestor responsável')
-    canal_relatorio_pdf_semanal = forms.BooleanField(required=False, label='Relatório semanal em PDF por e-mail')
+    dias_antecedencia_documentos = forms.IntegerField(
+        min_value=1,
+        max_value=365,
+        label='Documentos e prazos de contrato — avisar com antecedência',
+    )
+    dias_renotificar_vencidos = forms.IntegerField(
+        min_value=1,
+        max_value=90,
+        label='Documentos vencidos — renotificar a cada',
+    )
+    notificar_email = forms.BooleanField(required=False, label='E-mail para os responsáveis')
+    notificar_sistema = forms.BooleanField(required=False, label='Notificação no sistema')
     responsaveis = forms.ModelMultipleChoiceField(
         queryset=User.objects.none(),
         required=False,
@@ -300,13 +395,19 @@ class ConfigurarAlertasForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from recursos_humanos.services.alertas_config import usuarios_elegiveis_alertas
+        from recursos_humanos.services.alertas_config import usuarios_staff_alertas
 
-        self.fields['responsaveis'].queryset = usuarios_elegiveis_alertas()
+        self.fields['responsaveis'].queryset = usuarios_staff_alertas()
 
 
 class DocumentoUploadForm(forms.Form):
     arquivo = forms.FileField()
+    data_emissao = forms.DateField(
+        label='Data de emissão do documento',
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'rh-input'}),
+        help_text='Necessário para documentos com validade',
+    )
 
     def clean_arquivo(self):
         f = self.cleaned_data['arquivo']
