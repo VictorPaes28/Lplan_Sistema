@@ -66,12 +66,16 @@ class IaPermissaoConsultaAdmin(admin.ModelAdmin):
         'pode_consultar_rdo',
         'pode_consultar_pedidos',
         'pode_receber_pdf',
+        'pode_consultar_mapa_geo',
+        'pode_consultar_rh',
         'obras_count',
     )
     list_filter = (
         'pode_consultar_rdo',
         'pode_consultar_pedidos',
         'pode_receber_pdf',
+        'pode_consultar_mapa_geo',
+        'pode_consultar_rh',
     )
     search_fields = ('usuario__telefone', 'usuario__usuario__username')
     filter_horizontal = ('obras_autorizadas',)

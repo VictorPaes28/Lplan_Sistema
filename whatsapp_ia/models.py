@@ -81,6 +81,8 @@ class IaPermissaoConsulta(models.Model):
     pode_consultar_rdo = models.BooleanField(default=True)
     pode_consultar_pedidos = models.BooleanField(default=True)
     pode_receber_pdf = models.BooleanField(default=True)
+    pode_consultar_mapa_geo = models.BooleanField(default=False)
+    pode_consultar_rh = models.BooleanField(default=False)
     obras_autorizadas = models.ManyToManyField(
         'mapa_obras.Obra',
         blank=True,

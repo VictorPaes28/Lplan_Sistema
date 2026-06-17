@@ -945,6 +945,307 @@ TOOLS = [
             },
         },
     },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_resumo_mapa_obra',
+            'description': (
+                'Resumo do mapa geográfico de uma obra: totais de pontos, '
+                'linhas e áreas, progresso geral, marcadores GPS, vínculos EAP '
+                'e última data de diário. Requer nome ou ID da obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'listar_elementos_mapa_obra',
+            'description': (
+                'Lista elementos geográficos (GeoFeature) de uma obra com '
+                'filtros opcionais por pasta, tipo (kind) e status.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                    'folder': {
+                        'type': 'string',
+                        'description': 'Filtrar por pasta/trecho (opcional).',
+                    },
+                    'kind': {
+                        'type': 'string',
+                        'description': (
+                            'segment, point, obstacle, vistoria, caixa, '
+                            'area ou other (opcional).'
+                        ),
+                    },
+                    'status': {
+                        'type': 'string',
+                        'description': (
+                            'planned, in_progress, completed, blocked ou '
+                            'vistoria (opcional).'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'listar_pastas_mapa_obra',
+            'description': (
+                'Lista pastas/trechos distintos do mapa geográfico de uma obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_alertas_mapa_obra',
+            'description': (
+                'Alertas do mapa geográfico: trechos bloqueados, sem vínculo '
+                'EAP, estagnação de progresso e restrições cruzadas.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_elementos_bloqueados_mapa',
+            'description': (
+                'Elementos bloqueados ou obstáculos no mapa geográfico da obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_marcadores_gps_rdo',
+            'description': (
+                'Marcadores GPS de RDO no mapa geográfico (pontos vinculados '
+                'a diários de obra).'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'comparar_progresso_mapa_datas',
+            'description': (
+                'Compara progresso do mapa geográfico entre duas datas: '
+                'elementos que avançaram, estagnaram ou regrediram.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {'type': 'string'},
+                    'obra_id': {'type': 'integer'},
+                    'data_inicio': {
+                        'type': 'string',
+                        'description': 'Data inicial YYYY-MM-DD.',
+                    },
+                    'data_fim': {
+                        'type': 'string',
+                        'description': 'Data final YYYY-MM-DD.',
+                    },
+                },
+                'required': ['data_inicio', 'data_fim'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'panorama_mapas_obras',
+            'description': (
+                'Panorama dos mapas geográficos de todas as obras autorizadas '
+                'do usuário: totais, progresso e segmentos por obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_resumo_rh',
+            'description': (
+                'Painel rápido do RH/DP: colaboradores por status e resumo '
+                'de alertas (documentos, admissões, contratos).'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_colaboradores_ativos',
+            'description': (
+                'Lista colaboradores ativos (nome, cargo, obras). '
+                'Não retorna dados pessoais sensíveis.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Filtrar por obra de alocação (opcional).',
+                    },
+                    'cargo': {
+                        'type': 'string',
+                        'description': 'Filtrar por cargo (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_admissoes_em_andamento',
+            'description': (
+                'Colaboradores em processo de admissão: etapa, documentos '
+                'faltando e pendentes.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_documentos_vencendo',
+            'description': (
+                'Documentos com validade vencendo nos próximos N dias '
+                '(default: configuração de alertas do RH).'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'dias': {
+                        'type': 'integer',
+                        'description': 'Janela em dias (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_documentos_vencidos',
+            'description': 'Documentos de colaboradores já vencidos.',
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_prazos_contrato_vencendo',
+            'description': (
+                'Prazos de contrato ativos que vencem em breve ou já venceram.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_contratos_pendentes_assinatura',
+            'description': (
+                'Contratos de admissão aguardando assinatura (sem PDF/link).'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_alertas_rh_criticos',
+            'description': (
+                'Top alertas críticos do RH (urgência vermelha e amarela), '
+                'ordenados por prazo.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
 ]
 
 
@@ -2830,6 +3131,615 @@ def consultar_etapas_pendencia(
     }, ensure_ascii=False)
 
 
+_LIMITE_LISTA = 30
+
+_ERRO_SEM_PERMISSAO = json.dumps({'erro': 'sem permissão'}, ensure_ascii=False)
+
+_CAMPOS_SENSIVEIS_RH = frozenset({
+    'cpf', 'rg', 'pis', 'salario', 'dados_bancarios', 'endereco',
+    'data_nascimento', 'token_portal', 'email', 'telefone', 'arquivo',
+    'pdf_contrato',
+})
+
+
+def _tem_permissao_modulo(usuario_wa, campo: str) -> bool:
+    from whatsapp_ia.models import IaPermissaoConsulta
+
+    if not usuario_wa:
+        return False
+    try:
+        permissao = IaPermissaoConsulta.objects.get(usuario=usuario_wa)
+        return bool(getattr(permissao, campo, False))
+    except IaPermissaoConsulta.DoesNotExist:
+        return False
+
+
+def _pode_consultar_mapa_geo(usuario_wa) -> bool:
+    return _tem_permissao_modulo(usuario_wa, 'pode_consultar_mapa_geo')
+
+
+def _pode_consultar_rh(usuario_wa) -> bool:
+    return _tem_permissao_modulo(usuario_wa, 'pode_consultar_rh')
+
+
+def _resolver_project_mapa_geo(obra_nome=None, obra_id=None, usuario_wa=None):
+    if not _pode_consultar_mapa_geo(usuario_wa):
+        return None, _ERRO_SEM_PERMISSAO
+    project = _resolver_project(
+        obra_nome=obra_nome,
+        obra_id=obra_id,
+        usuario_wa=usuario_wa,
+    )
+    if not project:
+        return None, json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+    return project, None
+
+
+def _serializar_colaborador_resumo(colab) -> dict:
+    return {
+        'id': colab.pk,
+        'nome': colab.nome,
+        'cargo': colab.cargo,
+        'status': colab.status,
+        'etapa_admissao': colab.etapa_admissao,
+        'obras': list(colab.obras.values_list('nome', flat=True)[:5]),
+    }
+
+
+def consultar_resumo_mapa_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from mapa_geo.services import get_map_summary
+
+    summary = get_map_summary(project)
+    return json.dumps({
+        'obra': project.name,
+        'project_id': project.id,
+        'total': summary['total'],
+        'pontos': summary['points'],
+        'linhas': summary['segments'],
+        'areas': summary['areas'],
+        'progresso_geral_pct': summary['overall_progress_pct'],
+        'marcadores_gps': summary['gps_markers'],
+        'vinculos_eap': summary['eap_linked'],
+        'rdos_com_gps': summary['diaries_with_gps'],
+        'ultima_data_diario': summary['last_diary_date'],
+        'fonte_importacao': summary['import_label'],
+    }, ensure_ascii=False)
+
+
+def listar_elementos_mapa_obra(
+    obra_nome=None, obra_id=None, folder=None, kind=None,
+    status=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from mapa_geo.models import GeoFeature
+    from mapa_geo.services import _features_queryset_for_project
+
+    qs = _features_queryset_for_project(project)
+    if folder:
+        qs = qs.filter(folder__icontains=folder)
+    if kind:
+        qs = qs.filter(kind=kind)
+    if status:
+        qs = qs.filter(status=status)
+
+    total = qs.count()
+    elementos = []
+    for feat in qs.order_by('sort_order', 'name')[:_LIMITE_LISTA]:
+        elementos.append({
+            'nome': feat.name or f'#{feat.pk}',
+            'pasta': feat.folder,
+            'tipo_geometria': feat.geometry_type,
+            'kind': feat.kind,
+            'status': feat.status,
+            'progresso_pct': float(feat.progress_pct),
+        })
+
+    return json.dumps({
+        'obra': project.name,
+        'total': total,
+        'elementos': elementos,
+    }, ensure_ascii=False)
+
+
+def listar_pastas_mapa_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from mapa_geo.enrichment import list_feature_folders
+
+    pastas = list_feature_folders(project)[:_LIMITE_LISTA]
+    return json.dumps({
+        'obra': project.name,
+        'total': len(pastas),
+        'pastas': pastas,
+    }, ensure_ascii=False)
+
+
+def consultar_alertas_mapa_obra(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from mapa_geo.enrichment import get_map_alerts
+
+    dados = get_map_alerts(project)
+    items = dados.get('items', [])[:_LIMITE_LISTA]
+    por_tipo = {}
+    for item in items:
+        tipo = item.get('type', 'outro')
+        por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+
+    return json.dumps({
+        'obra': project.name,
+        'total': dados.get('count', len(items)),
+        'por_tipo': por_tipo,
+        'alertas': [
+            {
+                'tipo': i.get('type'),
+                'severidade': i.get('severity'),
+                'nome': i.get('name'),
+                'mensagem': i.get('message'),
+            }
+            for i in items
+        ],
+    }, ensure_ascii=False)
+
+
+def consultar_elementos_bloqueados_mapa(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from django.db.models import Q
+
+    from mapa_geo.models import GeoFeature
+    from mapa_geo.services import _features_queryset_for_project
+
+    qs = _features_queryset_for_project(project).filter(
+        Q(status='blocked') | Q(kind='obstacle'),
+    )
+    total = qs.count()
+    elementos = [
+        {
+            'nome': f.name or f'#{f.pk}',
+            'pasta': f.folder,
+            'kind': f.kind,
+            'status': f.status,
+            'progresso_pct': float(f.progress_pct),
+        }
+        for f in qs.order_by('sort_order', 'name')[:_LIMITE_LISTA]
+    ]
+
+    return json.dumps({
+        'obra': project.name,
+        'total': total,
+        'elementos': elementos,
+    }, ensure_ascii=False)
+
+
+def consultar_marcadores_gps_rdo(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    from mapa_geo.models import GeoFeature
+    from mapa_geo.services import _features_queryset_for_project
+
+    qs = _features_queryset_for_project(project).filter(
+        diary__isnull=False,
+    ).select_related('diary')
+    total = qs.count()
+    marcadores = []
+    for feat in qs.order_by('-diary__date')[:_LIMITE_LISTA]:
+        diary = feat.diary
+        marcadores.append({
+            'nome': feat.name or f'#{feat.pk}',
+            'pasta': feat.folder,
+            'rdo_numero': getattr(diary, 'report_number', None) or diary.pk,
+            'data': str(diary.date) if diary else None,
+        })
+
+    return json.dumps({
+        'obra': project.name,
+        'total': total,
+        'marcadores': marcadores,
+    }, ensure_ascii=False)
+
+
+def comparar_progresso_mapa_datas(
+    obra_nome=None, obra_id=None, data_inicio=None, data_fim=None,
+    usuario_wa=None,
+) -> str:
+    project, erro = _resolver_project_mapa_geo(
+        obra_nome=obra_nome, obra_id=obra_id, usuario_wa=usuario_wa,
+    )
+    if erro:
+        return erro
+
+    if not data_inicio or not data_fim:
+        return json.dumps(
+            {'erro': 'Informe data_inicio e data_fim (YYYY-MM-DD).'},
+            ensure_ascii=False,
+        )
+
+    d_inicio = _data_ou_hoje(data_inicio)
+    d_fim = _data_ou_hoje(data_fim)
+
+    from mapa_geo.enrichment import compare_features_at_dates
+
+    resultado = compare_features_at_dates(project, d_inicio, d_fim)
+    avancaram = []
+    estagnados = []
+    regrediram = []
+
+    for feat in resultado.get('features', []):
+        props = feat.get('properties', {})
+        cmp = props.get('compare', {})
+        delta = cmp.get('delta_progress', 0)
+        change_type = cmp.get('change_type', 'same')
+        item = {
+            'nome': props.get('name') or f'#{props.get("id", "?")}',
+            'progresso_inicio': cmp.get('progress_a'),
+            'progresso_fim': cmp.get('progress_b'),
+            'delta': delta,
+        }
+        if change_type == 'same' or (change_type == 'changed' and delta == 0):
+            if len(estagnados) < _LIMITE_LISTA:
+                estagnados.append(item)
+        elif delta > 0:
+            if len(avancaram) < _LIMITE_LISTA:
+                avancaram.append(item)
+        elif delta < 0:
+            if len(regrediram) < _LIMITE_LISTA:
+                regrediram.append(item)
+
+    stats = resultado.get('meta', {}).get('stats', {})
+    return json.dumps({
+        'obra': project.name,
+        'data_inicio': str(d_inicio),
+        'data_fim': str(d_fim),
+        'total_elementos': stats.get('same', 0) + stats.get('changed', 0)
+            + stats.get('added', 0) + stats.get('removed', 0),
+        'contagem_avancaram': len(avancaram),
+        'contagem_estagnados': len(estagnados),
+        'contagem_regrediram': len(regrediram),
+        'avancaram': avancaram,
+        'estagnados': estagnados,
+        'regrediram': regrediram,
+    }, ensure_ascii=False)
+
+
+def panorama_mapas_obras(usuario_wa=None) -> str:
+    if not _pode_consultar_mapa_geo(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from mapa_geo.models import GeoObraConfig
+    from mapa_geo.services import get_map_summary
+
+    project_ids = _project_ids_escopo(usuario_wa)
+    projects = Project.objects.filter(
+        is_active=True, id__in=project_ids,
+    ).order_by('name')
+
+    obras = []
+    for project in projects[:_LIMITE_LISTA]:
+        summary = get_map_summary(project)
+        config = GeoObraConfig.objects.filter(project=project).first()
+        obras.append({
+            'project_id': project.id,
+            'nome': project.name,
+            'codigo': project.code,
+            'total_elementos': summary['total'],
+            'linhas': summary['segments'],
+            'pontos': summary['points'],
+            'areas': summary['areas'],
+            'progresso_geral_pct': summary['overall_progress_pct'],
+            'marcadores_gps': summary['gps_markers'],
+            'ultima_data_diario': summary['last_diary_date'],
+            'centro': (
+                [float(config.center_latitude), float(config.center_longitude)]
+                if config and config.center_latitude and config.center_longitude
+                else None
+            ),
+        })
+
+    return json.dumps({
+        'total_obras': projects.count(),
+        'obras': obras,
+    }, ensure_ascii=False)
+
+
+def consultar_resumo_rh(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.models import Colaborador
+    from recursos_humanos.services.alerts import gerar_alertas, resumo_alertas
+
+    alertas = gerar_alertas()
+    resumo = resumo_alertas(alertas)
+    criticos = sum(
+        1 for a in alertas if a.urgencia in ('red', 'yellow')
+    )
+
+    return json.dumps({
+        'colaboradores': {
+            'ativos': Colaborador.objects.filter(
+                status=Colaborador.Status.ATIVO,
+            ).count(),
+            'em_admissao': Colaborador.objects.filter(
+                status=Colaborador.Status.EM_ADMISSAO,
+            ).count(),
+            'desligados': Colaborador.objects.filter(
+                status=Colaborador.Status.DESLIGADO,
+            ).count(),
+        },
+        'alertas': {
+            'total': resumo['total'],
+            'criticos': criticos,
+            'vencendo': resumo['vencendo'],
+            'vencidos': resumo['vencidos'],
+            'admissoes': resumo['admissoes'],
+            'contratos': resumo['contratos'],
+        },
+        'dias_antecedencia_documentos': resumo['dias_antecedencia_documentos'],
+        'data': str(resumo['hoje']),
+    }, ensure_ascii=False)
+
+
+def consultar_colaboradores_ativos(
+    obra_nome=None, cargo=None, usuario_wa=None,
+) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.models import Colaborador
+
+    qs = Colaborador.objects.filter(
+        status=Colaborador.Status.ATIVO,
+    ).prefetch_related('obras')
+    if obra_nome:
+        qs = qs.filter(obras__nome__icontains=obra_nome)
+    if cargo:
+        qs = qs.filter(cargo__icontains=cargo)
+
+    total = qs.distinct().count()
+    colaboradores = [
+        _serializar_colaborador_resumo(c)
+        for c in qs.distinct().order_by('nome')[:_LIMITE_LISTA]
+    ]
+
+    return json.dumps({
+        'total': total,
+        'colaboradores': colaboradores,
+    }, ensure_ascii=False)
+
+
+def consultar_admissoes_em_andamento(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.models import Colaborador, DocumentoColaborador
+
+    qs = Colaborador.objects.filter(
+        status=Colaborador.Status.EM_ADMISSAO,
+    ).order_by('etapa_admissao', 'nome')
+    total = qs.count()
+    admissoes = []
+    for colab in qs[:_LIMITE_LISTA]:
+        admissoes.append({
+            'nome': colab.nome,
+            'cargo': colab.cargo,
+            'etapa_admissao': colab.etapa_admissao,
+            'documentos_faltando': colab.documentos.filter(
+                status=DocumentoColaborador.Status.FALTANDO,
+            ).count(),
+            'documentos_pendentes': colab.documentos.filter(
+                status=DocumentoColaborador.Status.PENDENTE,
+            ).count(),
+            'gestor': colab.gestor_aprovador or None,
+        })
+
+    return json.dumps({
+        'total': total,
+        'admissoes': admissoes,
+    }, ensure_ascii=False)
+
+
+def consultar_documentos_vencendo(dias=None, usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from datetime import timedelta
+
+    from recursos_humanos.models import Colaborador, DocumentoColaborador
+    from recursos_humanos.services.alertas_config import obter_configuracao_alertas
+
+    config = obter_configuracao_alertas()
+    janela = dias if dias is not None else config.dias_antecedencia_documentos
+    hoje = timezone.localdate()
+    limite = hoje + timedelta(days=janela)
+
+    qs = DocumentoColaborador.objects.filter(
+        tipo__tem_validade=True,
+        vencimento__isnull=False,
+        vencimento__gte=hoje,
+        vencimento__lte=limite,
+        colaborador__status__in=(
+            Colaborador.Status.ATIVO,
+            Colaborador.Status.EM_ADMISSAO,
+        ),
+    ).select_related('colaborador', 'tipo').order_by('vencimento')
+
+    total = qs.count()
+    documentos = []
+    for doc in qs[:_LIMITE_LISTA]:
+        documentos.append({
+            'colaborador_nome': doc.colaborador.nome,
+            'tipo_documento': doc.tipo.nome,
+            'vencimento': str(doc.vencimento),
+            'dias_restantes': (doc.vencimento - hoje).days,
+            'status': doc.status,
+        })
+
+    return json.dumps({
+        'dias_janela': janela,
+        'total': total,
+        'documentos': documentos,
+    }, ensure_ascii=False)
+
+
+def consultar_documentos_vencidos(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.models import Colaborador, DocumentoColaborador
+
+    hoje = timezone.localdate()
+    qs = DocumentoColaborador.objects.filter(
+        tipo__tem_validade=True,
+        vencimento__isnull=False,
+        vencimento__lt=hoje,
+    ).select_related('colaborador', 'tipo').order_by('vencimento')
+
+    total = qs.count()
+    documentos = []
+    for doc in qs[:_LIMITE_LISTA]:
+        documentos.append({
+            'colaborador_nome': doc.colaborador.nome,
+            'tipo_documento': doc.tipo.nome,
+            'vencimento': str(doc.vencimento),
+            'dias_atraso': (hoje - doc.vencimento).days,
+            'status': doc.status,
+            'colaborador_status': doc.colaborador.status,
+        })
+
+    return json.dumps({
+        'total': total,
+        'documentos': documentos,
+    }, ensure_ascii=False)
+
+
+def consultar_prazos_contrato_vencendo(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.services.alertas_config import obter_configuracao_alertas
+    from recursos_humanos.services.prazo_contrato import prazos_vencendo
+
+    config = obter_configuracao_alertas()
+    prazos = prazos_vencendo(
+        dias_antecedencia=config.dias_antecedencia_documentos,
+    )
+    total = prazos.count()
+    itens = []
+    for prazo in prazos[:_LIMITE_LISTA]:
+        dias = prazo.dias_restantes()
+        itens.append({
+            'colaborador_nome': prazo.colaborador.nome,
+            'tipo_contrato': prazo.get_tipo_display(),
+            'data_fim': str(prazo.data_fim) if prazo.data_fim else None,
+            'dias_restantes': dias,
+            'status': prazo.status,
+        })
+
+    return json.dumps({
+        'total': total,
+        'prazos': itens,
+    }, ensure_ascii=False)
+
+
+def consultar_contratos_pendentes_assinatura(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.models import ContratoAdmissao
+
+    qs = ContratoAdmissao.objects.filter(
+        status=ContratoAdmissao.Status.PENDENTE,
+    ).select_related('colaborador').order_by('-criado_em')
+
+    total = qs.count()
+    contratos = [
+        {
+            'colaborador_nome': c.colaborador.nome,
+            'cargo': c.colaborador.cargo,
+            'etapa_admissao': c.colaborador.etapa_admissao,
+            'criado_em': str(c.criado_em.date()),
+        }
+        for c in qs[:_LIMITE_LISTA]
+    ]
+
+    return json.dumps({
+        'total': total,
+        'contratos': contratos,
+    }, ensure_ascii=False)
+
+
+def consultar_alertas_rh_criticos(usuario_wa=None) -> str:
+    if not _pode_consultar_rh(usuario_wa):
+        return _ERRO_SEM_PERMISSAO
+
+    from recursos_humanos.services.alerts import gerar_alertas
+
+    alertas = [
+        a for a in gerar_alertas()
+        if a.urgencia in ('red', 'yellow')
+    ]
+    ordem = {'red': 0, 'yellow': 1}
+    alertas.sort(key=lambda a: (ordem.get(a.urgencia, 9), a.dias_restantes))
+
+    itens = [
+        {
+            'colaborador_nome': a.colaborador_nome,
+            'tipo': a.tipo,
+            'detalhe': a.detalhe,
+            'prazo': a.prazo,
+            'dias_restantes': a.dias_restantes,
+            'urgencia': a.urgencia,
+        }
+        for a in alertas[:20]
+    ]
+
+    return json.dumps({
+        'total': len(alertas),
+        'alertas': itens,
+    }, ensure_ascii=False)
+
+
 FUNCOES_DISPONIVEIS = {
     'consultar_rdos_pendentes': consultar_rdos_pendentes,
     'consultar_pedidos_pendentes': consultar_pedidos_pendentes,
@@ -2863,6 +3773,22 @@ FUNCOES_DISPONIVEIS = {
     'consultar_restricoes_por_responsavel': consultar_restricoes_por_responsavel,
     'consultar_pendencias_por_responsavel': consultar_pendencias_por_responsavel,
     'consultar_etapas_pendencia': consultar_etapas_pendencia,
+    'consultar_resumo_mapa_obra': consultar_resumo_mapa_obra,
+    'listar_elementos_mapa_obra': listar_elementos_mapa_obra,
+    'listar_pastas_mapa_obra': listar_pastas_mapa_obra,
+    'consultar_alertas_mapa_obra': consultar_alertas_mapa_obra,
+    'consultar_elementos_bloqueados_mapa': consultar_elementos_bloqueados_mapa,
+    'consultar_marcadores_gps_rdo': consultar_marcadores_gps_rdo,
+    'comparar_progresso_mapa_datas': comparar_progresso_mapa_datas,
+    'panorama_mapas_obras': panorama_mapas_obras,
+    'consultar_resumo_rh': consultar_resumo_rh,
+    'consultar_colaboradores_ativos': consultar_colaboradores_ativos,
+    'consultar_admissoes_em_andamento': consultar_admissoes_em_andamento,
+    'consultar_documentos_vencendo': consultar_documentos_vencendo,
+    'consultar_documentos_vencidos': consultar_documentos_vencidos,
+    'consultar_prazos_contrato_vencendo': consultar_prazos_contrato_vencendo,
+    'consultar_contratos_pendentes_assinatura': consultar_contratos_pendentes_assinatura,
+    'consultar_alertas_rh_criticos': consultar_alertas_rh_criticos,
 }
 
 
