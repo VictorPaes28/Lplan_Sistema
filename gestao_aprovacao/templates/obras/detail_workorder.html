@@ -98,7 +98,7 @@
     {% endif %}
 
     {% if workorder.solicitado_exclusao %}
-    {% if workorder.status == 'pendente' or workorder.status == 'reprovado' %}
+    {% if workorder.status == 'rascunho' or workorder.status == 'pendente' or workorder.status == 'reprovado' or workorder.status == 'reaprovacao' %}
     <div class="detail-inline-alert detail-inline-alert--exclusao">
         <span>Exclusão solicitada · {{ workorder.solicitado_exclusao_em|date:"d/m/Y H:i" }}</span>
         {% if can_aprovar_exclusao %}
