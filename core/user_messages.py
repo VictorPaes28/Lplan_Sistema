@@ -78,7 +78,7 @@ _CATALOG: dict[str, UiMessageTemplate] = {
     ),
     "gestao.delete_request.invalid_status": UiMessageTemplate(
         variants=(
-            "A exclusão só pode ser solicitada para pedidos pendentes ou reprovados.",
+            "A exclusão só pode ser solicitada para pedidos em rascunho, pendentes, reprovados ou em reaprovação.",
             "Este status não permite solicitação de exclusão.",
         ),
     ),

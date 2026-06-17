@@ -359,6 +359,9 @@ ANEXOS_BLOQUEADOS_FLUXO_MSG = (
     'enquanto o pedido estiver em reaprovação, após aprovado ou se estiver cancelado.'
 )
 
+# Status em que o fluxo de solicitar/aprovar exclusão (cancelamento) é permitido.
+STATUSES_ELEGIVEIS_EXCLUSAO = ('rascunho', 'pendente', 'reprovado', 'reaprovacao')
+
 
 def _status_bloqueia_alteracao_anexos(status: str) -> bool:
     return status in ('reaprovacao', 'aprovado', 'cancelado')
@@ -1825,7 +1828,7 @@ def detail_workorder(request, pk):
     
     # Verificar se pode aprovar/rejeitar exclusão (aprovador/admin, pedido solicitado e em status elegível)
     can_aprovar_exclusao = False
-    if workorder.solicitado_exclusao and workorder.status in ['pendente', 'reprovado']:
+    if workorder.solicitado_exclusao and workorder.status in STATUSES_ELEGIVEIS_EXCLUSAO:
         if is_admin(user):
             can_aprovar_exclusao = True
         elif is_aprovador(user):
@@ -1939,12 +1942,12 @@ def detail_workorder(request, pk):
 
 def _can_solicitar_exclusao(workorder, user, *, tem_permissao=True):
     """
-    Solicitante: apenas pedidos próprios em pendente/reprovado, sem exclusão já pedida.
+    Solicitante: apenas pedidos próprios em status elegível, sem exclusão já pedida.
     Admin da plataforma: qualquer pedido visível nas mesmas condições de status.
     """
     if workorder.solicitado_exclusao:
         return False
-    if workorder.status not in ('pendente', 'reprovado'):
+    if workorder.status not in STATUSES_ELEGIVEIS_EXCLUSAO:
         return False
     if usuario_e_admin_sistema_gestao(user):
         return True
@@ -2038,7 +2041,7 @@ def _workorder_ajax_permission_flags(workorder, user):
     can_solicitar_exclusao = _can_solicitar_exclusao(workorder, user, tem_permissao=tem_permissao)
 
     can_aprovar_exclusao = False
-    if tem_permissao and workorder.solicitado_exclusao and workorder.status in ['pendente', 'reprovado']:
+    if tem_permissao and workorder.solicitado_exclusao and workorder.status in STATUSES_ELEGIVEIS_EXCLUSAO:
         if is_admin(user):
             can_aprovar_exclusao = True
         elif is_aprovador(user):
@@ -2256,7 +2259,7 @@ def workorder_detail_ajax(request, pk):
     criado = workorder.criado_por
 
     exclusao_pendente = None
-    if workorder.solicitado_exclusao and workorder.status in ('pendente', 'reprovado'):
+    if workorder.solicitado_exclusao and workorder.status in STATUSES_ELEGIVEIS_EXCLUSAO:
         sol = workorder.solicitado_exclusao_por
         exclusao_pendente = {
             'solicitado_por': (
@@ -5641,7 +5644,7 @@ def manage_obra_permissions(request, pk):
 @login_required
 def solicitar_exclusao(request, pk):
     """
-    Permite que o solicitante solicite a exclusão de um pedido pendente ou reprovado.
+    Permite que o solicitante solicite a exclusão de um pedido em status elegível.
     A exclusão só será efetivada após aprovação do aprovador.
     """
     workorder = get_object_or_404(WorkOrder, pk=pk)
