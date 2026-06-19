@@ -2045,6 +2045,38 @@ function updateExtraInfoCount() {
     }
 }
 
+function ensureExtraInfoSectionVisibleIfFilled() {
+    var fields = document.querySelectorAll('.diary-extra-field__textarea[data-extra-field]');
+    var hasFilled = false;
+    for (var i = 0; i < fields.length; i++) {
+        if ((fields[i].value || '').trim()) {
+            hasFilled = true;
+            break;
+        }
+    }
+    if (!hasFilled) return;
+    if (window.accordionManager && typeof window.accordionManager.expand === 'function') {
+        window.accordionManager.expand('comentarios');
+        return;
+    }
+    if (typeof window.toggleSection === 'function') {
+        window.toggleSection('comentarios');
+        return;
+    }
+    var toggle = document.querySelector('[data-toggle-section="comentarios"]');
+    var content = document.getElementById('section-comentarios-content');
+    if (toggle && content) {
+        toggle.classList.remove('section-collapsed');
+        toggle.classList.add('section-expanded');
+        toggle.setAttribute('aria-expanded', 'true');
+        content.classList.remove('section-collapsed');
+        content.classList.add('section-expanded');
+        var chevron = toggle.querySelector('.section-chevron');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+    }
+}
+window.ensureExtraInfoSectionVisibleIfFilled = ensureExtraInfoSectionVisibleIfFilled;
+
 function initExtraInfoFields() {
     var fields = document.querySelectorAll('.diary-extra-field__textarea[data-extra-field]');
     for (var i = 0; i < fields.length; i++) {
@@ -2052,6 +2084,7 @@ function initExtraInfoFields() {
         fields[i].addEventListener('change', updateExtraInfoCount);
     }
     updateExtraInfoCount();
+    ensureExtraInfoSectionVisibleIfFilled();
 }
 function removeActivity(index) {
     var item = document.querySelector('.activity-item[data-form-index="' + index + '"]');

@@ -2487,7 +2487,7 @@ def diary_detail_view(request, pk):
     diary = get_object_or_404(
         ConstructionDiary.objects.select_related('project', 'front', 'created_by', 'reviewed_by')
         .prefetch_related(
-            'images', 'videos',
+            'images', 'videos', 'attachments',
             'work_logs__activity', 'work_logs__resources_labor', 'work_logs__resources_equipment',
             'occurrences', 'occurrences__tags',
             'owner_comments__author',
@@ -2698,9 +2698,18 @@ def diary_detail_view(request, pk):
         if getattr(getattr(wl, 'activity', None), 'code', '') != 'GEN-MAO-OBRA-EQUIP'
     ]
 
+    diary_has_extra_info = any(
+        str(getattr(diary, field, '') or '').strip()
+        for field in (
+            'general_notes', 'accidents', 'stoppages', 'imminent_risks',
+            'incidents', 'inspections', 'dds', 'deliberations',
+        )
+    ) or diary.work_hours is not None
+
     context = {
         'diary': diary,
         'display_work_logs': display_work_logs,
+        'diary_has_extra_info': diary_has_extra_info,
         'user': request.user,
         'show_request_edit_diary': show_request_edit_diary,
         'diary_edit_request_pending': diary_edit_request_pending,
