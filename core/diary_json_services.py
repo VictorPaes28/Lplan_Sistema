@@ -87,6 +87,19 @@ def create_worklogs_from_json(diary, project, work_logs_json_str, replace_existi
     if not isinstance(data, list):
         return []
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('activity_description') or '').strip())
+    if replace_existing and len(data) == 0:
+        deleted_count, _ = diary.work_logs.all().delete()
+        if deleted_count:
+            logger.info("Work logs anteriores do diário removidos (JSON vazio): %s", deleted_count)
+        return []
+    if replace_existing and valid_count == 0:
+        deleted_count, _ = diary.work_logs.all().delete()
+        if deleted_count:
+            logger.info(
+                "Work logs anteriores do diário removidos (JSON sem atividades válidas): %s",
+                deleted_count,
+            )
+        return []
     if valid_count == 0:
         return []
     if replace_existing:
@@ -181,6 +194,19 @@ def create_occurrences_from_json(diary, occurrences_json_str, created_by, replac
     if not isinstance(data, list):
         return []
     valid_count = sum(1 for item in data if isinstance(item, dict) and (item.get('description') or '').strip())
+    if replace_existing and len(data) == 0:
+        deleted_count, _ = diary.occurrences.all().delete()
+        if deleted_count:
+            logger.info("Ocorrências anteriores do diário removidas (JSON vazio): %s", deleted_count)
+        return []
+    if replace_existing and valid_count == 0:
+        deleted_count, _ = diary.occurrences.all().delete()
+        if deleted_count:
+            logger.info(
+                "Ocorrências anteriores do diário removidas (JSON sem itens válidos): %s",
+                deleted_count,
+            )
+        return []
     if valid_count == 0:
         return []
     if replace_existing:

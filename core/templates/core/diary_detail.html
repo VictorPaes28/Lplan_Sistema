@@ -762,9 +762,9 @@
             <i class="fas fa-calendar-check mr-2 text-sm" aria-hidden="true"></i>
             Atividades executadas
         </h3>
-        {% if diary.work_logs.all or diary.inspections or diary.dds %}
+        {% if display_work_logs or diary.inspections or diary.dds %}
         <div class="diary-detail-stack">
-            {% for wl in diary.work_logs.all %}
+            {% for wl in display_work_logs %}
             <div class="diary-detail-stack__item">
                 <div class="flex flex-wrap items-start justify-between gap-2">
                     <p class="text-sm font-semibold text-slate-800">{{ wl.activity.display_name }}</p>

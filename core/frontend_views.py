@@ -2,6 +2,7 @@
 Views para frontend do LPlan - Templates Django com HTMX/Alpine.js
 """
 from functools import wraps
+import json
 import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -234,6 +235,112 @@ def _is_truthy_flag(value):
     """Interpreta flags vindas de forms HTML de forma resiliente."""
     normalized = str(value or '').strip().lower()
     return normalized in {'1', 'true', 'on', 'yes'}
+
+
+def _validate_diary_photo_captions(normalized_post, preserved_files):
+    """Exige legenda em fotos novas ou existentes enviadas no POST."""
+    errors = []
+    try:
+        total = int(normalized_post.get('diaryimage_set-TOTAL_FORMS', '0'))
+    except (TypeError, ValueError):
+        total = 0
+    checked_indexes = set()
+    for i in range(total):
+        delete_key = f'diaryimage_set-{i}-DELETE'
+        if normalized_post.get(delete_key, '').strip().lower() in ('on', 'true', '1', 'yes'):
+            continue
+        image_key = f'diaryimage_set-{i}-image'
+        id_key = f'diaryimage_set-{i}-id'
+        caption_key = f'diaryimage_set-{i}-caption'
+        has_file = image_key in preserved_files and preserved_files.get(image_key)
+        has_id = (normalized_post.get(id_key) or '').strip()
+        if has_file or has_id:
+            checked_indexes.add(i)
+            if not (normalized_post.get(caption_key) or '').strip():
+                errors.append(f'A foto {i + 1} precisa de legenda obrigatória.')
+    if preserved_files:
+        for key in preserved_files:
+            if not key.startswith('diaryimage_set-') or not key.endswith('-image'):
+                continue
+            parts = key.split('-')
+            if len(parts) < 3 or not parts[1].isdigit():
+                continue
+            i = int(parts[1])
+            if i in checked_indexes:
+                continue
+            caption_key = f'diaryimage_set-{i}-caption'
+            if not (normalized_post.get(caption_key) or '').strip():
+                errors.append(f'A foto {i + 1} precisa de legenda obrigatória.')
+    return errors
+
+
+def _validate_diary_video_captions(request, preserved_files):
+    """Exige legenda em vídeos novos e existentes enviados no POST."""
+    errors = []
+    for key in request.POST:
+        if not key.startswith('video_caption_') or key.startswith('video_caption_new_'):
+            continue
+        video_id = key.replace('video_caption_', '', 1)
+        delete_key = f'video_delete_{video_id}'
+        if (request.POST.get(delete_key) or '').strip().lower() in ('on', 'true', '1', 'yes'):
+            continue
+        if not (request.POST.get(key) or '').strip():
+            errors.append('Um vídeo do relatório está sem legenda obrigatória.')
+            break
+    if preserved_files:
+        for key in preserved_files:
+            if not key.startswith('video_new_'):
+                continue
+            try:
+                index = key.replace('video_new_', '')
+                caption_key = f'video_caption_new_{index}'
+                if not (request.POST.get(caption_key) or '').strip():
+                    errors.append('O vídeo novo precisa de legenda obrigatória.')
+                    break
+            except (ValueError, TypeError):
+                continue
+    return errors
+
+
+def _diary_post_includes_attachments(request, preserved_files):
+    """True quando o front enviou dados da seção de anexos (evita apagar por POST incompleto)."""
+    for key in request.POST:
+        if key.startswith('attachment_name_') or key.startswith('attachment_new_'):
+            return True
+        if key.startswith('attachment_') and not key.startswith('attachment_name_'):
+            return True
+    if preserved_files:
+        for key in preserved_files:
+            if key.startswith('attachment_'):
+                return True
+    return False
+
+
+def _is_diary_payload_ready(request):
+    """True quando o JS executou prepareDiaryFormForSubmit antes do envio."""
+    return _is_truthy_flag(request.POST.get('diary_payload_ready'))
+
+
+def _require_diary_json_array(raw_value, field_label):
+    """
+    Exige JSON array válido (pode ser lista vazia []).
+    Usado após diary_payload_ready=1 no POST.
+    """
+    text = (raw_value or '').strip()
+    if not text:
+        raise ValueError(
+            f'Os dados de {field_label} não foram preparados para envio. '
+            f'Recarregue a página e tente novamente.'
+        )
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError(
+            f'Dados de {field_label} estão corrompidos. Recarregue a página e tente novamente.'
+        )
+    if not isinstance(data, list):
+        raise ValueError(f'Dados de {field_label} são inválidos (esperada uma lista).')
+    return data
 
 
 def _decode_js_escaped_text(value):
@@ -2586,8 +2693,14 @@ def diary_detail_view(request, pk):
 
     nav_prev_pk, nav_next_pk, nav_position, nav_total = _diary_adjacent_ids_for_project(project, diary.pk)
 
+    display_work_logs = [
+        wl for wl in diary.work_logs.all()
+        if getattr(getattr(wl, 'activity', None), 'code', '') != 'GEN-MAO-OBRA-EQUIP'
+    ]
+
     context = {
         'diary': diary,
+        'display_work_logs': display_work_logs,
         'user': request.user,
         'show_request_edit_diary': show_request_edit_diary,
         'diary_edit_request_pending': diary_edit_request_pending,
@@ -4286,10 +4399,6 @@ def diary_form_view(request, pk=None):
             # IMPORTANTE: Prepara o diário mas NÃO salva ainda
             # O diário será salvo dentro da transação atomic() após validar os formsets
             if diary:
-                is_partial_save = (
-                    _is_truthy_flag(request.POST.get('partial_save')) or
-                    _is_truthy_flag(request.POST.get('as_partial_checkbox'))
-                )
                 if not diary.pk:
                     diary.created_by = request.user
                     diary.project = project  # Associa à obra selecionada
@@ -4297,8 +4406,17 @@ def diary_form_view(request, pk=None):
                     # Diário já existe mas sem criador (legado): define para permitir edição
                     diary.created_by = request.user
                 if is_partial_save:
-                    diary.status = DiaryStatus.SALVAMENTO_PARCIAL
-                    logger.info("Salvamento parcial: status definido como SALVAMENTO_PARCIAL")
+                    if diary.status not in (
+                        DiaryStatus.AGUARDANDO_APROVACAO_GESTOR,
+                        DiaryStatus.REPROVADO_GESTOR,
+                    ):
+                        diary.status = DiaryStatus.SALVAMENTO_PARCIAL
+                        logger.info("Salvamento parcial: status definido como SALVAMENTO_PARCIAL")
+                    else:
+                        logger.info(
+                            "Salvamento parcial: status %s preservado",
+                            diary.status,
+                        )
                 else:
                     has_project_approver = diary.project.rdo_approvers.filter(is_active=True).exists()
                     if has_project_approver:
@@ -4398,9 +4516,56 @@ def diary_form_view(request, pk=None):
                 prefix='ocorrencias'
             )
             
+            # Assinatura obrigatória só no envio final — validar ANTES da transação para não
+            # reverter mão de obra, fotos e demais seções já processáveis.
+            is_partial_save = (
+                _is_truthy_flag(request.POST.get('partial_save')) or
+                _is_truthy_flag(request.POST.get('as_partial_checkbox'))
+            )
+            signature_inspection_post = (request.POST.get('signature_inspection') or '').strip()
+            signature_production_post = (request.POST.get('signature_production') or '').strip()
+            diary_labor_unresolved = 0
+            if not is_partial_save and not signature_inspection_post:
+                messages.error(
+                    request,
+                    'A assinatura do responsável pelo preenchimento é obrigatória para enviar o diário. '
+                    'Use "Salvar rascunho" para guardar sem assinatura e continuar depois.',
+                )
+                context = _diary_form_context_from_post(
+                    request, project, form, image_formset, worklog_formset, occurrence_formset, diary,
+                )
+                return render(request, 'core/daily_log_form.html', context)
+
+            photo_caption_errors = _validate_diary_photo_captions(normalized_post, preserved_files)
+            photo_caption_errors.extend(_validate_diary_video_captions(request, preserved_files))
+            if photo_caption_errors:
+                messages.error(
+                    request,
+                    'Corrija as fotos antes de salvar:\n' + '\n'.join(photo_caption_errors[:8]),
+                )
+                context = _diary_form_context_from_post(
+                    request, project, form, image_formset, worklog_formset, occurrence_formset, diary,
+                )
+                return render(request, 'core/daily_log_form.html', context)
+
+            diary_payload_ready = _is_diary_payload_ready(request)
+            if diary_payload_ready:
+                try:
+                    _require_diary_json_array(request.POST.get('work_logs_json'), 'atividades')
+                    _require_diary_json_array(request.POST.get('occurrences_json'), 'ocorrências')
+                    if 'diary_labor_data' in request.POST:
+                        _require_diary_json_array(request.POST.get('diary_labor_data'), 'mão de obra')
+                    if 'equipment_data' in request.POST:
+                        _require_diary_json_array(request.POST.get('equipment_data'), 'equipamentos')
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    context = _diary_form_context_from_post(
+                        request, project, form, image_formset, worklog_formset, occurrence_formset, diary,
+                    )
+                    return render(request, 'core/daily_log_form.html', context)
+
             # IMPORTANTE: Formsets inline precisam de instância salva (com PK)
             # Vamos salvar o diário dentro da transação primeiro, depois validar os formsets
-            # Se os formsets críticos falharem, lançamos exceção para fazer rollback
             from django.db import transaction
             from core.models import DiarySignature
             
@@ -4528,10 +4693,9 @@ def diary_form_view(request, pk=None):
                         if not occurrence_valid_final and total_occurrence_forms > 0:
                             pass  # erros em occurrence_formset
                         
-                        # Se o formset de worklogs é crítico e falhou com dados, coleta erros antes de fazer rollback
+                        # Falha no formset de atividades não deve reverter mão de obra, fotos etc.
+                        # (fallback JSON e aviso ao usuário são tratados após o commit parcial).
                         if not worklog_valid_final and total_worklog_forms > 0:
-                            logger.error("Formset de worklogs falhou e há dados. Coletando erros antes do rollback.")
-                            # Coleta erros específicos do formset para mostrar ao usuário
                             worklog_errors = []
                             for i, form_obj in enumerate(worklog_formset.forms):
                                 if form_obj.errors:
@@ -4541,17 +4705,10 @@ def diary_form_view(request, pk=None):
                             if worklog_formset.non_form_errors():
                                 for error in worklog_formset.non_form_errors():
                                     worklog_errors.append(f'Erro geral: {error}')
-                            
-                            error_message = "Erro ao processar atividades. "
-                            if worklog_errors:
-                                error_message += "Detalhes: " + "; ".join(worklog_errors[:5])  # Limita a 5 erros
-                                if len(worklog_errors) > 5:
-                                    error_message += f" (e mais {len(worklog_errors) - 5} erro(s))"
-                            else:
-                                error_message += "Por favor, verifique os dados das atividades e tente novamente."
-                            
-                            logger.error(f"Erros do formset de worklogs: {worklog_errors}")
-                            raise ValueError(error_message)
+                            logger.warning(
+                                "Formset de worklogs inválido; demais seções serão salvas. Erros: %s",
+                                worklog_errors[:5],
+                            )
                         
                         # Atualiza as variáveis de validação para usar os valores finais
                         image_valid = image_valid_final
@@ -4801,11 +4958,12 @@ def diary_form_view(request, pk=None):
                     
                     logger.info(f"Vídeos salvos: {len(saved_videos)} vídeos")
                     
-                    # 3. PROCESSAMENTO DE ANEXOS (sempre processa)
+                    # 3. PROCESSAMENTO DE ANEXOS (só sincroniza quando a seção foi enviada no POST)
                     from core.models import DiaryAttachment
                     saved_attachments = []
-                    
-                    if diary and diary.pk:
+                    sync_attachments = _diary_post_includes_attachments(request, preserved_files)
+
+                    if diary and diary.pk and sync_attachments:
                         kept_attachment_ids = set()
                         for key in request.POST.keys():
                             if key.startswith('attachment_name_') and not key.startswith('attachment_name_new_'):
@@ -4858,36 +5016,36 @@ def diary_form_view(request, pk=None):
                                     saved_attachments.append(attachment)
                     
                     processed_attachment_indices = set()
-                    for key in preserved_files.keys():
-                        if key.startswith('attachment_new_'):
-                            try:
-                                index = int(key.replace('attachment_new_', ''))
-                                if index in processed_attachment_indices:
-                                    continue
-                                processed_attachment_indices.add(index)
-                                
-                                attachment_file = preserved_files[key]
-                                # Valida arquivo antes de processar
+                    if sync_attachments:
+                        for key in preserved_files.keys():
+                            if key.startswith('attachment_new_'):
                                 try:
-                                    from .utils.file_validators import validate_attachment_file
-                                    validate_attachment_file(attachment_file)
-                                except ValidationError as e:
-                                    logger.error(f"Erro de validação no anexo novo {key}: {e}")
-                                    messages.error(request, f'Erro ao processar anexo: {e}')
-                                    continue
-                                
-                                name_key = f'attachment_name_new_{index}'
-                                name = request.POST.get(name_key, '').strip() or attachment_file.name
-                                
-                                attachment = DiaryAttachment.objects.create(
-                                    diary=diary,
-                                    file=attachment_file,
-                                    name=name
-                                )
-                                saved_attachments.append(attachment)
-                                logger.info(f"Anexo novo salvo: ID={attachment.id}")
-                            except (ValueError, IndexError) as e:
-                                logger.debug(f"Erro ao processar anexo {key}: {e}")
+                                    index = int(key.replace('attachment_new_', ''))
+                                    if index in processed_attachment_indices:
+                                        continue
+                                    processed_attachment_indices.add(index)
+
+                                    attachment_file = preserved_files[key]
+                                    try:
+                                        from .utils.file_validators import validate_attachment_file
+                                        validate_attachment_file(attachment_file)
+                                    except ValidationError as e:
+                                        logger.error(f"Erro de validação no anexo novo {key}: {e}")
+                                        messages.error(request, f'Erro ao processar anexo: {e}')
+                                        continue
+
+                                    name_key = f'attachment_name_new_{index}'
+                                    name = request.POST.get(name_key, '').strip() or attachment_file.name
+
+                                    attachment = DiaryAttachment.objects.create(
+                                        diary=diary,
+                                        file=attachment_file,
+                                        name=name,
+                                    )
+                                    saved_attachments.append(attachment)
+                                    logger.info(f"Anexo novo salvo: ID={attachment.id}")
+                                except (ValueError, IndexError) as e:
+                                    logger.debug(f"Erro ao processar anexo {key}: {e}")
                     
                     logger.info(f"Anexos salvos: {len(saved_attachments)} anexos")
                     
@@ -4944,34 +5102,101 @@ def diary_form_view(request, pk=None):
                             logger.debug("Erro ao processar diary_labor_catalog_data", exc_info=True)
 
                     # Novo sistema: mão de obra por categorias/cargos (diary_labor_data)
-                    diary_labor_json = request.POST.get('diary_labor_data', '')
-                    if diary_labor_json:
+                    # Só altera quando o JS marcou diary_payload_ready (evita apagar com hidden vazio).
+                    if diary_payload_ready and 'diary_labor_data' in request.POST:
+                        diary_labor_json = request.POST.get('diary_labor_data', '')
                         try:
-                            diary_labor_data = json.loads(diary_labor_json) if diary_labor_json else []
-                            if diary_labor_data:  # só apaga se tiver itens
-                                DiaryLaborEntry.objects.filter(diary=diary).delete()
-                                for item in diary_labor_data:
-                                    quantity = max(1, int(item.get('quantity') or 1))
-                                    company = (item.get('company') or '').strip()
-                                    selected_cargo_id, _cargo_name = _resolve_labor_cargo_from_payload_item(
+                            diary_labor_data = json.loads(diary_labor_json) if diary_labor_json.strip() else []
+                            if not isinstance(diary_labor_data, list):
+                                diary_labor_data = []
+                            entries_to_create = []
+                            unresolved_items = 0
+                            for item in diary_labor_data:
+                                if not isinstance(item, dict):
+                                    continue
+                                raw_qty = item.get('quantity')
+                                if raw_qty is not None and str(raw_qty).strip() != '':
+                                    try:
+                                        quantity = int(raw_qty)
+                                    except (TypeError, ValueError):
+                                        quantity = 1
+                                else:
+                                    quantity = 1
+                                if quantity <= 0:
+                                    continue
+                                company = (item.get('company') or '').strip()
+                                selected_cargo_id, _cargo_name = _resolve_labor_cargo_from_payload_item(
+                                    item,
+                                    project,
+                                )
+                                if not selected_cargo_id:
+                                    unresolved_items += 1
+                                    logger.warning(
+                                        "DiaryLaborEntry ignorado (cargo não resolvido): %r",
                                         item,
-                                        project,
                                     )
-                                    if not selected_cargo_id:
-                                        continue
+                                    continue
+                                entries_to_create.append(
+                                    {
+                                        'cargo_id': selected_cargo_id,
+                                        'quantity': quantity,
+                                        'company': company,
+                                    }
+                                )
+                            if not diary_labor_data:
+                                DiaryLaborEntry.objects.filter(diary=diary).delete()
+                                logger.info("DiaryLaborEntry: lista vazia — registros anteriores removidos")
+                            elif entries_to_create and unresolved_items == 0:
+                                DiaryLaborEntry.objects.filter(diary=diary).delete()
+                                for entry in entries_to_create:
                                     DiaryLaborEntry.objects.create(
                                         diary=diary,
-                                        cargo_id=selected_cargo_id,
-                                        quantity=quantity,
-                                        company=company
+                                        cargo_id=entry['cargo_id'],
+                                        quantity=entry['quantity'],
+                                        company=entry['company'],
                                     )
-                                logger.info(f"DiaryLaborEntry: {len(diary_labor_data)} itens salvos")
+                                logger.info(
+                                    "DiaryLaborEntry: %s itens salvos (substituição completa)",
+                                    len(entries_to_create),
+                                )
+                            elif entries_to_create:
+                                for entry in entries_to_create:
+                                    DiaryLaborEntry.objects.update_or_create(
+                                        diary=diary,
+                                        cargo_id=entry['cargo_id'],
+                                        company=entry['company'],
+                                        defaults={'quantity': entry['quantity']},
+                                    )
+                                kept_keys = {
+                                    (entry['cargo_id'], entry['company'])
+                                    for entry in entries_to_create
+                                }
+                                for existing in DiaryLaborEntry.objects.filter(diary=diary):
+                                    key = (existing.cargo_id, (existing.company or '').strip())
+                                    if key not in kept_keys:
+                                        existing.delete()
+                                diary_labor_unresolved = unresolved_items
+                                logger.warning(
+                                    "DiaryLaborEntry: %s itens salvos parcialmente; %s sem cargo resolvido",
+                                    len(entries_to_create),
+                                    unresolved_items,
+                                )
+                            elif not entries_to_create and unresolved_items == 0 and diary_labor_data:
+                                DiaryLaborEntry.objects.filter(diary=diary).delete()
+                                logger.info(
+                                    "DiaryLaborEntry: payload sem quantidades válidas — registros anteriores removidos",
+                                )
+                            elif unresolved_items:
+                                diary_labor_unresolved = unresolved_items
+                                logger.warning(
+                                    "DiaryLaborEntry: nenhum item resolvido; mantidos %s registros existentes",
+                                    DiaryLaborEntry.objects.filter(diary=diary).count(),
+                                )
                             request._labor_objects = []
                         except (json.JSONDecodeError, ValueError, TypeError) as e:
                             logger.debug(f"Erro ao processar diary_labor_data: {e}")
                             request._labor_objects = []
-                    else:
-                        # Legado: labor_data (nome/role/quantidade)
+                    elif request.POST.get('labor_data'):
                         labor_data_json = request.POST.get('labor_data', '[]')
                         try:
                             labor_data = json.loads(labor_data_json) if labor_data_json else []
@@ -5003,10 +5228,11 @@ def diary_form_view(request, pk=None):
                         except (json.JSONDecodeError, ValueError) as e:
                             logger.debug(f"Erro ao processar dados de mão de obra: {e}")
                             request._labor_objects = []
+                    else:
+                        request._labor_objects = []
                     
-                    # Equipamentos: só processa se campo foi enviado no POST.
-                    # Isso evita limpar dados por acidente em submits parciais/legados.
-                    if 'equipment_data' in request.POST:
+                    # Equipamentos: só processa após serialização JS (diary_payload_ready).
+                    if diary_payload_ready and 'equipment_data' in request.POST:
                         equipment_data_json = request.POST.get('equipment_data', '[]')
                         try:
                             equipment_data = json.loads(equipment_data_json) if equipment_data_json else []
@@ -5047,35 +5273,30 @@ def diary_form_view(request, pk=None):
                     else:
                         request._equipment_items = None
                     
-                    # 5. PROCESSAMENTO DE WORKLOGS (prioridade: formset; JSON apenas fallback não destrutivo)
+                    # 5. PROCESSAMENTO DE WORKLOGS (JSON canónico só com diary_payload_ready)
                     saved_worklogs = []
                     work_logs_json_str = (request.POST.get('work_logs_json') or '').strip()
                     occurrences_json_str = (request.POST.get('occurrences_json') or '').strip()
-                    has_worklogs_json = 'work_logs_json' in request.POST and work_logs_json_str not in ('', '[]')
-                    has_occurrences_json = 'occurrences_json' in request.POST and occurrences_json_str not in ('', '[]')
-                    total_worklog_forms_post = int(normalized_post.get('work_logs-TOTAL_FORMS', '0'))
-                    total_occurrence_forms_post = int(normalized_post.get('ocorrencias-TOTAL_FORMS', '0'))
 
-                    if worklog_valid:
+                    if diary_payload_ready:
+                        from core.diary_json_services import create_worklogs_from_json
+                        create_worklogs_from_json(
+                            diary,
+                            project,
+                            work_logs_json_str,
+                            replace_existing=True,
+                        )
+                        saved_worklogs = list(diary.work_logs.all())
+                        worklog_valid = True
+                        logger.info(
+                            "Worklogs sincronizados por JSON; total no diário: %s",
+                            len(saved_worklogs),
+                        )
+                    elif worklog_valid:
                         saved_worklogs = worklog_formset.save()
                         logger.info(f"Worklogs salvos pelo formset: {len(saved_worklogs)} worklogs")
-                        # Fallback de compatibilidade:
-                        # se o front enviou apenas JSON (sem linhas no formset), processa JSON sem apagar dados existentes.
-                        if not saved_worklogs and has_worklogs_json and total_worklog_forms_post == 0:
-                            from core.diary_json_services import create_worklogs_from_json
-                            create_worklogs_from_json(
-                                diary,
-                                project,
-                                work_logs_json_str,
-                                replace_existing=False,
-                            )
-                            saved_worklogs = list(diary.work_logs.all())
-                            logger.info(
-                                "Worklogs processados por fallback JSON (não destrutivo); total no diário: %s",
-                                len(saved_worklogs),
-                            )
                     else:
-                        logger.warning("Formset de worklogs inválido, pulando processamento")
+                        logger.warning("Formset de worklogs inválido e sem JSON de atividades")
                     
                     # Se não há worklogs mas há mão de obra ou equipamentos, cria um worklog padrão
                     # IMPORTANTE: Isso deve acontecer mesmo se o formset falhou
@@ -5207,8 +5428,22 @@ def diary_form_view(request, pk=None):
                                 except Exception as e:
                                     logger.debug(f"Erro ao recalcular progresso da atividade {form_obj.instance.activity_id}: {e}", exc_info=True)
                     
-                    # 6. PROCESSAMENTO DE OCORRÊNCIAS (prioridade: formset; JSON apenas fallback não destrutivo)
-                    if occurrence_valid:
+                    # 6. PROCESSAMENTO DE OCORRÊNCIAS (JSON canónico só com diary_payload_ready)
+                    if diary_payload_ready:
+                        from core.diary_json_services import create_occurrences_from_json
+                        created_occurrences = create_occurrences_from_json(
+                            diary,
+                            occurrences_json_str,
+                            request.user,
+                            replace_existing=True,
+                        )
+                        occurrence_valid = True
+                        logger.info(
+                            "Ocorrências sincronizadas por JSON: %s itens (diary_id=%s)",
+                            len(created_occurrences),
+                            diary.pk,
+                        )
+                    elif occurrence_valid:
                         occurrences = occurrence_formset.save(commit=False)
                         for occurrence in occurrences:
                             if not occurrence.pk:
@@ -5216,23 +5451,8 @@ def diary_form_view(request, pk=None):
                             occurrence.save()
                         occurrence_formset.save_m2m()
                         logger.info(f"Ocorrências salvas: {len(occurrences)} ocorrências")
-                        # Fallback de compatibilidade:
-                        # se o front enviou apenas JSON (sem linhas no formset), processa JSON sem apagar dados existentes.
-                        if has_occurrences_json and total_occurrence_forms_post == 0:
-                            from core.diary_json_services import create_occurrences_from_json
-                            created_occurrences = create_occurrences_from_json(
-                                diary,
-                                occurrences_json_str,
-                                request.user,
-                                replace_existing=False,
-                            )
-                            logger.info(
-                                "Ocorrências processadas por fallback JSON (não destrutivo): %s itens (diary_id=%s)",
-                                len(created_occurrences),
-                                diary.pk,
-                            )
                     else:
-                        logger.warning("Formset de ocorrências inválido, pulando processamento")
+                        logger.warning("Formset de ocorrências inválido e sem JSON de ocorrências")
                     
                     # 7. ATUALIZA INFORMAÇÕES DO PROJETO
                     if project:
@@ -5248,35 +5468,25 @@ def diary_form_view(request, pk=None):
                         if project_updated:
                             project.save()
                     
-                    # 8. SALVA ASSINATURAS (assinatura obrigatória, exceto em Salvamento Parcial)
-                    signature_inspection = request.POST.get('signature_inspection')
-                    signature_production = request.POST.get('signature_production')
-                    is_partial_save = (
-                        _is_truthy_flag(request.POST.get('partial_save')) or
-                        _is_truthy_flag(request.POST.get('as_partial_checkbox'))
-                    )
-                    
-                    if not is_partial_save and (not signature_inspection or not signature_inspection.strip()):
-                        raise ValueError("A assinatura do responsável pelo preenchimento é obrigatória. Preencha a seção Assinaturas.")
-                    
-                    if signature_inspection:
+                    # 8. SALVA ASSINATURAS (obrigatória no envio final já validada antes da transação)
+                    if signature_inspection_post:
                         DiarySignature.objects.update_or_create(
                             diary=diary,
                             signature_type='inspection',
                             defaults={
                                 'signer': request.user,
-                                'signature_data': signature_inspection
-                            }
+                                'signature_data': signature_inspection_post,
+                            },
                         )
-                    
-                    if signature_production:
+
+                    if signature_production_post:
                         DiarySignature.objects.update_or_create(
                             diary=diary,
                             signature_type='production',
                             defaults={
                                 'signer': request.user,
-                                'signature_data': signature_production
-                            }
+                                'signature_data': signature_production_post,
+                            },
                         )
                     
             except Exception as e:
@@ -5388,15 +5598,21 @@ def diary_form_view(request, pk=None):
                             url=diary_url,
                             event_key=f'core:diary:{diary.pk}',
                         )
+                if diary_labor_unresolved:
+                    messages.warning(
+                        request,
+                        f'{diary_labor_unresolved} registro(s) de mão de obra não foram salvos '
+                        f'(cargo/empresa não reconhecido no catálogo). Os demais dados foram gravados.',
+                    )
                 if is_partial_save:
                     messages.success(request, 'Diário salvo parcialmente. Você pode continuar o preenchimento depois.')
-                    return redirect('report-list')
+                    return redirect(reverse('diary-edit', kwargs={'pk': diary.pk}))
                 if diary and diary.status == DiaryStatus.AGUARDANDO_APROVACAO_GESTOR:
                     messages.success(request, 'RDO enviado para aprovação dos gestores. O envio ao cliente ocorrerá após aprovação.')
                     return redirect(reverse('diary-detail', kwargs={'pk': diary.pk}))
                 if is_new:
                     messages.success(request, f'Diário criado com sucesso! Relatório #{diary.report_number or "em processamento"}')
-                    return redirect('report-list')
+                    return redirect(reverse('diary-detail', kwargs={'pk': diary.pk}))
                 else:
                     messages.success(request, f'Diário atualizado com sucesso!')
                     return redirect(reverse('diary-detail', kwargs={'pk': diary.pk}))
@@ -5409,6 +5625,12 @@ def diary_form_view(request, pk=None):
                     error_parts.append('atividades')
                 if not occurrence_valid:
                     error_parts.append('ocorrências')
+                if diary_labor_unresolved:
+                    messages.warning(
+                        request,
+                        f'{diary_labor_unresolved} registro(s) de mão de obra não foram salvos '
+                        f'(cargo/empresa não reconhecido no catálogo).',
+                    )
                 messages.warning(request, f'Diário salvo, mas alguns dados não puderam ser processados: {", ".join(error_parts)}. Verifique os erros abaixo.')
                 form = ConstructionDiaryForm(
                     request.POST,
@@ -6390,7 +6612,9 @@ def diary_excel_view(request, pk):
         cell.fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
     row += 1
     
-    for work_log in diary.work_logs.all():
+    for work_log in diary.work_logs.select_related('activity').all():
+        if getattr(getattr(work_log, 'activity', None), 'code', '') == 'GEN-MAO-OBRA-EQUIP':
+            continue
         ws[f'A{row}'] = work_log.activity.display_name
         ws[f'B{row}'] = float(work_log.percentage_executed_today)
         ws[f'C{row}'] = work_log.location or '-'

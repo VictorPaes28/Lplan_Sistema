@@ -222,7 +222,9 @@
     function persistOfflineOnly() {
       if (navigator.onLine) return;
       try {
-        if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
+        if (typeof window.prepareDiaryFormForSubmit === 'function') {
+          window.prepareDiaryFormForSubmit();
+        } else if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
           window.buildAndSetDiaryJsonPayload();
         }
       } catch (e) {}
@@ -257,7 +259,9 @@
             } catch (e) {}
           }
           try {
-            if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
+            if (typeof window.prepareDiaryFormForSubmit === 'function') {
+              window.prepareDiaryFormForSubmit();
+            } else if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
               window.buildAndSetDiaryJsonPayload();
             }
           } catch (e) {}
@@ -304,7 +308,9 @@
           e.stopImmediatePropagation();
         }
         try {
-          if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
+          if (typeof window.prepareDiaryFormForSubmit === 'function') {
+            window.prepareDiaryFormForSubmit();
+          } else if (typeof window.buildAndSetDiaryJsonPayload === 'function') {
             window.buildAndSetDiaryJsonPayload();
           }
         } catch (err) {}

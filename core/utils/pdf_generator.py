@@ -417,12 +417,12 @@ class PDFGenerator:
             else:
                 images_with_paths.append({'image': image, 'absolute_path': ''})
 
-        work_logs = list(
-            diary.work_logs.select_related('activity')
+        work_logs = [
+            wl for wl in diary.work_logs.select_related('activity')
             .prefetch_related('resources_labor', 'resources_equipment', 'equipment_through__equipment')
             .order_by('activity__code', 'activity__name', 'pk')
-            .all()
-        )
+            if getattr(getattr(wl, 'activity', None), 'code', '') != 'GEN-MAO-OBRA-EQUIP'
+        ]
 
         labor_by_type = {'I': {}, 'D': {}, 'T': {}}
         for wl in work_logs:

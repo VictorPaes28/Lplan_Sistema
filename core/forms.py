@@ -1068,10 +1068,48 @@ DiaryImageFormSet = inlineformset_factory(
     fields=['image', 'caption', 'is_approved_for_report']
 )
 
+
+class DailyWorkLogFormSetBase(forms.BaseInlineFormSet):
+    """Ignora linhas de atividade vazias (ex.: usuário clicou em Adicionar e não preencheu)."""
+
+    def _worklog_activity_description(self, form):
+        if hasattr(form, 'cleaned_data') and form.cleaned_data:
+            return (form.cleaned_data.get('activity_description') or '').strip()
+        if hasattr(form, 'data') and form.data:
+            prefix = form.prefix if hasattr(form, 'prefix') and form.prefix else ''
+            if prefix:
+                key = f'{prefix}-activity_description'
+            else:
+                key = 'activity_description'
+            return (form.data.get(key, '') or '').strip()
+        return ''
+
+    def _should_delete_form(self, form):
+        if hasattr(form, 'cleaned_data') and form.cleaned_data and form.cleaned_data.get('DELETE', False):
+            return True
+        has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
+        if not self._worklog_activity_description(form) and not has_pk:
+            return True
+        return super()._should_delete_form(form)
+
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            if hasattr(form, 'cleaned_data') and form.cleaned_data and form.cleaned_data.get('DELETE', False):
+                form._errors = {}
+            elif hasattr(form, 'cleaned_data') and form.cleaned_data:
+                has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
+                if not self._worklog_activity_description(form) and not has_pk:
+                    form._errors = {}
+                    if 'DELETE' in form.fields:
+                        form.cleaned_data['DELETE'] = True
+
+
 DailyWorkLogFormSet = inlineformset_factory(
     ConstructionDiary,
     DailyWorkLog,
     form=DailyWorkLogForm,
+    formset=DailyWorkLogFormSetBase,
     extra=0,  # Não cria formulários vazios por padrão
     can_delete=True,
     # Não especifica fields para usar os campos definidos no form
@@ -1600,11 +1638,45 @@ class DiaryOccurrenceForm(forms.ModelForm):
         self.fields['description'].required = True
 
 
+class DiaryOccurrenceFormSetBase(forms.BaseInlineFormSet):
+    """Ignora linhas de ocorrência vazias (sem descrição)."""
+
+    def _occurrence_description(self, form):
+        if hasattr(form, 'cleaned_data') and form.cleaned_data:
+            return (form.cleaned_data.get('description') or '').strip()
+        if hasattr(form, 'data') and form.data:
+            prefix = form.prefix if hasattr(form, 'prefix') and form.prefix else ''
+            key = f'{prefix}-description' if prefix else 'description'
+            return (form.data.get(key, '') or '').strip()
+        return ''
+
+    def _should_delete_form(self, form):
+        if hasattr(form, 'cleaned_data') and form.cleaned_data and form.cleaned_data.get('DELETE', False):
+            return True
+        has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
+        if not self._occurrence_description(form) and not has_pk:
+            return True
+        return super()._should_delete_form(form)
+
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            if hasattr(form, 'cleaned_data') and form.cleaned_data and form.cleaned_data.get('DELETE', False):
+                form._errors = {}
+            elif hasattr(form, 'cleaned_data') and form.cleaned_data:
+                has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
+                if not self._occurrence_description(form) and not has_pk:
+                    form._errors = {}
+                    if 'DELETE' in form.fields:
+                        form.cleaned_data['DELETE'] = True
+
+
 # Formset para ocorrências
 DiaryOccurrenceFormSet = inlineformset_factory(
     ConstructionDiary,
     DiaryOccurrence,
     form=DiaryOccurrenceForm,
+    formset=DiaryOccurrenceFormSetBase,
     extra=0,
     can_delete=True,
     fields=['description', 'tags']

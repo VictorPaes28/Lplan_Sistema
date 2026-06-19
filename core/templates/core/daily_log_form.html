@@ -18,6 +18,7 @@
               data-sw-cache-urls="[&quot;{% static 'core/css/daily_log_form.css' %}&quot;,&quot;{% static 'core/css/base.css' %}&quot;,&quot;{% static 'core/css/tailwind-utilities.css' %}&quot;,&quot;{% static 'core/css/mobile.css' %}&quot;,&quot;{% static 'core/js/theme-global.js' %}&quot;]">
             {% csrf_token %}
             <input type="hidden" name="partial_save" id="partial_save_flag" value="">
+            <input type="hidden" name="diary_payload_ready" id="diary_payload_ready" value="">
             <input type="hidden" name="work_logs_json" id="work_logs_json_input" value="">
             <input type="hidden" name="occurrences_json" id="occurrences_json_input" value="">
             <input type="hidden" name="geolocation_data" id="id_geolocation_data" value="">
@@ -954,7 +955,7 @@
                             </div>
                             <div id="equipment-custom-list" class="diary-equipment-custom-list hidden" aria-hidden="true"></div>
                             {{ existing_diary_equipment|json_script:"existing-diary-equipment-data" }}
-                            <input type="hidden" name="equipment_data" id="equipment_data" value="[]">
+                            <input type="hidden" name="equipment_data" id="equipment_data" value="">
                         </div>
                     </div>
                     
@@ -2360,13 +2361,19 @@ window.updateLaborQuantity = updateLaborQuantity;
 (function() {
     var diaryLaborState = {};
     var terceirizadaDynamicCargos = [];
+    var LABOR_KEY_SEP = '\x1e';
 
     function key(cargoRef, company) {
-        return company ? String(cargoRef) + '|' + company : String(cargoRef);
+        return company ? String(cargoRef) + LABOR_KEY_SEP + company : String(cargoRef);
     }
     function splitStateKey(rawKey) {
-        var idx = rawKey.indexOf('|');
-        if (idx === -1) return { cargoRef: rawKey, company: '' };
+        var idx = rawKey.indexOf(LABOR_KEY_SEP);
+        if (idx === -1) {
+            // Compatibilidade com chaves antigas que usavam '|'
+            var legacyIdx = rawKey.indexOf('|');
+            if (legacyIdx === -1) return { cargoRef: rawKey, company: '' };
+            return { cargoRef: rawKey.slice(0, legacyIdx), company: rawKey.slice(legacyIdx + 1) };
+        }
         return { cargoRef: rawKey.slice(0, idx), company: rawKey.slice(idx + 1) };
     }
     function cargoRefFromId(id) { return 'id:' + String(id); }
@@ -2596,6 +2603,7 @@ window.updateLaborQuantity = updateLaborQuantity;
     }
 
     function getDiaryLaborPayload() {
+        syncAllDiaryLaborInputsToState();
         var out = [];
         for (var k in diaryLaborState) {
             if (diaryLaborState[k] <= 0) continue;
@@ -2688,6 +2696,27 @@ window.updateLaborQuantity = updateLaborQuantity;
         if (cid && !cref) cref = cargoRefFromId(cid);
         if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0, inp.getAttribute('data-category-slug') || '');
     }
+    function syncAllDiaryLaborInputsToState() {
+        var inputs = document.querySelectorAll('.diary-labor-qty');
+        for (var i = 0; i < inputs.length; i++) {
+            var inp = inputs[i];
+            if (!inp || !inp.classList.contains('diary-labor-qty')) continue;
+            var cid = inp.getAttribute('data-cargo-id');
+            var cref = getElementCargoRef(inp);
+            var company = inp.getAttribute('data-company') || '';
+            if (cid && !cref) cref = cargoRefFromId(cid);
+            if (!cref) continue;
+            var k = key(cref, company);
+            var normalized = Math.max(0, parseInt(inp.value, 10) || 0);
+            if (normalized <= 0) {
+                delete diaryLaborState[k];
+            } else {
+                diaryLaborState[k] = normalized;
+            }
+        }
+        refreshLaborVisualFeedback();
+    }
+    window.syncAllDiaryLaborInputsToState = syncAllDiaryLaborInputsToState;
     function bindPlusMinus() {
         document.getElementById('diary-labor-by-category') && document.getElementById('diary-labor-by-category').addEventListener('click', function(ev) {
             var removeCustom = ev.target.closest('.diary-labor-remove-custom');
@@ -2745,8 +2774,10 @@ window.updateLaborQuantity = updateLaborQuantity;
             }
             var companies = [];
             for (var k in diaryLaborState) {
-                if (k.indexOf('|') !== -1 && diaryLaborState[k] > 0) {
-                    var company = splitStateKey(k).company;
+                if (diaryLaborState[k] <= 0) continue;
+                var split = splitStateKey(k);
+                if (split.company) {
+                    var company = split.company;
                     if (companies.indexOf(company) === -1) companies.push(company);
                 }
             }
@@ -6482,13 +6513,44 @@ function saveSignature(canvasId) {
         }
     }
     
+    // Remove linhas de atividade sem descrição (evita invalidar o formset no servidor).
+    function pruneEmptyWorkLogRows() {
+        var form = document.getElementById('diary-form');
+        if (!form) return;
+        var workLogPrefix = 'work_logs';
+        var rows = form.querySelectorAll('.activity-item, .worklog-form-row');
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            if (row.style && row.style.display === 'none') continue;
+            var delInput = row.querySelector('input[name$="-DELETE"]');
+            if (delInput && (delInput.checked || String(delInput.value || '').toLowerCase() === 'on')) continue;
+            var descEl = row.querySelector(
+                'textarea[name^="' + workLogPrefix + '-"][name$="-activity_description"], ' +
+                'input[name^="' + workLogPrefix + '-"][name$="-activity_description"]'
+            );
+            var idEl = row.querySelector('input[name^="' + workLogPrefix + '-"][name$="-id"]');
+            var hasId = idEl && String(idEl.value || '').trim() !== '';
+            var desc = descEl ? String(descEl.value || '').trim() : '';
+            if (!hasId && !desc) {
+                if (delInput) {
+                    delInput.checked = true;
+                    delInput.value = 'on';
+                }
+                row.style.display = 'none';
+            }
+        }
+    }
+    window.pruneEmptyWorkLogRows = pruneEmptyWorkLogRows;
+
     // Constrói work_logs_json e occurrences_json. Coleta por NOMES dos inputs (work_logs-N-*, ocorrencias-N-*)
     // para não depender da estrutura DOM (.activity-item pode estar em seção recolhida ou ter classe diferente).
     function buildAndSetDiaryJsonPayload() {
         var form = document.getElementById('diary-form');
         if (!form) return;
+        if (typeof pruneEmptyWorkLogRows === 'function') pruneEmptyWorkLogRows();
         var workLogs = [];
         var seenIndexes = {};
+        var maxWorkLogIndex = -1;
         var descInputs = form.querySelectorAll(
             'input[name^="work_logs-"][name$="-activity_description"], ' +
             'input[name*="work_logs-"][name*="-activity_description"], ' +
@@ -6501,6 +6563,8 @@ function saveSignature(canvasId) {
             var idx = match ? match[1] : String(d);
             if (seenIndexes[idx]) continue;
             seenIndexes[idx] = true;
+            var idxNum = parseInt(idx, 10);
+            if (!isNaN(idxNum) && idxNum > maxWorkLogIndex) maxWorkLogIndex = idxNum;
             var delInput = form.querySelector('input[name="work_logs-' + idx + '-DELETE"]');
             if (delInput && (delInput.checked === true || (delInput.value || '').toString().toLowerCase() === 'on')) continue;
             var desc = (descInputs[d].value || '').trim();
@@ -6520,6 +6584,7 @@ function saveSignature(canvasId) {
         }
         var occurrences = [];
         seenIndexes = {};
+        var maxOccIndex = -1;
         var occDescInputs = form.querySelectorAll(
             'input[name^="ocorrencias-"][name$="-description"], ' +
             'input[name*="ocorrencias-"][name*="-description"], ' +
@@ -6532,6 +6597,8 @@ function saveSignature(canvasId) {
             var oidx = omatch ? omatch[1] : String(o);
             if (seenIndexes[oidx]) continue;
             seenIndexes[oidx] = true;
+            var oidxNum = parseInt(oidx, 10);
+            if (!isNaN(oidxNum) && oidxNum > maxOccIndex) maxOccIndex = oidxNum;
             var occDel = form.querySelector('input[name="ocorrencias-' + oidx + '-DELETE"]');
             if (occDel && (occDel.checked === true || (occDel.value || '').toString().toLowerCase() === 'on')) continue;
             var occDesc = (occDescInputs[o].value || '').trim();
@@ -6579,11 +6646,92 @@ function saveSignature(canvasId) {
         if (wlInput) wlInput.value = wlStr;
         if (occInput) occInput.value = occStr;
         var wlTotal = document.querySelector('input[name="work_logs-TOTAL_FORMS"]');
-        if (wlTotal) wlTotal.value = String(descInputs.length);
+        if (wlTotal) {
+            var wlTotalValue = maxWorkLogIndex >= 0 ? (maxWorkLogIndex + 1) : workLogs.length;
+            wlTotal.value = String(wlTotalValue);
+        }
         var occTotal = document.querySelector('input[name="ocorrencias-TOTAL_FORMS"]');
-        if (occTotal) occTotal.value = String(occDescInputs.length);
+        if (occTotal) {
+            var occTotalValue = maxOccIndex >= 0 ? (maxOccIndex + 1) : occurrences.length;
+            occTotal.value = String(occTotalValue);
+        }
     }
     window.buildAndSetDiaryJsonPayload = buildAndSetDiaryJsonPayload;
+
+    /** Serializa JSON/hidden fields antes do GPS (form.submit nativo não reexecuta este handler). */
+    function prepareDiaryFormForSubmit() {
+        if (typeof normalizeDateInputForSubmit === 'function') normalizeDateInputForSubmit();
+        if (typeof buildAndSetDiaryJsonPayload === 'function') buildAndSetDiaryJsonPayload();
+        if (typeof syncWeatherFieldsForSubmit === 'function') syncWeatherFieldsForSubmit();
+        if (typeof window.getDiaryLaborPayload === 'function') {
+            var diaryLaborInput = document.getElementById('diary_labor_data');
+            if (diaryLaborInput) {
+                var laborPayload = window.getDiaryLaborPayload();
+                diaryLaborInput.value = JSON.stringify(Array.isArray(laborPayload) ? laborPayload : []);
+            }
+        }
+        if (typeof window.getDiaryLaborCatalogPayload === 'function') {
+            var diaryLaborCatalogInput = document.getElementById('diary_labor_catalog_data');
+            if (diaryLaborCatalogInput) {
+                var catalogPayload = window.getDiaryLaborCatalogPayload();
+                diaryLaborCatalogInput.value = JSON.stringify(Array.isArray(catalogPayload) ? catalogPayload : []);
+            }
+        }
+        if (typeof window.getEquipmentPayload === 'function') {
+            var equipmentInput = document.getElementById('equipment_data');
+            if (equipmentInput) {
+                var equipmentPayload = window.getEquipmentPayload();
+                equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
+            }
+        } else if (typeof equipmentList !== 'undefined' && equipmentList && equipmentList.length > 0) {
+            var equipmentInputLegacy = document.getElementById('equipment_data');
+            if (equipmentInputLegacy) equipmentInputLegacy.value = JSON.stringify(equipmentList);
+        }
+        var readyInp = document.getElementById('diary_payload_ready');
+        if (readyInp) readyInp.value = '1';
+        var oldLaborData = document.getElementById('labor_data');
+        if (oldLaborData) oldLaborData.remove();
+    }
+    window.prepareDiaryFormForSubmit = prepareDiaryFormForSubmit;
+
+    function validatePhotosForSubmit() {
+        var previewGrid = document.getElementById('photos-preview-grid');
+        if (!previewGrid) return true;
+        var cards = previewGrid.querySelectorAll('.photo-item[data-form-index]');
+        var missingIndexes = [];
+        for (var i = 0; i < cards.length; i++) {
+            var idx = cards[i].getAttribute('data-form-index');
+            if (idx === null || idx === '') continue;
+            var deleteEl = document.querySelector('input[name="diaryimage_set-' + idx + '-DELETE"]');
+            if (deleteEl && (deleteEl.checked || String(deleteEl.value || '').toLowerCase() === 'on')) continue;
+            var idInput = document.querySelector('input[name="diaryimage_set-' + idx + '-id"]');
+            var hasId = idInput && String(idInput.value || '').trim() !== '';
+            var fileInput = document.querySelector('input[type="file"][name="diaryimage_set-' + idx + '-image"]');
+            var hasNewFile = fileInput && fileInput.files && fileInput.files.length > 0;
+            if (!hasNewFile && !hasId) continue;
+            var captionEl = cards[i].querySelector('input[name$="-caption"]');
+            var caption = captionEl ? String(captionEl.value || '').trim() : '';
+            if (!caption) {
+                var globalCaption = document.getElementById('photos-caption-global');
+                if (globalCaption && globalCaption.value.trim() && captionEl) {
+                    captionEl.value = globalCaption.value.trim();
+                    caption = captionEl.value.trim();
+                }
+            }
+            if (!caption) missingIndexes.push(String(parseInt(idx, 10) + 1));
+        }
+        if (missingIndexes.length) {
+            alert(
+                'Preencha a legenda de todas as fotos antes de salvar.\n\n' +
+                'Fotos sem legenda (nº): ' + missingIndexes.join(', ')
+            );
+            var photosSection = document.getElementById('section-fotos-content');
+            if (photosSection) photosSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return false;
+        }
+        return true;
+    }
+    window.validatePhotosForSubmit = validatePhotosForSubmit;
 
     // Salva assinaturas antes de submeter o formulário e adiciona validações
     var form = document.getElementById('diary-form');
@@ -6595,14 +6743,20 @@ function saveSignature(canvasId) {
                 e.preventDefault();
                 return false;
             }
+            // Serializa payloads ANTES do GPS (form.submit() nativo não reexecuta este handler)
+            if (typeof prepareDiaryFormForSubmit === 'function') prepareDiaryFormForSubmit();
             // 0) Captura GPS antes do envio (uma vez por submit)
             if (!form.dataset.geoCaptured) {
                 e.preventDefault();
                 var geoInput = document.getElementById('id_geolocation_data');
                 function finishGeoCapture() {
                     form.dataset.geoCaptured = '1';
-                    if (e.submitter && typeof form.requestSubmit === 'function') {
-                        form.requestSubmit(e.submitter);
+                    if (typeof form.requestSubmit === 'function') {
+                        if (e.submitter) {
+                            form.requestSubmit(e.submitter);
+                        } else {
+                            form.requestSubmit();
+                        }
                     } else {
                         form.submit();
                     }
@@ -6629,12 +6783,6 @@ function saveSignature(canvasId) {
             }
             delete form.dataset.geoCaptured;
 
-            // 0) Normaliza data para yyyy-MM-dd (evita erro de formato e rejeição do form)
-            normalizeDateInputForSubmit();
-            // 0.1) Monta e envia atividades e ocorrências como JSON (nova forma de armazenamento)
-            if (typeof buildAndSetDiaryJsonPayload === 'function') buildAndSetDiaryJsonPayload();
-            // 0.2) Clima: período desmarcado ou chip limpo deve gravar vazio no servidor
-            if (typeof syncWeatherFieldsForSubmit === 'function') syncWeatherFieldsForSubmit();
             // 1) Define se é salvamento parcial: flag já em 1 (clicou em "rascunho") ou submitter é o botão rascunho
             var partialSaveFlag = document.getElementById('partial_save_flag');
             var alreadyDraft = (partialSaveFlag && partialSaveFlag.value === '1');
@@ -6658,24 +6806,16 @@ function saveSignature(canvasId) {
                 try { if (typeof saveSignature === 'function') saveSignature(1); } catch (err) { console.warn(err); }
                 try {
                     if (typeof removeRequiredFromHiddenFields === 'function') removeRequiredFromHiddenFields();
-                    if (typeof window.getDiaryLaborPayload === 'function') {
-                        var inp = document.getElementById('diary_labor_data');
-                        if (inp) inp.value = JSON.stringify(window.getDiaryLaborPayload());
-                    }
-                    if (typeof window.getDiaryLaborCatalogPayload === 'function') {
-                        var inpCatalogPartial = document.getElementById('diary_labor_catalog_data');
-                        if (inpCatalogPartial) inpCatalogPartial.value = JSON.stringify(window.getDiaryLaborCatalogPayload());
-                    }
-                    if (typeof window.getEquipmentPayload === 'function') {
-                        var eq = document.getElementById('equipment_data');
-                        if (eq) eq.value = JSON.stringify(window.getEquipmentPayload());
-                    } else if (typeof equipmentList !== 'undefined' && equipmentList && equipmentList.length > 0) {
-                        var eq2 = document.getElementById('equipment_data');
-                        if (eq2) eq2.value = JSON.stringify(equipmentList);
-                    }
-                    var old = document.getElementById('labor_data');
-                    if (old) old.remove();
                 } catch (err) { console.warn('Serialização parcial:', err); }
+                if (pendingPhotoReads > 0) {
+                    e.preventDefault();
+                    alert('As fotos ainda estão sendo preparadas. Aguarde alguns segundos e tente salvar novamente.');
+                    return false;
+                }
+                if (typeof validatePhotosForSubmit === 'function' && !validatePhotosForSubmit()) {
+                    e.preventDefault();
+                    return false;
+                }
                 isSubmitting = true;
                 var saveBtn = document.getElementById('save-diary-btn');
                 var saveBtnBottom = document.getElementById('save-diary-btn-bottom');
@@ -6694,40 +6834,6 @@ function saveSignature(canvasId) {
             // Remove required de campos em modais ocultos
             if (typeof removeRequiredFromHiddenFields === 'function') removeRequiredFromHiddenFields();
             
-            // Serializa mão de obra por categorias (novo UX) em diary_labor_data
-            if (typeof window.getDiaryLaborPayload === 'function') {
-                var payload = window.getDiaryLaborPayload();
-                var diaryLaborInput = document.getElementById('diary_labor_data');
-                if (diaryLaborInput) diaryLaborInput.value = JSON.stringify(Array.isArray(payload) ? payload : []);
-            } else {
-                var diaryLaborInput = document.getElementById('diary_labor_data');
-                if (diaryLaborInput) diaryLaborInput.value = '[]';
-            }
-            if (typeof window.getDiaryLaborCatalogPayload === 'function') {
-                var payloadCatalog = window.getDiaryLaborCatalogPayload();
-                var diaryLaborCatalogInput = document.getElementById('diary_labor_catalog_data');
-                if (diaryLaborCatalogInput) diaryLaborCatalogInput.value = JSON.stringify(Array.isArray(payloadCatalog) ? payloadCatalog : []);
-            } else {
-                var diaryLaborCatalogInput = document.getElementById('diary_labor_catalog_data');
-                if (diaryLaborCatalogInput) diaryLaborCatalogInput.value = '[]';
-            }
-            
-            // Serializa equipamentos (novo UX: por categorias + outros)
-            if (typeof window.getEquipmentPayload === 'function') {
-                var equipmentPayload = window.getEquipmentPayload();
-                var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
-            } else if (typeof equipmentList !== 'undefined' && equipmentList && equipmentList.length > 0) {
-                var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = JSON.stringify(equipmentList);
-            } else {
-                var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = '[]';
-            }
-            
-            var oldLaborData = document.getElementById('labor_data');
-            if (oldLaborData) oldLaborData.remove();
-            
             // Validação básica: data obrigatória
             var dateInput = document.getElementById('id_date');
             if (dateInput && !dateInput.value) {
@@ -6743,6 +6849,12 @@ function saveSignature(canvasId) {
                 e.preventDefault();
                 if (typeof restoreRequiredFromHiddenFields === 'function') restoreRequiredFromHiddenFields();
                 alert('As fotos ainda estão sendo preparadas. Aguarde alguns segundos e tente salvar novamente.');
+                return false;
+            }
+
+            if (typeof validatePhotosForSubmit === 'function' && !validatePhotosForSubmit()) {
+                e.preventDefault();
+                if (typeof restoreRequiredFromHiddenFields === 'function') restoreRequiredFromHiddenFields();
                 return false;
             }
             
@@ -6860,16 +6972,6 @@ function saveSignature(canvasId) {
                 saveIconBottom.classList.add('hidden');
                 saveTextBottom.textContent = 'Salvando...';
                 saveSpinnerBottom.classList.remove('hidden');
-            }
-            
-            // Garante que equipamentos (e quantidades) são enviados: atualiza equipment_data no último momento
-            if (typeof window.getEquipmentPayload === 'function') {
-                var equipmentPayload = window.getEquipmentPayload();
-                var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = JSON.stringify(Array.isArray(equipmentPayload) ? equipmentPayload : []);
-            } else {
-                var equipmentInput = document.getElementById('equipment_data');
-                if (equipmentInput) equipmentInput.value = '[]';
             }
             
             // Reabilita após timeout de segurança (10 segundos)
