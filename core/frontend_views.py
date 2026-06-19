@@ -2487,7 +2487,7 @@ def diary_detail_view(request, pk):
     diary = get_object_or_404(
         ConstructionDiary.objects.select_related('project', 'front', 'created_by', 'reviewed_by')
         .prefetch_related(
-            'images', 'videos',
+            'images', 'videos', 'attachments',
             'work_logs__activity', 'work_logs__resources_labor', 'work_logs__resources_equipment',
             'occurrences', 'occurrences__tags',
             'owner_comments__author',
@@ -2698,9 +2698,18 @@ def diary_detail_view(request, pk):
         if getattr(getattr(wl, 'activity', None), 'code', '') != 'GEN-MAO-OBRA-EQUIP'
     ]
 
+    diary_has_extra_info = any(
+        str(getattr(diary, field, '') or '').strip()
+        for field in (
+            'general_notes', 'accidents', 'stoppages', 'imminent_risks',
+            'incidents', 'inspections', 'dds', 'deliberations',
+        )
+    ) or diary.work_hours is not None
+
     context = {
         'diary': diary,
         'display_work_logs': display_work_logs,
+        'diary_has_extra_info': diary_has_extra_info,
         'user': request.user,
         'show_request_edit_diary': show_request_edit_diary,
         'diary_edit_request_pending': diary_edit_request_pending,
@@ -5280,7 +5289,17 @@ def diary_form_view(request, pk=None):
                     occurrences_json_str = (request.POST.get('occurrences_json') or '').strip()
 
                     if diary_payload_ready:
-                        from core.diary_json_services import create_worklogs_from_json
+                        from core.diary_json_services import (
+                            create_worklogs_from_json,
+                            reconcile_occurrences_payload,
+                            reconcile_work_logs_payload,
+                        )
+                        work_logs_json_str = reconcile_work_logs_payload(
+                            request.POST, work_logs_json_str
+                        )
+                        occurrences_json_str = reconcile_occurrences_payload(
+                            request.POST, occurrences_json_str
+                        )
                         create_worklogs_from_json(
                             diary,
                             project,
@@ -5856,12 +5875,19 @@ def diary_form_view(request, pk=None):
         copy_options_raw = request.GET.get('copy', '') or ''
         copy_source_diary = None
         copy_opts_list = []
+        copy_work_logs_seed = []
+        copy_occurrences_seed = []
         if project and copy_from_id and copy_options_raw:
             copy_opts = [x.strip().lower() for x in copy_options_raw.split(',') if x.strip()]
             if 'all' in copy_opts:
                 copy_opts = ['climate', 'labor', 'equipment', 'activities', 'ocorrencias', 'interrupcoes']
             try:
                 from .models import ConstructionDiary as CD
+                from .diary_copy_services import (
+                    serialize_labor_entries_for_copy,
+                    serialize_occurrences_for_copy,
+                    serialize_work_logs_for_copy,
+                )
                 src_qs = CD.objects.filter(project=project, pk=copy_from_id)
                 if has_active_fronts:
                     if selected_front:
@@ -5899,20 +5925,10 @@ def diary_form_view(request, pk=None):
                                 pass
                         # Atividades e ocorrências: preencher formsets iniciais
                         # (também em edição, para permitir sobrescrever com dados do relatório fonte).
-                        if 'activities' in copy_opts and src.work_logs.exists():
-                            worklog_initial = []
-                            for wl in src.work_logs.prefetch_related('activity').all():
-                                worklog_initial.append({
-                                    'location': wl.location or '',
-                                    'work_stage': getattr(wl, 'work_stage', 'AN') or 'AN',
-                                    'percentage_executed_today': wl.percentage_executed_today,
-                                    'accumulated_progress_snapshot': wl.accumulated_progress_snapshot,
-                                    'notes': wl.notes or '',
-                                    'activity_description': wl.activity.name if wl.activity else '',
-                                })
+                        if 'activities' in copy_opts:
+                            worklog_initial = serialize_work_logs_for_copy(src)
+                            copy_work_logs_seed = worklog_initial
                             if worklog_initial:
-                                # Inline formsets com extra=0 ignoram initial em GET.
-                                # Criamos um formset dinâmico com extra proporcional ao que foi copiado.
                                 WorklogCopyFormSet = inlineformset_factory(
                                     ConstructionDiary,
                                     DailyWorkLog,
@@ -5926,16 +5942,10 @@ def diary_form_view(request, pk=None):
                                     form_kwargs={'diary': diary if diary and diary.pk else None},
                                     prefix='work_logs',
                                 )
-                        if 'ocorrencias' in copy_opts and src.occurrences.exists():
-                            occ_initial = []
-                            for o in src.occurrences.prefetch_related('tags').all():
-                                occ_initial.append({
-                                    'description': o.description or '',
-                                    'tags': list(o.tags.values_list('pk', flat=True)),
-                                })
+                        if 'ocorrencias' in copy_opts:
+                            occ_initial = serialize_occurrences_for_copy(src)
+                            copy_occurrences_seed = occ_initial
                             if occ_initial:
-                                # Inline formsets com extra=0 ignoram initial em GET.
-                                # Criamos um formset dinâmico com extra proporcional ao que foi copiado.
                                 OccurrenceCopyFormSet = inlineformset_factory(
                                     ConstructionDiary,
                                     DiaryOccurrence,
@@ -6013,20 +6023,24 @@ def diary_form_view(request, pk=None):
     labor_source = (copy_source_diary if copy_source_diary and 'labor' in copy_opts_list else None) or (diary if diary and diary.pk else None)
     if labor_source:
         try:
-            from .models import DiaryLaborEntry
-            for e in DiaryLaborEntry.objects.filter(diary=labor_source).select_related('cargo', 'cargo__category'):
-                existing_diary_labor.append({
-                    'cargo_id': e.cargo_id,
-                    'cargo_name': getattr(e.cargo, 'name', ''),
-                    'quantity': e.quantity,
-                    'company': e.company or '',
-                    'category_slug': (
-                        'terceirizada' if (e.company or '').strip()
-                        else (getattr(getattr(e.cargo, 'category', None), 'slug', '') or '')
-                    ),
-                })
-            from .project_labor_catalog import enrich_existing_diary_labor
-            existing_diary_labor = enrich_existing_diary_labor(project, existing_diary_labor)
+            if copy_source_diary and labor_source.pk == copy_source_diary.pk and 'labor' in copy_opts_list:
+                from .diary_copy_services import serialize_labor_entries_for_copy
+                existing_diary_labor = serialize_labor_entries_for_copy(labor_source, project)
+            else:
+                from .models import DiaryLaborEntry
+                for e in DiaryLaborEntry.objects.filter(diary=labor_source).select_related('cargo', 'cargo__category'):
+                    existing_diary_labor.append({
+                        'cargo_id': e.cargo_id,
+                        'cargo_name': getattr(e.cargo, 'name', ''),
+                        'quantity': e.quantity,
+                        'company': e.company or '',
+                        'category_slug': (
+                            'terceirizada' if (e.company or '').strip()
+                            else (getattr(getattr(e.cargo, 'category', None), 'slug', '') or '')
+                        ),
+                    })
+                from .project_labor_catalog import enrich_existing_diary_labor
+                existing_diary_labor = enrich_existing_diary_labor(project, existing_diary_labor)
         except Exception as e:
             logger.warning("Erro ao montar existing_diary_labor (cópia): %s", e, exc_info=True)
     
@@ -6116,6 +6130,8 @@ def diary_form_view(request, pk=None):
         'copy_from_id': copy_from_id,
         'copy_options': copy_options_raw if copy_source_diary else '',
         'copy_source_diary': copy_source_diary,
+        'copy_work_logs_seed': copy_work_logs_seed,
+        'copy_occurrences_seed': copy_occurrences_seed,
         'project_activities_picker': _project_activities_picker_data(
             project,
             exclude_diary_pk=getattr(diary, 'pk', None),

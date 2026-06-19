@@ -444,9 +444,15 @@ class PDFGenerator:
 
         labor_entries_by_category = None
         try:
-            from core.utils.diary_labor import build_labor_entries_by_category
+            from core.utils.diary_labor import (
+                build_labor_entries_by_category,
+                merge_labor_entries_m2m_fallback_for_html,
+            )
 
-            labor_entries_by_category = build_labor_entries_by_category(diary)
+            labor_entries_by_category = merge_labor_entries_m2m_fallback_for_html(
+                build_labor_entries_by_category(diary),
+                diary,
+            )
             if labor_entries_by_category:
                 total_indirect = sum((x.get('quantity') or 0) for x in labor_entries_by_category['indireta'])
                 total_direct = sum((x.get('quantity') or 0) for x in labor_entries_by_category['direta'])
@@ -625,6 +631,21 @@ class PDFGenerator:
             parent=normal_style,
             fontName='Helvetica-Bold',
             alignment=TA_CENTER,
+        )
+        terceirizada_company_style = ParagraphStyle(
+            name='TerceirizadaCompany',
+            parent=normal_style,
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            textColor=COLOR_PRIMARY,
+            spaceBefore=2,
+        )
+        terceirizada_subtotal_style = ParagraphStyle(
+            name='TerceirizadaSubtotal',
+            parent=normal_style,
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            textColor=COLOR_TEXT,
         )
         story = []
 
@@ -875,18 +896,65 @@ class PDFGenerator:
                     col_d.append(Paragraph(cargo_name + ': ' + str(item['quantity']), normal_style))
 
             col_t = [Paragraph('EFETIVO TERCEIROS', table_header_style)]
-            terceiros_rows = []
             if labor_entries_by_category and labor_entries_by_category.get('terceirizada'):
-                for block in labor_entries_by_category['terceirizada']:
-                    for item in block['items']:
-                        company = _safe_pdf_text(block.get('company') or '—', default='—')
-                        cargo_name = _safe_pdf_text(item.get('cargo_name') or '', default='')
-                        col_t.append(Paragraph(company + ' ' + cargo_name + ': ' + str(item['quantity']), normal_style))
+                blocks = labor_entries_by_category['terceirizada']
+                for block_idx, block in enumerate(blocks):
+                    if block_idx > 0:
+                        col_t.append(Paragraph(' ', normal_style))
+                    company = _safe_pdf_text(block.get('company') or '—', default='—')
+                    col_t.append(Paragraph(company, terceirizada_company_style))
+                    for item in block.get('items') or []:
+                        cargo_name = _safe_pdf_text(item.get('cargo_name') or '—', default='—')
+                        col_t.append(
+                            Paragraph(cargo_name + ': ' + str(item.get('quantity') or 0), normal_style)
+                        )
+                    company_total = block.get('company_total')
+                    if company_total is None:
+                        company_total = sum(
+                            int(i.get('quantity') or 0) for i in (block.get('items') or [])
+                        )
+                    col_t.append(
+                        Paragraph('Total: ' + str(company_total), terceirizada_subtotal_style)
+                    )
             elif labor_by_type.get('T'):
+                from collections import OrderedDict
+                by_company: 'OrderedDict[str, list]' = OrderedDict()
+
+                def _lab_name(lab):
+                    n = getattr(lab, 'name', None)
+                    if n:
+                        return _safe_pdf_text(n, default='—')
+                    if hasattr(lab, 'get_role_display') and callable(getattr(lab, 'get_role_display')):
+                        return _safe_pdf_text(lab.get_role_display() or '—', default='—')
+                    return '—'
+
                 for item in labor_by_type['T'].values():
                     lab = item['labor']
-                    company = _safe_pdf_text(getattr(lab, 'company', None) or '—', default='—')
-                    col_t.append(Paragraph(company + ' ' + _lab_name(lab) + ': ' + str(item['count']), normal_style))
+                    company = _safe_pdf_text(
+                        getattr(lab, 'company', None) or '(Sem empresa)', default='(Sem empresa)',
+                    )
+                    if company not in by_company:
+                        by_company[company] = []
+                    by_company[company].append({
+                        'cargo_name': _lab_name(lab),
+                        'quantity': int(item.get('count') or 0),
+                    })
+                for block_idx, (company, items) in enumerate(by_company.items()):
+                    if block_idx > 0:
+                        col_t.append(Paragraph(' ', normal_style))
+                    col_t.append(Paragraph(company, terceirizada_company_style))
+                    company_total = 0
+                    for row in items:
+                        col_t.append(
+                            Paragraph(
+                                row['cargo_name'] + ': ' + str(row['quantity']),
+                                normal_style,
+                            )
+                        )
+                        company_total += int(row['quantity'] or 0)
+                    col_t.append(
+                        Paragraph('Total: ' + str(company_total), terceirizada_subtotal_style)
+                    )
 
             n = max(len(col_i), len(col_d), len(col_t))
             empty = Paragraph(' ', normal_style)
@@ -899,7 +967,7 @@ class PDFGenerator:
             # Mantém os três totais na mesma linha para evitar confusão visual com o total geral.
             col_i.append(Paragraph('TOTAL: ' + str(total_indirect), total_col_style))
             col_d.append(Paragraph('TOTAL: ' + str(total_direct), total_col_style))
-            col_t.append(Paragraph('TOTAL: ' + str(total_third_party), total_col_style))
+            col_t.append(Paragraph('TOTAL TERCEIROS: ' + str(total_third_party), total_col_style))
             total_row_idx = n
             efetivo_data = [[col_i[r], col_d[r], col_t[r]] for r in range(n + 1)]
             col_w = content_width / 3.0

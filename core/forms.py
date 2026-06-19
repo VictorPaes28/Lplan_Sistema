@@ -1075,13 +1075,18 @@ class DailyWorkLogFormSetBase(forms.BaseInlineFormSet):
     def _worklog_activity_description(self, form):
         if hasattr(form, 'cleaned_data') and form.cleaned_data:
             return (form.cleaned_data.get('activity_description') or '').strip()
-        if hasattr(form, 'data') and form.data:
+        if hasattr(form, 'data') and form.data is not None and getattr(form, 'is_bound', False):
             prefix = form.prefix if hasattr(form, 'prefix') and form.prefix else ''
             if prefix:
                 key = f'{prefix}-activity_description'
             else:
                 key = 'activity_description'
             return (form.data.get(key, '') or '').strip()
+        if 'activity_description' in form.fields:
+            try:
+                return (form['activity_description'].value() or '').strip()
+            except Exception:
+                pass
         return ''
 
     def _should_delete_form(self, form):
@@ -1090,6 +1095,8 @@ class DailyWorkLogFormSetBase(forms.BaseInlineFormSet):
         has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
         if not self._worklog_activity_description(form) and not has_pk:
             return True
+        if not getattr(form, 'is_bound', False):
+            return False
         return super()._should_delete_form(form)
 
     def clean(self):
@@ -1644,10 +1651,15 @@ class DiaryOccurrenceFormSetBase(forms.BaseInlineFormSet):
     def _occurrence_description(self, form):
         if hasattr(form, 'cleaned_data') and form.cleaned_data:
             return (form.cleaned_data.get('description') or '').strip()
-        if hasattr(form, 'data') and form.data:
+        if hasattr(form, 'data') and form.data is not None and getattr(form, 'is_bound', False):
             prefix = form.prefix if hasattr(form, 'prefix') and form.prefix else ''
             key = f'{prefix}-description' if prefix else 'description'
             return (form.data.get(key, '') or '').strip()
+        if 'description' in form.fields:
+            try:
+                return (form['description'].value() or '').strip()
+            except Exception:
+                pass
         return ''
 
     def _should_delete_form(self, form):
@@ -1656,6 +1668,8 @@ class DiaryOccurrenceFormSetBase(forms.BaseInlineFormSet):
         has_pk = bool(form.instance.pk) if hasattr(form, 'instance') and form.instance else False
         if not self._occurrence_description(form) and not has_pk:
             return True
+        if not getattr(form, 'is_bound', False):
+            return False
         return super()._should_delete_form(form)
 
     def clean(self):

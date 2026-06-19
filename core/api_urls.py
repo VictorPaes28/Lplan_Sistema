@@ -17,7 +17,8 @@ from .views import (
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'activities', ActivityViewSet, basename='activity')
-router.register(r'diaries', ConstructionDiaryViewSet, basename='diary')
+# basename distinto do frontend (core.urls name='diary-detail') para evitar colisão em reverse()/{% url %}.
+router.register(r'diaries', ConstructionDiaryViewSet, basename='api-diary')
 router.register(r'diary-images', DiaryImageViewSet, basename='diary-image')
 router.register(r'work-logs', DailyWorkLogViewSet, basename='work-log')
 router.register(r'labor', LaborViewSet, basename='labor')

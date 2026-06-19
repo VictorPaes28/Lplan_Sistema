@@ -432,6 +432,8 @@
             })();
             </script>
             {% if copy_source_diary %}
+            {{ copy_work_logs_seed|json_script:"copy-work-logs-seed" }}
+            {{ copy_occurrences_seed|json_script:"copy-occurrences-seed" }}
             <script>
             (function() {
                 document.addEventListener('DOMContentLoaded', function() {
@@ -1047,8 +1049,7 @@
                             {{ worklog_formset.management_form }}
                             <div id="worklog-formset-container" class="diary-activities-list space-y-2">
                                 {% for form in worklog_formset %}
-                                {% if not form.DELETE.value %}
-                                <div class="activity-item diary-activity-card" data-form-index="{{ forloop.counter0 }}">
+                                <div class="activity-item diary-activity-card{% if form.DELETE.value %} hidden{% endif %}" data-form-index="{{ forloop.counter0 }}" data-worklog-prefix="{{ form.prefix }}">
                                     <div class="diary-activity-card__main">
                                         <div class="diary-activity-card__info">
                                             <div class="diary-activity-card__title-row">
@@ -1103,7 +1104,6 @@
                                         {{ form.notes }}
                                     </div>
                                 </div>
-                                {% endif %}
                                 {% endfor %}
                                 <p id="activities-empty-message" class="diary-activities-empty {% if worklog_formset.forms %}hidden{% endif %}" aria-hidden="{% if worklog_formset.forms %}true{% else %}false{% endif %}">
                                     <i class="fas fa-clipboard-list" aria-hidden="true"></i>
@@ -2045,6 +2045,38 @@ function updateExtraInfoCount() {
     }
 }
 
+function ensureExtraInfoSectionVisibleIfFilled() {
+    var fields = document.querySelectorAll('.diary-extra-field__textarea[data-extra-field]');
+    var hasFilled = false;
+    for (var i = 0; i < fields.length; i++) {
+        if ((fields[i].value || '').trim()) {
+            hasFilled = true;
+            break;
+        }
+    }
+    if (!hasFilled) return;
+    if (window.accordionManager && typeof window.accordionManager.expand === 'function') {
+        window.accordionManager.expand('comentarios');
+        return;
+    }
+    if (typeof window.toggleSection === 'function') {
+        window.toggleSection('comentarios');
+        return;
+    }
+    var toggle = document.querySelector('[data-toggle-section="comentarios"]');
+    var content = document.getElementById('section-comentarios-content');
+    if (toggle && content) {
+        toggle.classList.remove('section-collapsed');
+        toggle.classList.add('section-expanded');
+        toggle.setAttribute('aria-expanded', 'true');
+        content.classList.remove('section-collapsed');
+        content.classList.add('section-expanded');
+        var chevron = toggle.querySelector('.section-chevron');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+    }
+}
+window.ensureExtraInfoSectionVisibleIfFilled = ensureExtraInfoSectionVisibleIfFilled;
+
 function initExtraInfoFields() {
     var fields = document.querySelectorAll('.diary-extra-field__textarea[data-extra-field]');
     for (var i = 0; i < fields.length; i++) {
@@ -2052,6 +2084,7 @@ function initExtraInfoFields() {
         fields[i].addEventListener('change', updateExtraInfoCount);
     }
     updateExtraInfoCount();
+    ensureExtraInfoSectionVisibleIfFilled();
 }
 function removeActivity(index) {
     var item = document.querySelector('.activity-item[data-form-index="' + index + '"]');
@@ -2603,7 +2636,7 @@ window.updateLaborQuantity = updateLaborQuantity;
     }
 
     function getDiaryLaborPayload() {
-        syncAllDiaryLaborInputsToState();
+        mergeDiaryLaborInputsIntoState();
         var out = [];
         for (var k in diaryLaborState) {
             if (diaryLaborState[k] <= 0) continue;
@@ -2696,7 +2729,7 @@ window.updateLaborQuantity = updateLaborQuantity;
         if (cid && !cref) cref = cargoRefFromId(cid);
         if (cref) setQuantity(cref, company, parseInt(inp.value, 10) || 0, inp.getAttribute('data-category-slug') || '');
     }
-    function syncAllDiaryLaborInputsToState() {
+    function mergeDiaryLaborInputsIntoState() {
         var inputs = document.querySelectorAll('.diary-labor-qty');
         for (var i = 0; i < inputs.length; i++) {
             var inp = inputs[i];
@@ -2715,6 +2748,9 @@ window.updateLaborQuantity = updateLaborQuantity;
             }
         }
         refreshLaborVisualFeedback();
+    }
+    function syncAllDiaryLaborInputsToState() {
+        mergeDiaryLaborInputsIntoState();
     }
     window.syncAllDiaryLaborInputsToState = syncAllDiaryLaborInputsToState;
     function bindPlusMinus() {
@@ -2757,11 +2793,11 @@ window.updateLaborQuantity = updateLaborQuantity;
                 var categorySlug = e.category_slug || (e.company ? 'terceirizada' : '');
                 var existingRef = e.project_labor_item_id
                     ? cargoRefFromProjectItem(e.project_labor_item_id)
-                    : (e.cargo_id ? cargoRefFromId(e.cargo_id) : (
-                        categorySlug
-                            ? cargoRefFromNameAndCategory(e.cargo_name || '', categorySlug)
-                            : cargoRefFromName(e.cargo_name || '')
-                    ));
+                    : (categorySlug && e.cargo_name
+                        ? cargoRefFromNameAndCategory(e.cargo_name || '', categorySlug)
+                        : (e.cargo_id
+                            ? cargoRefFromId(e.cargo_id)
+                            : cargoRefFromName(e.cargo_name || '')));
                 if (!existingRef) continue;
                 if (e.cargo_id || e.cargo_name || e.project_labor_item_id) {
                     upsertDynamicCargo({
@@ -5072,7 +5108,10 @@ window.saveOccurrence = saveOccurrence;
 
     function getExistingActivityNames() {
         var names = {};
-        document.querySelectorAll('input[name*="work_logs-"][name$="-activity_description"]').forEach(function(inp) {
+        document.querySelectorAll(
+            'textarea[name*="work_logs-"][name$="-activity_description"], ' +
+            'input[name*="work_logs-"][name$="-activity_description"]'
+        ).forEach(function(inp) {
             var val = (inp.value || '').trim().toLowerCase();
             if (val) names[val] = true;
         });
@@ -6521,6 +6560,7 @@ function saveSignature(canvasId) {
         var rows = form.querySelectorAll('.activity-item, .worklog-form-row');
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
+            if (row.classList && row.classList.contains('hidden')) continue;
             if (row.style && row.style.display === 'none') continue;
             var delInput = row.querySelector('input[name$="-DELETE"]');
             if (delInput && (delInput.checked || String(delInput.value || '').toLowerCase() === 'on')) continue;
@@ -6542,48 +6582,101 @@ function saveSignature(canvasId) {
     }
     window.pruneEmptyWorkLogRows = pruneEmptyWorkLogRows;
 
-    // Constrói work_logs_json e occurrences_json. Coleta por NOMES dos inputs (work_logs-N-*, ocorrencias-N-*)
-    // para não depender da estrutura DOM (.activity-item pode estar em seção recolhida ou ter classe diferente).
+    function readCopyJsonSeed(elementId) {
+        var el = document.getElementById(elementId);
+        if (!el) return null;
+        try {
+            var parsed = JSON.parse(el.textContent || 'null');
+            return Array.isArray(parsed) ? parsed : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function readWorkLogField(form, idx, suffix) {
+        var el = form.querySelector(
+            'textarea[name="work_logs-' + idx + '-' + suffix + '"], ' +
+            'input[name="work_logs-' + idx + '-' + suffix + '"]'
+        );
+        return (el && el.value !== undefined && el.value !== null) ? String(el.value).trim() : '';
+    }
+
+    function isWorkLogRowDeleted(form, idx) {
+        var delInput = form.querySelector(
+            'input[name="work_logs-' + idx + '-DELETE"], ' +
+            'input[type="checkbox"][name="work_logs-' + idx + '-DELETE"]'
+        );
+        if (!delInput) return false;
+        if (delInput.type === 'checkbox') return delInput.checked;
+        return (delInput.value || '').toString().toLowerCase() === 'on';
+    }
+
+    function collectWorkLogsForSubmit(form) {
+        var workLogs = [];
+        var seenIndexes = {};
+        var maxWorkLogIndex = -1;
+
+        function pushRow(idx, desc) {
+            if (seenIndexes[idx]) return;
+            seenIndexes[idx] = true;
+            var idxNum = parseInt(idx, 10);
+            if (!isNaN(idxNum) && idxNum > maxWorkLogIndex) maxWorkLogIndex = idxNum;
+            workLogs.push({
+                activity_description: desc,
+                work_stage: readWorkLogField(form, idx, 'work_stage') || 'AN',
+                percentage_executed_today: readWorkLogField(form, idx, 'percentage_executed_today') || '0',
+                accumulated_progress_snapshot: readWorkLogField(form, idx, 'accumulated_progress_snapshot') || '0',
+                location: readWorkLogField(form, idx, 'location'),
+                notes: readWorkLogField(form, idx, 'notes')
+            });
+        }
+
+        // 1) Percorre cada card visível (fonte = o que o usuário vê na tela)
+        var cards = form.querySelectorAll('#worklog-formset-container .activity-item');
+        for (var c = 0; c < cards.length; c++) {
+            var card = cards[c];
+            if (card.classList && card.classList.contains('hidden')) continue;
+            if (card.style && card.style.display === 'none') continue;
+            var descEl = card.querySelector(
+                'textarea[name$="-activity_description"], input[name$="-activity_description"]'
+            );
+            if (!descEl || !descEl.name) continue;
+            var match = descEl.name.match(/work_logs-(\d+)-activity_description/);
+            if (!match) continue;
+            var idx = match[1];
+            if (isWorkLogRowDeleted(form, idx)) continue;
+            var desc = (descEl.value || '').trim();
+            if (!desc) continue;
+            pushRow(idx, desc);
+        }
+
+        // 2) Varre índices 0..TOTAL_FORMS-1 (captura linhas fora do container ou índices altos)
+        var totalEl = form.querySelector('input[name="work_logs-TOTAL_FORMS"]');
+        var total = totalEl ? (parseInt(totalEl.value, 10) || 0) : 0;
+        for (var i = 0; i < total; i++) {
+            var idx = String(i);
+            if (seenIndexes[idx] || isWorkLogRowDeleted(form, idx)) continue;
+            var descEl2 = form.querySelector(
+                'textarea[name="work_logs-' + idx + '-activity_description"], ' +
+                'input[name="work_logs-' + idx + '-activity_description"]'
+            );
+            var desc2 = descEl2 ? (descEl2.value || '').trim() : '';
+            if (desc2) pushRow(idx, desc2);
+        }
+
+        return { workLogs: workLogs, maxWorkLogIndex: maxWorkLogIndex };
+    }
+
+    // Constrói work_logs_json e occurrences_json. Coleta por cards + índices do formset.
     function buildAndSetDiaryJsonPayload() {
         var form = document.getElementById('diary-form');
         if (!form) return;
         if (typeof pruneEmptyWorkLogRows === 'function') pruneEmptyWorkLogRows();
-        var workLogs = [];
-        var seenIndexes = {};
-        var maxWorkLogIndex = -1;
-        var descInputs = form.querySelectorAll(
-            'input[name^="work_logs-"][name$="-activity_description"], ' +
-            'input[name*="work_logs-"][name*="-activity_description"], ' +
-            'textarea[name^="work_logs-"][name$="-activity_description"], ' +
-            'textarea[name*="work_logs-"][name*="-activity_description"]'
-        );
-        for (var d = 0; d < descInputs.length; d++) {
-            var name = descInputs[d].name || '';
-            var match = name.match(/work_logs-(\d+)-/);
-            var idx = match ? match[1] : String(d);
-            if (seenIndexes[idx]) continue;
-            seenIndexes[idx] = true;
-            var idxNum = parseInt(idx, 10);
-            if (!isNaN(idxNum) && idxNum > maxWorkLogIndex) maxWorkLogIndex = idxNum;
-            var delInput = form.querySelector('input[name="work_logs-' + idx + '-DELETE"]');
-            if (delInput && (delInput.checked === true || (delInput.value || '').toString().toLowerCase() === 'on')) continue;
-            var desc = (descInputs[d].value || '').trim();
-            if (!desc) continue;
-            var get = function(suffix) {
-                var el = form.querySelector('[name="work_logs-' + idx + '-' + suffix + '"]');
-                return (el && el.value !== undefined && el.value !== null) ? String(el.value).trim() : '';
-            };
-            workLogs.push({
-                activity_description: desc,
-                work_stage: get('work_stage') || 'AN',
-                percentage_executed_today: get('percentage_executed_today') || '0',
-                accumulated_progress_snapshot: get('accumulated_progress_snapshot') || '0',
-                location: get('location'),
-                notes: get('notes')
-            });
-        }
+        var wlResult = collectWorkLogsForSubmit(form);
+        var workLogs = wlResult.workLogs;
+        var maxWorkLogIndex = wlResult.maxWorkLogIndex;
         var occurrences = [];
-        seenIndexes = {};
+        var seenOccIndexes = {};
         var maxOccIndex = -1;
         var occDescInputs = form.querySelectorAll(
             'input[name^="ocorrencias-"][name$="-description"], ' +
@@ -6595,8 +6688,8 @@ function saveSignature(canvasId) {
             var oname = occDescInputs[o].name || '';
             var omatch = oname.match(/ocorrencias-(\d+)-/);
             var oidx = omatch ? omatch[1] : String(o);
-            if (seenIndexes[oidx]) continue;
-            seenIndexes[oidx] = true;
+            if (seenOccIndexes[oidx]) continue;
+            seenOccIndexes[oidx] = true;
             var oidxNum = parseInt(oidx, 10);
             if (!isNaN(oidxNum) && oidxNum > maxOccIndex) maxOccIndex = oidxNum;
             var occDel = form.querySelector('input[name="ocorrencias-' + oidx + '-DELETE"]');
@@ -6625,6 +6718,19 @@ function saveSignature(canvasId) {
             }
             occurrences.push({ description: occDesc, tag_ids: tagIds });
         }
+        var workLogsSeed = readCopyJsonSeed('copy-work-logs-seed');
+        var occurrencesSeed = readCopyJsonSeed('copy-occurrences-seed');
+        if (workLogs.length === 0 && workLogsSeed && workLogsSeed.length) {
+            workLogs = workLogsSeed;
+        }
+        if (occurrences.length === 0 && occurrencesSeed && occurrencesSeed.length) {
+            occurrences = occurrencesSeed.map(function(item) {
+                return {
+                    description: item.description || '',
+                    tag_ids: item.tag_ids || item.tags || []
+                };
+            });
+        }
         var wlStr = JSON.stringify(workLogs);
         var occStr = JSON.stringify(occurrences);
         var wlInput = document.getElementById('work_logs_json_input');
@@ -6647,7 +6753,10 @@ function saveSignature(canvasId) {
         if (occInput) occInput.value = occStr;
         var wlTotal = document.querySelector('input[name="work_logs-TOTAL_FORMS"]');
         if (wlTotal) {
-            var wlTotalValue = maxWorkLogIndex >= 0 ? (maxWorkLogIndex + 1) : workLogs.length;
+            var wlTotalValue = Math.max(
+                workLogs.length,
+                maxWorkLogIndex >= 0 ? (maxWorkLogIndex + 1) : 0
+            );
             wlTotal.value = String(wlTotalValue);
         }
         var occTotal = document.querySelector('input[name="ocorrencias-TOTAL_FORMS"]');

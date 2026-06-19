@@ -242,12 +242,6 @@
                         <td class="diary-detail-data-table__value">{{ project_days_remaining }} dias</td>
                     </tr>
                     {% endif %}
-                    {% if diary.work_hours %}
-                    <tr>
-                        <td class="diary-detail-data-table__label">Horas de trabalho</td>
-                        <td class="diary-detail-data-table__value">{{ diary.work_hours }}h</td>
-                    </tr>
-                    {% endif %}
                     {% if diary.pluviometric_index %}
                     <tr>
                         <td class="diary-detail-data-table__label">Índice pluviométrico</td>
@@ -317,18 +311,6 @@
                     <tr>
                         <td class="diary-detail-data-table__label">Responsável pela Produção</td>
                         <td class="diary-detail-data-table__value font-normal">{{ diary.production_responsible }}</td>
-                    </tr>
-                    {% endif %}
-                    {% if diary.geolocation_data.latitude %}
-                    <tr>
-                        <td class="diary-detail-data-table__label">Localização GPS</td>
-                        <td class="diary-detail-data-table__value font-normal">
-                            {{ diary.geolocation_data.latitude }}, {{ diary.geolocation_data.longitude }}
-                            {% if diary.geolocation_data.accuracy_m %}<span class="text-slate-500"> (±{{ diary.geolocation_data.accuracy_m }} m)</span>{% endif %}
-                            <a href="https://www.google.com/maps?q={{ diary.geolocation_data.latitude }},{{ diary.geolocation_data.longitude }}"
-                               target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline ml-2">Ver no mapa</a>
-                            <a href="{% url 'mapa_geo:mapa' %}?diary={{ diary.id }}" class="text-blue-600 hover:underline ml-2">Ver no mapa geográfico</a>
-                        </td>
                     </tr>
                     {% endif %}
                     </tbody>
@@ -706,13 +688,13 @@
         {% endif %}
     </div>
 
-    <!-- Ocorrências (modelo DiaryOccurrence + campos legados) -->
+    <!-- Ocorrências (modelo DiaryOccurrence) -->
     <div class="mb-6">
         <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center diary-detail-heading-risk">
             <i class="fas fa-exclamation-triangle mr-2 text-sm" aria-hidden="true"></i>
             Interrupções e ocorrências
         </h3>
-        {% if diary.occurrences.all or diary.accidents or diary.stoppages or diary.imminent_risks or diary.incidents %}
+        {% if diary.occurrences.all %}
         <div class="diary-detail-stack">
             {% for occ in diary.occurrences.all %}
             <div id="occurrence-{{ occ.id }}" class="diary-detail-stack__item diary-detail-occurrence">
@@ -726,43 +708,19 @@
                 {% endif %}
             </div>
             {% endfor %}
-            {% if diary.accidents %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">Acidentes</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.accidents|linebreaks }}</p>
-            </div>
-            {% endif %}
-            {% if diary.stoppages %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">Paralisações</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.stoppages|linebreaks }}</p>
-            </div>
-            {% endif %}
-            {% if diary.imminent_risks %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">Riscos eminentes</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.imminent_risks|linebreaks }}</p>
-            </div>
-            {% endif %}
-            {% if diary.incidents %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">Outros incidentes</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.incidents|linebreaks }}</p>
-            </div>
-            {% endif %}
         </div>
         {% else %}
         <p class="diary-detail-empty">Nenhuma ocorrência registrada para este dia.</p>
         {% endif %}
     </div>
 
-    <!-- Atividades executadas (work_logs do diário + Fiscalizações, DDS) -->
+    <!-- Atividades executadas (work_logs do diário) -->
     <div class="mb-6">
         <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
             <i class="fas fa-calendar-check mr-2 text-sm" aria-hidden="true"></i>
             Atividades executadas
         </h3>
-        {% if display_work_logs or diary.inspections or diary.dds %}
+        {% if display_work_logs %}
         <div class="diary-detail-stack">
             {% for wl in display_work_logs %}
             <div class="diary-detail-stack__item">
@@ -783,53 +741,152 @@
                 {% endif %}
             </div>
             {% endfor %}
-            {% if diary.inspections %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">Fiscalizações</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.inspections|linebreaks }}</p>
-            </div>
-            {% endif %}
-            {% if diary.dds %}
-            <div class="diary-detail-stack__item">
-                <p class="diary-detail-stack__title">DDS (discurso diário de segurança)</p>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.dds|linebreaks }}</p>
-            </div>
-            {% endif %}
         </div>
         {% else %}
         <p class="diary-detail-empty">Nenhuma atividade executada registrada para este dia.</p>
         {% endif %}
     </div>
 
-    <!-- Deliberações -->
-    {% if diary.deliberations %}
+    <!-- Informações adicionais (mesma estrutura do formulário) -->
     <div class="mb-6">
         <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
-            <i class="fas fa-gavel mr-2 text-sm" aria-hidden="true"></i>
-            Deliberações
+            <i class="fas fa-clipboard-list mr-2 text-sm" aria-hidden="true"></i>
+            Informações adicionais
         </h3>
-        <div class="diary-detail-compact-block">
-            <div class="diary-detail-compact-section">
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.deliberations|linebreaks }}</p>
+        {% if diary_has_extra_info %}
+        <div class="diary-detail-extra">
+            <div class="diary-detail-extra__field diary-detail-extra__field--notes{% if not diary.general_notes %} diary-detail-extra__field--empty{% endif %}">
+                <p class="diary-detail-extra__label">Observações gerais</p>
+                {% if diary.general_notes %}
+                <p class="diary-detail-extra__text">{{ diary.general_notes|linebreaks }}</p>
+                {% else %}
+                <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                {% endif %}
             </div>
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Observações Gerais -->
-    {% if diary.general_notes %}
-    <div class="mb-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
-            <i class="fas fa-sticky-note mr-2 text-sm" aria-hidden="true"></i>
-            Observações gerais
-        </h3>
-        <div class="diary-detail-compact-block">
-            <div class="diary-detail-compact-section">
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ diary.general_notes|linebreaks }}</p>
+            <div class="diary-detail-extra__group">
+                <p class="diary-detail-extra__group-title">Segurança e interrupções</p>
+                <div class="diary-detail-extra__grid">
+                    <div class="diary-detail-extra__field{% if not diary.accidents %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">Acidentes</p>
+                        {% if diary.accidents %}
+                        <p class="diary-detail-extra__text">{{ diary.accidents|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                    <div class="diary-detail-extra__field{% if not diary.stoppages %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">Paralisações</p>
+                        {% if diary.stoppages %}
+                        <p class="diary-detail-extra__text">{{ diary.stoppages|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                    <div class="diary-detail-extra__field{% if not diary.imminent_risks %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">Riscos iminentes</p>
+                        {% if diary.imminent_risks %}
+                        <p class="diary-detail-extra__text">{{ diary.imminent_risks|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                    <div class="diary-detail-extra__field{% if not diary.incidents %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">Outros incidentes</p>
+                        {% if diary.incidents %}
+                        <p class="diary-detail-extra__text">{{ diary.incidents|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="diary-detail-extra__group">
+                <p class="diary-detail-extra__group-title">Fiscalização e DDS</p>
+                <div class="diary-detail-extra__grid diary-detail-extra__grid--pair">
+                    <div class="diary-detail-extra__field{% if not diary.inspections %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">Fiscalizações</p>
+                        {% if diary.inspections %}
+                        <p class="diary-detail-extra__text">{{ diary.inspections|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                    <div class="diary-detail-extra__field{% if not diary.dds %} diary-detail-extra__field--empty{% endif %}">
+                        <p class="diary-detail-extra__label">DDS (discurso diário de segurança)</p>
+                        {% if diary.dds %}
+                        <p class="diary-detail-extra__text">{{ diary.dds|linebreaks }}</p>
+                        {% else %}
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if diary.deliberations or diary.work_hours %}
+            <div class="diary-detail-extra__group">
+                <p class="diary-detail-extra__group-title">Outros registros</p>
+                <div class="diary-detail-extra__grid diary-detail-extra__grid--pair">
+                    {% if diary.deliberations %}
+                    <div class="diary-detail-extra__field">
+                        <p class="diary-detail-extra__label">Deliberações</p>
+                        <p class="diary-detail-extra__text">{{ diary.deliberations|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+                    {% if diary.work_hours %}
+                    <div class="diary-detail-extra__field">
+                        <p class="diary-detail-extra__label">Horas de trabalho</p>
+                        <p class="diary-detail-extra__text">{{ diary.work_hours }} h</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="diary-detail-extra">
+            <div class="diary-detail-extra__field diary-detail-extra__field--notes diary-detail-extra__field--empty">
+                <p class="diary-detail-extra__label">Observações gerais</p>
+                <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+            </div>
+            <div class="diary-detail-extra__group">
+                <p class="diary-detail-extra__group-title">Segurança e interrupções</p>
+                <div class="diary-detail-extra__grid">
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">Acidentes</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">Paralisações</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">Riscos iminentes</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">Outros incidentes</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                </div>
+            </div>
+            <div class="diary-detail-extra__group">
+                <p class="diary-detail-extra__group-title">Fiscalização e DDS</p>
+                <div class="diary-detail-extra__grid diary-detail-extra__grid--pair">
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">Fiscalizações</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                    <div class="diary-detail-extra__field diary-detail-extra__field--empty">
+                        <p class="diary-detail-extra__label">DDS (discurso diário de segurança)</p>
+                        <p class="diary-detail-extra__text diary-detail-extra__text--empty">—</p>
+                    </div>
+                </div>
             </div>
         </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
 {% if approval_history %}
@@ -906,6 +963,41 @@
         </div>
         {% endfor %}
     </div>
+</div>
+{% endif %}
+
+<!-- Anexos (documentos) -->
+{% if diary.attachments.all %}
+<div class="diary-detail-section mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-2 flex items-center">
+        <i class="fas fa-paperclip mr-2 text-sm" aria-hidden="true"></i>
+        Anexos ({{ diary.attachments.count }})
+    </h3>
+    <ul class="diary-detail-attachments-list">
+        {% for attachment in diary.attachments.all %}
+        {% with fname=attachment.file.name|default:""|lower %}
+        <li class="diary-detail-attachment-item">
+            <span class="diary-detail-attachment-item__icon diary-detail-attachment-item__icon--{% if '.pdf' in fname %}pdf{% elif '.doc' in fname %}doc{% elif '.xls' in fname %}xls{% elif '.txt' in fname %}txt{% else %}generic{% endif %}" aria-hidden="true">
+                <i class="fas fa-{% if '.pdf' in fname %}file-pdf{% elif '.doc' in fname %}file-word{% elif '.xls' in fname %}file-excel{% elif '.txt' in fname %}file-alt{% else %}file{% endif %}"></i>
+            </span>
+            <div class="diary-detail-attachment-item__body">
+                <p class="diary-detail-attachment-item__title m-0">
+                    {{ attachment.name|default:attachment.file.name }}
+                </p>
+                {% if attachment.file %}
+                <a href="{{ attachment.file.url }}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="diary-detail-attachment-item__link">
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                    Abrir arquivo
+                </a>
+                {% endif %}
+            </div>
+        </li>
+        {% endwith %}
+        {% endfor %}
+    </ul>
 </div>
 {% endif %}
 
