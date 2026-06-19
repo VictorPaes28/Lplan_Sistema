@@ -4356,6 +4356,11 @@ def diary_form_view(request, pk=None):
         if not occurrence_formset.is_valid():
             pass  # erros em occurrence_formset.errors
 
+        is_partial_save = (
+            _is_truthy_flag(request.POST.get('partial_save')) or
+            _is_truthy_flag(request.POST.get('as_partial_checkbox'))
+        )
+
         # Valida o form primeiro
         import logging
         logger = logging.getLogger(__name__)
@@ -4518,10 +4523,6 @@ def diary_form_view(request, pk=None):
             
             # Assinatura obrigatória só no envio final — validar ANTES da transação para não
             # reverter mão de obra, fotos e demais seções já processáveis.
-            is_partial_save = (
-                _is_truthy_flag(request.POST.get('partial_save')) or
-                _is_truthy_flag(request.POST.get('as_partial_checkbox'))
-            )
             signature_inspection_post = (request.POST.get('signature_inspection') or '').strip()
             signature_production_post = (request.POST.get('signature_production') or '').strip()
             diary_labor_unresolved = 0
