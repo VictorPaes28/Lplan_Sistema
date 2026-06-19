@@ -1365,8 +1365,55 @@
     return c;
   }
 
-  function layoutColIndexForPercentPatch(patch, meta, headerLen) {
+  function matrixColumnHeadForDomCol(domCol) {
+    const table = tableRef();
+    if (!table || !Number.isInteger(domCol)) return null;
+    const headerRow = table.querySelector("thead tr");
+    if (!headerRow) return null;
+    const th = headerRow.children[domCol];
+    return th && th.tagName === "TH" ? th : null;
+  }
+
+  function resolveActivityLabelForPatch(pageKey, cell, patch) {
+    if (patch && patch.activityLabel) return String(patch.activityLabel).trim();
+    const filters = parsePageFilters(pageKey);
+    if (filters.atividade) return String(filters.atividade).trim();
+    if (cell) {
+      const coords = cellCoordsFromKey(cell);
+      if (coords) {
+        const th = matrixColumnHeadForDomCol(coords.c);
+        if (th) {
+          const lbl = columnActivityLabelFromHeadCell(th);
+          if (lbl) return lbl;
+        }
+      }
+    }
+    return "";
+  }
+
+  function layoutColIndexFromActivityLabel(header, activityLabel) {
+    const wanted = String(activityLabel || "").trim();
+    if (!wanted || !Array.isArray(header)) return null;
+    const wantedNorm = wanted.toLowerCase();
+    for (let i = 0; i < header.length; i += 1) {
+      const lbl = String(header[i] || "").trim();
+      if (!lbl) continue;
+      if (lbl === wanted || lbl.toLowerCase() === wantedNorm) return i;
+    }
+    for (let i = 0; i < header.length; i += 1) {
+      const lbl = String(header[i] || "").trim().toLowerCase();
+      if (lbl && lbl.includes(wantedNorm)) return i;
+    }
+    return null;
+  }
+
+  function layoutColIndexForPercentPatch(patch, meta, headerLen, header, pageKey) {
     if (!patch || typeof patch !== "object") return null;
+    const activityLabel = resolveActivityLabelForPatch(pageKey, null, patch);
+    if (activityLabel && Array.isArray(header)) {
+      const byLabel = layoutColIndexFromActivityLabel(header, activityLabel);
+      if (Number.isInteger(byLabel)) return byLabel;
+    }
     const activityCols = activityColsFromMeta(meta, headerLen);
     if (Number.isInteger(patch.domColIndex)) {
       return domMatrixColToLayoutCol(patch.domColIndex, meta, headerLen);
@@ -1411,6 +1458,8 @@
     const coords = cellCoordsFromKey(cell);
     if (!coords) return;
     const filters = parsePageFilters(pageKey);
+    const ctx = getMatrixEditContext(pageKey);
+    const activityLabel = resolveActivityLabelForPatch(pageKey, cell, null);
     const meta = state.layoutMeta || {};
     const headerLen = state.layoutHeaderLen || 0;
     const isColumnHeader = cell.tagName === "TH" && isMatrixColumnHeadCell(cell);
@@ -1421,15 +1470,17 @@
       colIndex: layoutCol,
       domColIndex: coords.c,
       layoutColIndex: mapDomToLayout ? layoutCol : undefined,
+      activityLabel,
       rowLabel: rowLabelForCell(cell),
       text: String(text || ""),
       kind,
       isColumnHeader,
       rowAxisKey: inferRowAxisKeyFromPage(pageKey),
       pageFilters: {
-        setor: filters.setor || "",
-        bloco: filters.bloco || "",
-        pavimento: filters.pavimento || "",
+        setor: filters.setor || ctx.setor || "",
+        bloco: filters.bloco || ctx.bloco || "",
+        pavimento: filters.pavimento || ctx.pavimento || "",
+        atividade: filters.atividade || activityLabel || "",
       },
       dataRowIndex: layoutDataRowIndexFromCell(cell),
     };
@@ -1439,7 +1490,7 @@
     try {
       const u = new URL(pageKey, window.location.origin);
       const filters = {};
-      ["setor", "bloco", "pavimento", "apto"].forEach((k) => {
+      ["setor", "bloco", "pavimento", "apto", "atividade"].forEach((k) => {
         const v = u.searchParams.get(k);
         if (v) filters[k] = v;
       });
@@ -1763,7 +1814,7 @@
         }
         let colIndex = Number.isInteger(patch.colIndex) ? patch.colIndex : null;
         if (kind === "percent") {
-          colIndex = layoutColIndexForPercentPatch(patch, meta, headerLen);
+          colIndex = layoutColIndexForPercentPatch(patch, meta, headerLen, dataRows[0], pageKey);
           aptoPercentExpected += 1;
         }
         const rowLabel = patch.rowLabel != null ? String(patch.rowLabel).trim() : "";
