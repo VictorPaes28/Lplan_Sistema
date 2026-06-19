@@ -250,13 +250,11 @@ def merge_labor_entries_m2m_fallback_for_html(
     diary: 'ConstructionDiary',
 ) -> Optional[Dict[str, Any]]:
     """
-    Quando há ``DiaryLaborEntry`` o PDF ainda preenche colunas vazias com o M2M
-    ``resources_labor``; o template HTML só mostrava esse fallback se não existisse
-    nenhuma linha em ``DiaryLaborEntry``. Replica o preenchimento por categoria vazia
-    para alinhar detalhe ao PDF e aos totais.
+    Quando não há ``DiaryLaborEntry`` (``labor_entries_by_category`` é None), trata como
+    categorias vazias e preenche a partir do M2M legado — alinhado ao PDF e à cópia.
     """
     if labor_entries_by_category is None:
-        return None
+        labor_entries_by_category = {'indireta': [], 'direta': [], 'terceirizada': []}
 
     out_terceirizada_merge: List[Dict[str, Any]] = []
     for b in (labor_entries_by_category.get('terceirizada') or []):

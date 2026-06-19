@@ -4,6 +4,7 @@ Usado pelo formulário do diário ao salvar via work_logs_json e occurrences_jso
 """
 import json
 import logging
+import re
 import time
 from decimal import Decimal, InvalidOperation
 from django.db import transaction, IntegrityError
@@ -18,6 +19,232 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+WORK_LOG_PREFIX = 'work_logs'
+OCCURRENCE_PREFIX = 'ocorrencias'
+_WORK_LOG_INDEX_RE = re.compile(r'^work_logs-(\d+)-')
+_OCCURRENCE_INDEX_RE = re.compile(r'^ocorrencias-(\d+)-')
+
+
+def _post_value(post, key, default=''):
+    """Último valor de um campo no POST (QueryDict pode repetir chaves)."""
+    if hasattr(post, 'getlist'):
+        values = post.getlist(key)
+        if not values:
+            return default
+        return values[-1]
+    val = post.get(key, default)
+    return default if val is None else val
+
+
+def _is_formset_row_deleted(post, prefix: str, index: int) -> bool:
+    val = _post_value(post, f'{prefix}-{index}-DELETE', '')
+    return str(val).lower() in ('on', 'true', '1', 'yes')
+
+
+def _indices_from_post(post, prefix: str, total_key: str, index_re) -> list[int]:
+    indices: set[int] = set()
+    try:
+        total = int(_post_value(post, total_key, '0') or 0)
+    except (TypeError, ValueError):
+        total = 0
+    if total > 0:
+        indices.update(range(total))
+    if hasattr(post, 'keys'):
+        for key in post.keys():
+            match = index_re.match(key)
+            if match:
+                indices.add(int(match.group(1)))
+    return sorted(indices)
+
+
+def extract_work_logs_from_post(post):
+    """
+    Lê work_logs-N-* enviados pelo formset HTML (independente do JS).
+    Retorna lista no mesmo formato de work_logs_json.
+    """
+    items = []
+    for index in _indices_from_post(
+        post, WORK_LOG_PREFIX, f'{WORK_LOG_PREFIX}-TOTAL_FORMS', _WORK_LOG_INDEX_RE
+    ):
+        if _is_formset_row_deleted(post, WORK_LOG_PREFIX, index):
+            continue
+        desc = (_post_value(post, f'{WORK_LOG_PREFIX}-{index}-activity_description') or '').strip()
+        if not desc:
+            continue
+        work_stage = (_post_value(post, f'{WORK_LOG_PREFIX}-{index}-work_stage') or 'AN').strip()[:2]
+        if work_stage not in ('IN', 'AN', 'TE'):
+            work_stage = 'AN'
+        items.append({
+            'activity_description': desc,
+            'work_stage': work_stage,
+            'percentage_executed_today': _post_value(
+                post, f'{WORK_LOG_PREFIX}-{index}-percentage_executed_today', '0'
+            ),
+            'accumulated_progress_snapshot': _post_value(
+                post, f'{WORK_LOG_PREFIX}-{index}-accumulated_progress_snapshot', '0'
+            ),
+            'location': (_post_value(post, f'{WORK_LOG_PREFIX}-{index}-location') or '')[:255],
+            'notes': _post_value(post, f'{WORK_LOG_PREFIX}-{index}-notes') or '',
+        })
+    return items
+
+
+def _parse_work_logs_json(work_logs_json_str):
+    try:
+        data = json.loads(work_logs_json_str or '[]')
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _merge_work_log_items(json_items, formset_items):
+    """União por nome de atividade; campos do formset prevalecem em duplicatas."""
+    by_desc: dict[str, dict] = {}
+    order: list[str] = []
+    for item in json_items:
+        key = (item.get('activity_description') or '').strip().lower()
+        if not key:
+            continue
+        by_desc[key] = dict(item)
+        order.append(key)
+    for item in formset_items:
+        key = (item.get('activity_description') or '').strip().lower()
+        if not key:
+            continue
+        if key in by_desc:
+            merged = dict(by_desc[key])
+            merged.update(item)
+            by_desc[key] = merged
+        else:
+            by_desc[key] = dict(item)
+            order.append(key)
+    return [by_desc[key] for key in order if key in by_desc]
+
+
+def reconcile_work_logs_payload(post, work_logs_json_str):
+    """
+    Combina work_logs_json (JS) com campos work_logs-N-* do POST (formset).
+    Se o JS perder linhas, o servidor recupera a partir do HTML enviado.
+    """
+    json_items = _parse_work_logs_json(work_logs_json_str)
+    formset_items = extract_work_logs_from_post(post)
+
+    json_valid = sum(
+        1 for item in json_items if (item.get('activity_description') or '').strip()
+    )
+    formset_valid = len(formset_items)
+
+    if not formset_items:
+        return work_logs_json_str or '[]'
+
+    if not json_items:
+        merged = formset_items
+    else:
+        merged = _merge_work_log_items(json_items, formset_items)
+
+    if formset_valid > json_valid:
+        logger.warning(
+            'work_logs_json incompleto (%s atividade(s)) vs formset POST (%s); '
+            'payload reconciliado no servidor.',
+            json_valid,
+            formset_valid,
+        )
+
+    return json.dumps(merged, ensure_ascii=False)
+
+
+def extract_occurrences_from_post(post):
+    """Lê ocorrencias-N-* do POST (mesmo formato de occurrences_json)."""
+    items = []
+    for index in _indices_from_post(
+        post, OCCURRENCE_PREFIX, f'{OCCURRENCE_PREFIX}-TOTAL_FORMS', _OCCURRENCE_INDEX_RE
+    ):
+        if _is_formset_row_deleted(post, OCCURRENCE_PREFIX, index):
+            continue
+        description = (_post_value(post, f'{OCCURRENCE_PREFIX}-{index}-description') or '').strip()
+        if not description:
+            continue
+        tag_ids: list[int] = []
+        tag_key = f'{OCCURRENCE_PREFIX}-{index}-tags'
+        if hasattr(post, 'getlist'):
+            raw_tags = post.getlist(tag_key)
+        else:
+            raw = post.get(tag_key)
+            raw_tags = raw if isinstance(raw, list) else ([raw] if raw else [])
+        for raw in raw_tags:
+            try:
+                tag_id = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if tag_id not in tag_ids:
+                tag_ids.append(tag_id)
+        items.append({'description': description, 'tag_ids': tag_ids})
+    return items
+
+
+def _parse_occurrences_json(occurrences_json_str):
+    try:
+        data = json.loads(occurrences_json_str or '[]')
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _merge_occurrence_items(json_items, formset_items):
+    by_desc: dict[str, dict] = {}
+    order: list[str] = []
+    for item in json_items:
+        key = (item.get('description') or '').strip().lower()
+        if not key:
+            continue
+        by_desc[key] = {
+            'description': (item.get('description') or '').strip(),
+            'tag_ids': list(item.get('tag_ids') or item.get('tags') or []),
+        }
+        order.append(key)
+    for item in formset_items:
+        key = (item.get('description') or '').strip().lower()
+        if not key:
+            continue
+        if key in by_desc:
+            merged = dict(by_desc[key])
+            merged.update(item)
+            by_desc[key] = merged
+        else:
+            by_desc[key] = dict(item)
+            order.append(key)
+    return [by_desc[key] for key in order if key in by_desc]
+
+
+def reconcile_occurrences_payload(post, occurrences_json_str):
+    """Combina occurrences_json com campos ocorrencias-N-* do POST."""
+    json_items = _parse_occurrences_json(occurrences_json_str)
+    formset_items = extract_occurrences_from_post(post)
+
+    json_valid = sum(1 for item in json_items if (item.get('description') or '').strip())
+    formset_valid = len(formset_items)
+
+    if not formset_items:
+        return occurrences_json_str or '[]'
+
+    if not json_items:
+        merged = formset_items
+    else:
+        merged = _merge_occurrence_items(json_items, formset_items)
+
+    if formset_valid > json_valid:
+        logger.warning(
+            'occurrences_json incompleto (%s) vs formset POST (%s); payload reconciliado.',
+            json_valid,
+            formset_valid,
+        )
+
+    return json.dumps(merged, ensure_ascii=False)
 
 
 def _get_or_create_activity(project, activity_description):
