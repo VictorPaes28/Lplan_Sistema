@@ -4,7 +4,7 @@
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=50">
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=89">
 {% endblock %}
 
 {% block title %}DP / RH — LPLAN{% endblock %}
@@ -13,6 +13,7 @@
 {% block main_extra_class %} rh-main{% endblock %}
 
 {% block content %}
+<script src="{% static 'recursos_humanos/js/rh-motion.js' %}?v=2"></script>
 <div class="rh-fullbleed">
   <div class="tabs-bar">
     <a href="{% url 'recursos_humanos:colaboradores' %}" class="tab {% if request.resolver_match.url_name == 'colaboradores' or request.resolver_match.url_name == 'colaboradores_list' or request.resolver_match.url_name == 'colaborador_detalhe' %}active{% endif %}">
@@ -28,18 +29,13 @@
       Prazos e Alertas
       {% if rh_alertas_count %}<span class="tab-count">{{ rh_alertas_count }}</span>{% endif %}
     </a>
-    <a href="{% url 'recursos_humanos:documentos_config' %}" class="tab {% if request.resolver_match.url_name == 'documentos_config' %}active{% endif %}">
-      <i class="fas fa-cog" aria-hidden="true"></i>
-      Config. Documentos
-    </a>
-    <a href="{% url 'recursos_humanos:cargos' %}" class="tab {% if request.resolver_match.url_name == 'cargos' %}active{% endif %}">
-      <i class="fas fa-briefcase" aria-hidden="true"></i>
-      Cargos
+    <a href="{% url 'recursos_humanos:documentos_config' %}" class="tab {% if request.resolver_match.url_name == 'documentos_config' or request.resolver_match.url_name == 'cargos' %}active{% endif %}">
+      <i class="fas fa-folder-open" aria-hidden="true"></i>
+      Documentos
     </a>
   </div>
 
   <div class="rh-content">
-    {% block rh_breadcrumb %}{% endblock %}
     {% block rh_content %}{% endblock %}
   </div>
 </div>

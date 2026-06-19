@@ -1,0 +1,38 @@
+{% if dados_portal %}
+<section class="rh-dados-portal-panel">
+  <div class="rh-dados-portal-head">
+    <div>
+      <h4 class="rh-dados-portal-title">Dados pessoais do portal</h4>
+      <p class="rh-muted rh-dados-portal-sub">
+        Informações preenchidas pelo candidato no formulário do portal.
+      </p>
+    </div>
+    {% if dados_portal.completo %}
+    <span class="rh-doc-coleta-count ok">Completo</span>
+    {% elif dados_portal.tem_algum_preenchido %}
+    <span class="rh-doc-coleta-count bad">Incompleto</span>
+    {% else %}
+    <span class="rh-doc-coleta-count bad">Não enviado</span>
+    {% endif %}
+  </div>
+
+  {% if dados_portal.tem_algum_preenchido %}
+  <div class="rh-info-grid rh-dados-portal-grid">
+    {% for item in dados_portal.campos %}
+    <div class="rh-info-box">
+      <span class="rh-field-label">{{ item.label }}</span>
+      <span class="rh-field-value{% if not item.preenchido %} is-muted{% endif %}">{{ item.valor }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="rh-muted">O candidato ainda não preencheu os dados pessoais no portal.</p>
+  {% endif %}
+
+  {% if dados_portal.coleta_solicitada %}
+  <p class="rh-muted rh-dados-portal-hint">
+    <i class="fas fa-redo" aria-hidden="true"></i> Correção dos dados pessoais registrada — aguardando atualização no sistema.
+  </p>
+  {% endif %}
+</section>
+{% endif %}

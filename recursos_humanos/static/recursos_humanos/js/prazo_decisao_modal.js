@@ -23,13 +23,22 @@
   }
 
   function fecharModal() {
-    modal.classList.remove('open');
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('rh-modal-open');
+    if (window.RhMotion) {
+      window.RhMotion.closeOverlay(modal);
+    } else {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('rh-modal-open');
+    }
     currentPk = null;
   }
 
   function abrirModal() {
+    if (window.RhMotion) {
+      window.RhMotion.closeAllOverlays();
+      window.RhMotion.openOverlay(modal);
+      return;
+    }
     document.querySelectorAll('.modal-overlay.open').forEach(function (m) {
       m.classList.remove('open');
       m.setAttribute('aria-hidden', 'true');

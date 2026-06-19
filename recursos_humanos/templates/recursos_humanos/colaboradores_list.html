@@ -2,22 +2,6 @@
 
 
 
-{% block rh_breadcrumb %}
-
-<nav class="rh-breadcrumb" aria-label="Navegação">
-
-  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
-
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-
-  <span class="rh-breadcrumb-current">Colaboradores</span>
-
-</nav>
-
-{% endblock %}
-
-
-
 {% block rh_content %}
 
 <div class="rh-page">
@@ -30,17 +14,17 @@
 
       <p class="rh-subtitle">
 
-        Registro de todos os colaboradores da empresa. Para contratar alguém novo, inicie pelo
+        Admissões em curso no bloco superior; quadro efetivado abaixo.
 
-        <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link">Fluxo de Admissão</a>.
+        <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link">Abrir fluxo de admissão</a>
 
       </p>
 
       <div class="rh-chips rh-chips--inline">
 
-        <span class="rh-chip rh-chip-green"><span class="rh-dot rh-dot-green"></span>{{ contagens.ativo }} Ativos</span>
+        <span class="rh-chip rh-chip-green"><span class="rh-dot rh-dot-green"></span>{{ contagens.ativo }} Em exercício</span>
 
-        <span class="rh-chip rh-chip-blue"><span class="rh-dot rh-dot-blue"></span>{{ contagens.em_admissao }} Em Admissão</span>
+        <span class="rh-chip rh-chip-blue"><span class="rh-dot rh-dot-blue"></span>{{ contagens.em_admissao }} Em admissão</span>
 
         <span class="rh-chip rh-chip-gray"><span class="rh-dot rh-dot-gray"></span>{{ contagens.desligado }} Desligados</span>
 
@@ -74,9 +58,9 @@
 
         <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=todos" class="rh-seg-btn {% if status_filtro == 'todos' %}active{% endif %}" role="tab">Todos</a>
 
-        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=em_admissao" class="rh-seg-btn {% if status_filtro == 'em_admissao' %}active{% endif %}" role="tab">Em Admissão</a>
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=em_admissao" class="rh-seg-btn {% if status_filtro == 'em_admissao' %}active{% endif %}" role="tab">Em admissão</a>
 
-        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=ativo" class="rh-seg-btn {% if status_filtro == 'ativo' %}active{% endif %}" role="tab">Ativos</a>
+        <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=ativo" class="rh-seg-btn {% if status_filtro == 'ativo' %}active{% endif %}" role="tab">Em exercício</a>
 
         <a href="?{% if busca %}q={{ busca|urlencode }}&amp;{% endif %}{% if obra_filtro %}obra={{ obra_filtro }}&amp;{% endif %}status=desligado" class="rh-seg-btn {% if status_filtro == 'desligado' %}active{% endif %}" role="tab">Desligados</a>
 
@@ -110,150 +94,76 @@
 
 
 
+  {% if lista_dividida %}
+
+  <div class="rh-lista-grupos">
+
+    <div class="rh-card rh-lista-grupo rh-lista-grupo--admissao">
+      <div class="rh-lista-grupo__header">
+        <div>
+          <h2 class="rh-lista-grupo__title">Admissão em andamento</h2>
+          <p class="rh-lista-grupo__meta">{{ colaboradores_em_andamento|length }} candidato{{ colaboradores_em_andamento|length|pluralize:"s" }} · etapas 1 a 5</p>
+        </div>
+        <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link rh-lista-grupo__link">Fluxo completo →</a>
+      </div>
+      <div class="rh-table-wrap">
+        <table class="rh-table">
+          {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
+          <tbody>
+            {% for c in colaboradores_em_andamento %}
+            {% include "recursos_humanos/includes/colaborador_list_row.html" %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rh-card rh-lista-grupo rh-lista-grupo--quadro">
+      <div class="rh-lista-grupo__header">
+        <div>
+          <h2 class="rh-lista-grupo__title">Quadro de colaboradores</h2>
+          <p class="rh-lista-grupo__meta">{{ colaboradores_quadro|length }} no quadro · em exercício ou desligados (dossiê e validades)</p>
+        </div>
+      </div>
+      <div class="rh-table-wrap">
+        <table class="rh-table">
+          {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
+          <tbody>
+            {% for c in colaboradores_quadro %}
+            {% include "recursos_humanos/includes/colaborador_list_row.html" %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  {% else %}
+
   <div class="rh-card rh-table-wrap">
 
     <table class="rh-table">
 
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>CPF</th>
-
-          <th>Cargo</th>
-
-          <th>Obra(s)</th>
-
-          <th>Status</th>
-
-          <th>Documentos</th>
-
-          <th>Prazo próximo</th>
-
-          <th>Ações</th>
-
-        </tr>
-
-      </thead>
+      {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
 
       <tbody>
 
         {% for c in colaboradores %}
-
-        <tr id="rh-colab-row-{{ c.pk }}" data-pk="{{ c.pk }}">
-
-          <td>
-
-            <div class="rh-person-cell">
-
-              <span class="rh-avatar" aria-hidden="true">{{ c.iniciais }}</span>
-
-              <button type="button" class="rh-person-name js-rh-modal-ver rh-colab-nome"
-                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">{{ c.nome }}</button>
-
-            </div>
-
-          </td>
-
-          <td class="rh-muted rh-colab-cpf">{{ c.cpf }}</td>
-
-          <td class="rh-colab-cargo">{{ c.cargo }}</td>
-
-          <td>
-
-            {% for obra in c.obras.all %}
-
-            <span class="rh-tag">{{ obra.nome }}</span>
-
-            {% empty %}<span class="rh-muted">—</span>{% endfor %}
-
-          </td>
-
-          <td>
-
-            <span class="rh-status rh-status-pill rh-status-{{ c.status }} rh-colab-status">{{ c.get_status_display }}</span>
-
-          </td>
-
-          <td>
-
-            {% if c.status == 'em_admissao' %}
-
-            <a href="{% url 'recursos_humanos:admissao' %}?id={{ c.pk }}" class="rh-link rh-link-admissao">Ver admissão →</a>
-
-            {% else %}
-
-            <div class="rh-progress">
-
-              <div class="rh-progress-bar">
-
-                <div class="rh-progress-fill {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_recebidos >= c.docs_total|add:-2 %}warn{% else %}bad{% endif %}" style="width: {% if c.docs_total %}{% widthratio c.docs_recebidos c.docs_total 100 %}{% else %}0{% endif %}%"></div>
-
-              </div>
-
-              <span class="rh-progress-label {% if c.docs_total and c.docs_recebidos == c.docs_total %}ok{% elif c.docs_total and c.docs_recebidos >= c.docs_total|add:-2 %}warn{% else %}bad{% endif %}">{{ c.docs_recebidos }}/{{ c.docs_total }}</span>
-
-            </div>
-
-            {% endif %}
-
-          </td>
-
-          <td>
-
-            {% if c.proximo_prazo_fmt %}
-
-            <span class="rh-deadline{% if c.dias_proximo_prazo is not None %}{% if c.dias_proximo_prazo < 0 %} rh-deadline-overdue{% elif c.dias_proximo_prazo <= 7 %} rh-deadline-urgent{% endif %}{% endif %}">{{ c.proximo_prazo_fmt }}</span>
-
-            {% else %}<span class="rh-muted">—</span>{% endif %}
-
-          </td>
-
-          <td>
-
-            <div class="rh-actions-cell">
-
-              <button type="button" class="rh-icon-btn js-rh-modal-ver" title="Ver perfil"
-                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
-                <i class="fas fa-eye" aria-hidden="true"></i>
-              </button>
-
-              <button type="button" class="rh-icon-btn rh-icon-btn--edit js-rh-modal-editar" title="Editar colaborador"
-                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
-                <i class="fas fa-pen" aria-hidden="true"></i>
-              </button>
-
-              {% if c.status == 'ativo' %}
-              <button type="button" class="rh-icon-btn rh-icon-btn--desligar js-rh-modal-desligar" title="Desligar colaborador"
-                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
-                <i class="fas fa-user-times" aria-hidden="true"></i>
-              </button>
-              {% else %}
-              <button type="button" class="rh-icon-btn rh-icon-btn--danger js-rh-modal-excluir" title="Excluir"
-                      data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
-                <i class="fas fa-trash" aria-hidden="true"></i>
-              </button>
-              {% endif %}
-
-            </div>
-
-          </td>
-
-        </tr>
-
-        {% empty %}
-
-        <tr><td colspan="8" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
-
+        {% include "recursos_humanos/includes/colaborador_list_row.html" %}
         {% endfor %}
+
+        {% if not colaboradores %}
+        <tr><td colspan="7" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
+        {% endif %}
 
       </tbody>
 
     </table>
 
   </div>
+
+  {% endif %}
 
   {% if page_obj.has_other_pages %}
   <div class="rh-pagination-wrapper">
@@ -277,33 +187,27 @@
 
 {# Modal Ver Perfil #}
 <div id="modal-perfil" class="modal-overlay" aria-hidden="true">
-  <div class="modal-rh modal-rh-perfil" role="dialog" aria-labelledby="modal-perfil-heading">
-    <header class="modal-rh-header modal-rh-header-perfil">
-      <div class="modal-rh-header-top">
-        <div>
-          <h2 id="modal-perfil-heading" class="modal-rh-title">Perfil do Colaborador</h2>
-          <p class="modal-rh-subtitle">Visualização dos dados cadastrais</p>
-        </div>
-        <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
-      </div>
-    </header>
-    <hr class="modal-rh-divider" aria-hidden="true">
+  <div class="modal-rh modal-rh-perfil" role="dialog" aria-labelledby="modal-perfil-nome">
     <div class="modal-rh-profile-card">
       <span class="rh-avatar rh-avatar-lg rh-avatar-round" id="modal-perfil-iniciais" aria-hidden="true"></span>
       <div class="modal-rh-profile-info">
-        <h3 id="modal-perfil-nome" class="modal-rh-profile-name"></h3>
+        <h2 id="modal-perfil-nome" class="modal-rh-profile-name"></h2>
         <div class="modal-rh-profile-meta">
-          <span class="rh-status rh-status-pill" id="modal-perfil-status"></span>
+          <div class="rh-status-stack rh-status-stack--inline">
+            <span class="rh-status rh-status-pill" id="modal-perfil-status"></span>
+            <span class="rh-status-hint" id="modal-perfil-status-hint"></span>
+          </div>
           <span class="modal-rh-obras" id="modal-perfil-obras"></span>
           <span class="modal-rh-cargo" id="modal-perfil-cargo"></span>
         </div>
       </div>
+      <button type="button" class="modal-rh-close js-modal-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
     </div>
     <div class="rh-colab-tabs" role="tablist" aria-label="Seções do perfil" id="modal-perfil-tabs">
       <button type="button" class="rh-colab-tab active" data-colab-tab="pessoal" role="tab" aria-selected="true">Dados Pessoais</button>
       <button type="button" class="rh-colab-tab" data-colab-tab="profissional" role="tab" aria-selected="false">Dados Profissionais</button>
-      <button type="button" class="rh-colab-tab" data-colab-tab="documentos" role="tab" aria-selected="false">Documentos</button>
-      <button type="button" class="rh-colab-tab" data-colab-tab="atividades" role="tab" aria-selected="false">Atividades</button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="documentos" role="tab" aria-selected="false">Documentos <span class="rh-colab-tab-badge" id="modal-perfil-tab-badge-docs" hidden></span></button>
+      <button type="button" class="rh-colab-tab" data-colab-tab="atividades" role="tab" aria-selected="false">Histórico</button>
     </div>
     <div class="modal-rh-body modal-rh-body-perfil">
       <div class="rh-colab-tab-panel" data-colab-panel="pessoal" role="tabpanel">
@@ -347,6 +251,7 @@
         </div>
       </div>
       <div class="rh-colab-tab-panel" data-colab-panel="documentos" role="tabpanel" hidden>
+        <div id="modal-perfil-doc-coleta" class="rh-doc-coleta-panel" hidden></div>
         <div class="modal-rh-doc-progress" id="modal-perfil-doc-progress"></div>
         <div id="modal-perfil-documentos"></div>
       </div>
@@ -430,8 +335,8 @@
           </label>
           <label class="modal-rh-field">Status
             <select name="status" id="edit-status" class="rh-select">
-              <option value="em_admissao">Em Admissão</option>
-              <option value="ativo">Ativo</option>
+              <option value="em_admissao">Em admissão</option>
+              <option value="ativo">Em exercício</option>
               <option value="desligado">Desligado</option>
             </select>
           </label>
@@ -560,6 +465,10 @@
   function getReativarPrazoUrl(pk) { return urlFor(reativarPrazoUrlBase, pk); }
 
   function fecharModais() {
+    if (window.RhMotion) {
+      window.RhMotion.closeAllOverlays();
+      return;
+    }
     document.querySelectorAll('.modal-overlay.open').forEach(function (m) {
       m.classList.remove('open');
       m.setAttribute('aria-hidden', 'true');
@@ -571,6 +480,10 @@
     fecharModais();
     var modal = document.getElementById(id);
     if (!modal) return;
+    if (window.RhMotion) {
+      window.RhMotion.openOverlay(modal);
+      return;
+    }
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('rh-modal-open');
@@ -628,6 +541,75 @@
     outros: 'Outros documentos'
   };
 
+  function renderPainelColetaDocumentos(data) {
+    var panel = document.getElementById('modal-perfil-doc-coleta');
+    if (!panel) return;
+    var pendencias = data.pendencias_coleta || [];
+    if (!pendencias.length) {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      return;
+    }
+    var dados = pendencias.filter(function (p) { return p.tipo === 'dado'; });
+    var docs = pendencias.filter(function (p) { return p.tipo === 'documento'; });
+    var html = '<div class="rh-doc-coleta-panel__head">' +
+      '<div><h4 class="rh-doc-coleta-panel__title">Pendências de coleta</h4>' +
+      '<p class="rh-doc-coleta-panel__hint">Dados ou documentos que ainda não foram preenchidos no sistema.</p></div></div>';
+    if (dados.length) {
+      html += '<div class="rh-doc-coleta-grupo"><span class="rh-doc-coleta-grupo__label">Dados pessoais</span><ul class="rh-doc-coleta-list">';
+      dados.forEach(function (item) {
+        html += '<li>' + esc(item.label) + '</li>';
+      });
+      html += '</ul></div>';
+    }
+    if (docs.length) {
+      html += '<div class="rh-doc-coleta-grupo"><span class="rh-doc-coleta-grupo__label">Documentos</span><ul class="rh-doc-coleta-list">';
+      docs.forEach(function (item) {
+        html += '<li><span class="rh-doc-coleta-item__nome">' + esc(item.label) + '</span>';
+        if (item.detalhe) {
+          html += '<span class="rh-doc-coleta-item__detalhe">' + esc(item.detalhe) + '</span>';
+        }
+        html += '</li>';
+      });
+      html += '</ul></div>';
+    }
+    panel.innerHTML = html;
+    panel.hidden = false;
+  }
+
+  function contarDocsAtencao(docs) {
+    return (docs || []).filter(function (doc) {
+      return doc.vencido || doc.alerta_vencimento
+        || doc.pode_aprovar || doc.status === 'pending' || doc.status === 'missing'
+        || doc.reenvio_solicitado;
+    }).length;
+  }
+
+  function atualizarBadgeDocumentos(docs) {
+    var badge = document.getElementById('modal-perfil-tab-badge-docs');
+    if (!badge) return;
+    var n = contarDocsAtencao(docs);
+    if (n > 0) {
+      badge.textContent = n;
+      badge.hidden = false;
+    } else {
+      badge.textContent = '';
+      badge.hidden = true;
+    }
+  }
+
+  function destacarDocumentoPerfil(docId) {
+    if (!docId) return;
+    var modal = document.getElementById('modal-perfil');
+    modal.querySelectorAll('.modal-rh-doc-item.is-highlighted').forEach(function (el) {
+      el.classList.remove('is-highlighted');
+    });
+    var item = document.getElementById('modal-doc-item-' + docId);
+    if (!item) return;
+    item.classList.add('is-highlighted');
+    item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
   function docIconFor(doc) {
     if (doc.pode_aprovar || doc.status === 'pending') return '<span class="modal-doc-icon warn"><i class="fas fa-clock"></i></span>';
     if (doc.vencido || doc.status === 'missing') return '<span class="modal-doc-icon bad"><i class="fas fa-exclamation-circle"></i></span>';
@@ -652,13 +634,31 @@
     return 'missing';
   }
 
+  function aplicarStatusUi(el, hintEl, data) {
+    if (!el || !data) return;
+    var tone = data.status_tone || data.status;
+    el.textContent = data.status_display || '';
+    el.className = 'rh-status rh-status-pill rh-status-' + data.status + ' rh-status--' + tone;
+    if (el.classList.contains('rh-colab-status')) {
+      el.className += ' rh-colab-status';
+    }
+    if (hintEl) {
+      hintEl.textContent = data.status_hint || '';
+      hintEl.hidden = !data.status_hint;
+    } else if (data.status_hint) {
+      el.title = data.status_hint;
+    }
+  }
+
   function popularModalPerfil(data) {
     perfilData = data;
     document.getElementById('modal-perfil-iniciais').textContent = data.iniciais;
     document.getElementById('modal-perfil-nome').textContent = data.nome;
-    var statusEl = document.getElementById('modal-perfil-status');
-    statusEl.textContent = data.status_display;
-    statusEl.className = 'rh-status rh-status-pill rh-status-' + data.status;
+    aplicarStatusUi(
+      document.getElementById('modal-perfil-status'),
+      document.getElementById('modal-perfil-status-hint'),
+      data
+    );
     var obrasEl = document.getElementById('modal-perfil-obras');
     obrasEl.innerHTML = (data.obras || []).map(function (o) {
       return '<span class="rh-tag">' + esc(o) + '</span>';
@@ -780,9 +780,10 @@
     }
 
     var pct = data.docs_total ? Math.round(data.docs_recebidos / data.docs_total * 100) : 0;
+    renderPainelColetaDocumentos(data);
     document.getElementById('modal-perfil-doc-progress').innerHTML =
-      '<div class="rh-progress-bar rh-progress-bar--lg"><div class="rh-progress-fill ok" style="width:' + pct + '%"></div></div>' +
-      '<span class="rh-progress-label ok">' + data.docs_recebidos + '/' + data.docs_total + '</span>';
+      '<div class="modal-rh-doc-progress__bar"><div class="rh-progress-bar rh-progress-bar--lg"><div class="rh-progress-fill ok" style="width:' + pct + '%"></div></div></div>' +
+      '<span class="rh-progress-label ok">' + data.docs_recebidos + ' de ' + data.docs_total + ' recebidos</span>';
 
     var grupos = { pessoais: [], comprovantes: [], saude: [], treinamentos: [], outros: [] };
     (data.documentos || []).forEach(function (doc) {
@@ -794,9 +795,8 @@
       var docs = grupos[key];
       if (!docs.length) return;
       html += '<div class="modal-rh-doc-grupo"><h4 class="modal-rh-doc-grupo-title">' + catLabels[key] + '</h4><ul class="modal-rh-doc-list">';
-      docs.forEach(function (doc) {
-        var pillCls = docPillClass(doc);
-        html += '<li class="modal-rh-doc-item">' + docIconFor(doc) +
+        docs.forEach(function (doc) {
+        html += '<li class="modal-rh-doc-item" id="modal-doc-item-' + doc.id + '" data-doc-id="' + doc.id + '">' + docIconFor(doc) +
           '<div class="modal-rh-doc-body">' +
           '<span class="modal-rh-doc-name">' + esc(doc.nome) + '</span>' +
           '<span class="modal-rh-doc-meta">' + docStatusLabelFor(doc);
@@ -817,27 +817,30 @@
           html += '<a href="' + esc(doc.url_arquivo) + '" target="_blank" rel="noopener" class="rh-doc-ver-btn" title="Ver documento">' +
             '<i class="fas fa-eye" aria-hidden="true"></i> Ver</a>';
         }
-        if (doc.pode_solicitar_reenvio && doc.url_solicitar_reenvio) {
-          html += '<form method="post" action="' + esc(doc.url_solicitar_reenvio) + '" class="rh-doc-reenvio-form" ' +
-            'onsubmit="return confirm(\'Solicitar reenvio deste documento ao colaborador?\');">' +
-            '<input type="hidden" name="csrfmiddlewaretoken" value="' + esc(getCsrfToken()) + '">' +
-            '<button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button></form>';
-        }
         if (doc.pode_aprovar && doc.url_aprovar) {
-          html += '<form method="post" action="' + esc(doc.url_aprovar) + '" class="rh-doc-approve-form-modal">';
+          html += '<div class="rh-doc-approve-panel rh-doc-approve-panel--modal">';
+          html += '<form method="post" action="' + esc(doc.url_aprovar) + '" class="rh-doc-approve-panel__form">';
           html += '<input type="hidden" name="csrfmiddlewaretoken" value="' + esc(getCsrfToken()) + '">';
           html += '<input type="hidden" name="next" value="' + esc(doc.url_redirect || '') + '">';
-          if (doc.tem_validade) {
-            html += '<input type="date" name="data_emissao" class="rh-doc-emissao-input-modal" required title="Data de emissão">';
+          if (doc.tem_validade && !doc.data_emissao) {
+            html += '<div class="rh-doc-approve-panel__field">';
+            html += '<label for="modal-doc-emissao-' + doc.id + '">Data de emissão</label>';
+            html += '<input type="date" name="data_emissao" id="modal-doc-emissao-' + doc.id + '" class="rh-input rh-doc-upload-panel__date" required>';
+            html += '</div>';
           }
-          html += '<button type="submit" class="rh-doc-approve-btn-modal" title="Aprovar documento"><i class="fas fa-check"></i> Aprovar</button></form>';
+          html += '<button type="submit" class="rh-btn rh-btn-primary rh-btn-sm"><i class="fas fa-check"></i> Aprovar</button>';
+          html += '</form>';
+          if (doc.tem_validade && !doc.data_emissao) {
+            html += '<p class="rh-doc-approve-panel__hint">Documento sem data de emissão — informe manualmente para concluir a aprovação.</p>';
+          }
+          html += '</div>';
         }
-        html += '<span class="rh-doc-pill rh-doc-pill--' + pillCls + '">' + docStatusLabelFor(doc) + '</span>' +
-          '</div></li>';
+        html += '</div></li>';
       });
       html += '</ul></div>';
     });
     document.getElementById('modal-perfil-documentos').innerHTML = html || '<p class="rh-muted">Nenhum documento.</p>';
+    atualizarBadgeDocumentos(data.documentos);
 
     var atividadesEl = document.getElementById('modal-perfil-atividades');
     var atividadesCountEl = document.getElementById('modal-perfil-atividades-count');
@@ -906,13 +909,19 @@
     ativarColabTab(document.getElementById('modal-editar'), 'pessoal');
   }
 
-  function abrirModalPerfil(pk, tabId) {
+  function abrirModalPerfil(pk, tabId, docId) {
+    var tab = docId ? 'documentos' : (tabId || 'pessoal');
     fetch(getJsonUrl(pk), { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         popularModalPerfil(data);
-        ativarColabTab(document.getElementById('modal-perfil'), tabId || 'pessoal');
+        ativarColabTab(document.getElementById('modal-perfil'), tab);
         abrirModal('modal-perfil');
+        if (docId) {
+          requestAnimationFrame(function () {
+            destacarDocumentoPerfil(docId);
+          });
+        }
       });
   }
 
@@ -958,17 +967,17 @@
     abrirModal('modal-excluir');
   }
 
-  function atualizarStatusLinha(pk, nome, status, statusDisplay) {
+  function atualizarStatusLinha(pk, nome, data) {
     var row = document.getElementById('rh-colab-row-' + pk);
     if (!row) return;
+    var status = data.status;
     row.querySelectorAll('[data-pk]').forEach(function (el) {
       el.dataset.nome = nome;
       el.dataset.status = status;
     });
     var statusEl = row.querySelector('.rh-colab-status');
     if (statusEl) {
-      statusEl.textContent = statusDisplay;
-      statusEl.className = 'rh-status rh-status-pill rh-status-' + status + ' rh-colab-status';
+      aplicarStatusUi(statusEl, null, data);
     }
     var acaoBtn = row.querySelector('.js-rh-modal-desligar, .js-rh-modal-excluir');
     if (!acaoBtn) return;
@@ -1003,11 +1012,11 @@
     var cargoEl = row.querySelector('.rh-colab-cargo');
     if (cargoEl) cargoEl.textContent = data.cargo;
     if (data.status && data.status_display) {
-      atualizarStatusLinha(pk, data.nome, data.status, data.status_display);
+      atualizarStatusLinha(pk, data.nome, data);
     } else {
       var statusEl = row.querySelector('.rh-colab-status');
       if (statusEl && data.status_display) {
-        statusEl.textContent = data.status_display;
+        aplicarStatusUi(statusEl, null, data);
       }
     }
     row.querySelectorAll('[data-pk]').forEach(function (el) {
@@ -1147,13 +1156,17 @@
       .then(function (res) {
         if (res.ok && res.data.ok) {
           var nome = document.querySelector('#modal-desligar .desligar-nome').textContent;
-          atualizarStatusLinha(pk, nome, res.data.status, res.data.status_display);
+          atualizarStatusLinha(pk, nome, res.data);
           if (perfilData && String(perfilData.id) === String(pk)) {
             perfilData.status = res.data.status;
             perfilData.status_display = res.data.status_display;
-            var statusEl = document.getElementById('modal-perfil-status');
-            statusEl.textContent = res.data.status_display;
-            statusEl.className = 'rh-status rh-status-pill rh-status-' + res.data.status;
+            perfilData.status_hint = res.data.status_hint;
+            perfilData.status_tone = res.data.status_tone;
+            aplicarStatusUi(
+              document.getElementById('modal-perfil-status'),
+              document.getElementById('modal-perfil-status-hint'),
+              res.data
+            );
             atualizarAcoesPerfil(perfilData);
           }
           fecharModais();
@@ -1252,11 +1265,13 @@
   var urlParams = new URLSearchParams(window.location.search);
   var abrirColabPk = urlParams.get('abrir_colaborador');
   var abrirColabTab = urlParams.get('abrir_colaborador_tab');
+  var abrirColabDoc = urlParams.get('abrir_colaborador_doc');
   if (abrirColabPk) {
-    abrirModalPerfil(abrirColabPk, abrirColabTab);
+    abrirModalPerfil(abrirColabPk, abrirColabTab, abrirColabDoc);
     var cleanUrl = new URL(window.location);
     cleanUrl.searchParams.delete('abrir_colaborador');
     cleanUrl.searchParams.delete('abrir_colaborador_tab');
+    cleanUrl.searchParams.delete('abrir_colaborador_doc');
     window.history.replaceState({}, '', cleanUrl);
   }
 })();

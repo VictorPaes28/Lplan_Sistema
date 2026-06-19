@@ -1,0 +1,89 @@
+<tr id="rh-colab-row-{{ c.pk }}" data-pk="{{ c.pk }}">
+
+  <td>
+    <div class="rh-person-cell">
+      <span class="rh-avatar" aria-hidden="true">{{ c.iniciais }}</span>
+      <button type="button" class="rh-person-name js-rh-modal-ver rh-colab-nome"
+              data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">{{ c.nome }}</button>
+    </div>
+  </td>
+
+  <td class="rh-colab-cargo">
+    <span class="rh-colab-cargo-nome">{{ c.cargo }}{% if c.tipo_contrato %} <span class="rh-colab-cargo-meta">· {{ c.tipo_contrato }}</span>{% endif %}</span>
+  </td>
+
+  <td class="rh-colab-obras">
+    {% for obra in c.obras_visiveis %}
+    <span class="rh-tag rh-tag--compact">{{ obra.nome }}</span>
+    {% empty %}<span class="rh-muted">—</span>{% endfor %}
+    {% if c.obras_extra %}<span class="rh-tag rh-tag-more">+{{ c.obras_extra }}</span>{% endif %}
+  </td>
+
+  <td class="rh-colab-situacao">
+    <div class="rh-situacao-compact">
+      {% if c.etapa_badge %}
+      <span class="rh-etapa-badge" title="{{ c.status_hint }}">{{ c.etapa_badge }}</span>
+      {% endif %}
+      <span class="rh-status rh-status-pill rh-status-{{ c.status }} rh-status--{{ c.status_tone }} rh-colab-status"
+            title="{{ c.status_hint }}">{{ c.status_label }}</span>
+    </div>
+  </td>
+
+  <td class="rh-colab-docs">
+    {% if c.status == 'em_admissao' %}
+    <a href="{{ c.url_operacional }}" class="rh-docs-compact" title="Abrir fluxo de admissão ({{ c.etapa_nome_curto }})">
+      <span class="rh-docs-fracao">{{ c.resumo_docs.fracao }}</span>
+      <i class="fas fa-arrow-right" aria-hidden="true"></i>
+    </a>
+    {% else %}
+    <a href="{{ c.url_operacional }}" class="rh-docs-compact" title="Ver dossiê no perfil">
+      <div class="rh-progress rh-progress--compact">
+        <div class="rh-progress-bar">
+          <div class="rh-progress-fill {% if c.resumo_docs.completo %}ok{% elif c.resumo_docs.recebidos >= c.resumo_docs.total|add:-2 %}warn{% else %}bad{% endif %}" style="width: {% if c.resumo_docs.total %}{% widthratio c.resumo_docs.recebidos c.resumo_docs.total 100 %}{% else %}0{% endif %}%"></div>
+        </div>
+      </div>
+      <span class="rh-docs-fracao {% if c.resumo_docs.completo %}ok{% elif c.resumo_docs.pendentes_count %}warn{% endif %}">{{ c.resumo_docs.fracao }}</span>
+    </a>
+    {% endif %}
+  </td>
+
+  <td class="rh-colab-atencao">
+    {% if c.pendencias_visiveis %}
+    <div class="rh-pendencias-compact">
+      {% for p in c.pendencias_visiveis %}
+      <span class="rh-mini-chip rh-mini-chip--{{ p.urgencia }}" title="{{ p.hint }}">{{ p.label }}</span>
+      {% endfor %}
+      {% if c.pendencias_extra %}
+      <span class="rh-mini-chip rh-mini-chip--more" title="{{ c.pendencias_extra }} outra(s) pendência(s)">+{{ c.pendencias_extra }}</span>
+      {% endif %}
+    </div>
+    {% else %}
+    <span class="rh-pendencias-ok" title="Sem alertas urgentes">—</span>
+    {% endif %}
+  </td>
+
+  <td>
+    <div class="rh-actions-cell">
+      <button type="button" class="rh-icon-btn js-rh-modal-ver" title="Ver perfil"
+              data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+        <i class="fas fa-eye" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="rh-icon-btn rh-icon-btn--edit js-rh-modal-editar" title="Editar colaborador"
+              data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+        <i class="fas fa-pen" aria-hidden="true"></i>
+      </button>
+      {% if c.status == 'ativo' %}
+      <button type="button" class="rh-icon-btn rh-icon-btn--desligar js-rh-modal-desligar" title="Desligar colaborador"
+              data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+        <i class="fas fa-user-times" aria-hidden="true"></i>
+      </button>
+      {% else %}
+      <button type="button" class="rh-icon-btn rh-icon-btn--danger js-rh-modal-excluir" title="Excluir"
+              data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">
+        <i class="fas fa-trash" aria-hidden="true"></i>
+      </button>
+      {% endif %}
+    </div>
+  </td>
+
+</tr>

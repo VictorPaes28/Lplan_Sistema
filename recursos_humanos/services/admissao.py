@@ -17,6 +17,7 @@ class DocGrupoItem:
     nome: str
     status: str  # ok | pending | missing
     observacao: str = ''
+    instrucoes_portal: str = ''
     tem_arquivo: bool = False
     tem_validade: bool = False
     data_emissao: object = None
@@ -71,13 +72,11 @@ GRUPOS_META = (
 
 
 def _status_ui(doc: DocumentoColaborador) -> str:
-    from recursos_humanos.services.documentos import documento_esta_vencido
+    from recursos_humanos.services.documentos import documento_status_fluxo_ok
 
     if doc.reenvio_solicitado:
         return 'pending'
-    if doc.status == DocumentoColaborador.Status.RECEBIDO:
-        if documento_esta_vencido(doc):
-            return 'missing'
+    if documento_status_fluxo_ok(doc):
         return 'ok'
     if doc.status == DocumentoColaborador.Status.PENDENTE:
         return 'pending'
@@ -125,7 +124,7 @@ def _observacao_padrao(doc: DocumentoColaborador) -> str:
     return ''
 
 
-def _categoria_documento(nome: str) -> str:
+def _categoria_documento_por_nome(nome: str) -> str:
     n = nome.lower()
     if 'aso' in n or 'saúde' in n or 'saude' in n:
         return 'saude'
@@ -152,6 +151,14 @@ def _categoria_documento(nome: str) -> str:
     return 'outros'
 
 
+def _categoria_documento(tipo) -> str:
+    """Usa categoria explícita; se for o padrão «outros», infere pelo nome (legado e testes)."""
+    cat = getattr(tipo, 'categoria', None) or ''
+    if cat and cat != 'outros':
+        return cat
+    return _categoria_documento_por_nome(tipo.nome)
+
+
 def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
     from recursos_humanos.services.documentos import (
         documento_alerta_vencimento,
@@ -163,15 +170,18 @@ def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
     buckets: dict[str, list[DocGrupoItem]] = {g[0]: [] for g in GRUPOS_META}
     docs = colaborador.documentos.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
     for doc in docs:
-        cat = _categoria_documento(doc.tipo.nome)
+        cat = _categoria_documento(doc.tipo)
         meta = _meta_arquivo_doc(doc)
         elegivel_reenvio, _ = documento_elegivel_reenvio(doc)
+        obs = _observacao_padrao(doc)
+        instrucoes = (doc.tipo.instrucoes_portal or '').strip()
         buckets[cat].append(
             DocGrupoItem(
                 pk=doc.pk,
                 nome=doc.tipo.nome,
                 status=_status_ui(doc),
-                observacao=_observacao_padrao(doc),
+                observacao=obs,
+                instrucoes_portal=instrucoes,
                 tem_arquivo=bool(doc.arquivo),
                 tem_validade=doc.tipo.tem_validade,
                 data_emissao=doc.data_emissao,
@@ -247,15 +257,74 @@ def _extrair_autor_historico(historico, palavras_chave: tuple[str, ...]) -> str:
     return ''
 
 
+def _contexto_aprovacao_requisicao(colaborador: Colaborador) -> dict:
+    if not colaborador.requisicao_aprovada_gestor:
+        return {
+            'por': '',
+            'em': None,
+            'assinatura': '',
+            'tem_assinatura': False,
+        }
+    aprovador = colaborador.requisicao_aprovada_por
+    if aprovador:
+        nome = aprovador.get_full_name() or aprovador.username
+    elif colaborador.gestor_aprovador:
+        nome = colaborador.gestor_aprovador
+    else:
+        nome = '—'
+    assinatura = (colaborador.requisicao_aprovacao_assinatura or '').strip()
+    return {
+        'por': nome,
+        'em': colaborador.requisicao_aprovada_em,
+        'assinatura': assinatura,
+        'tem_assinatura': bool(assinatura),
+    }
+
+
+def _itens_dados_candidato(colaborador: Colaborador) -> list[tuple[str, str]]:
+    itens: list[tuple[str, str]] = []
+    if colaborador.rg:
+        itens.append(('RG', colaborador.rg))
+    if colaborador.data_nascimento:
+        itens.append(('Data de nascimento', colaborador.data_nascimento.strftime('%d/%m/%Y')))
+    if colaborador.pis:
+        itens.append(('PIS', colaborador.pis))
+    if colaborador.endereco:
+        itens.append(('Endereço', colaborador.endereco))
+    if colaborador.dados_bancarios:
+        itens.append(('Conta bancária', colaborador.dados_bancarios))
+    if colaborador.escolaridade:
+        itens.append(('Escolaridade', colaborador.escolaridade))
+    if colaborador.tamanho_camisa:
+        itens.append(('Tam. camisa', colaborador.tamanho_camisa))
+    if colaborador.tamanho_bota:
+        itens.append(('Tam. bota', colaborador.tamanho_bota))
+    if colaborador.empresa:
+        itens.append(('Empresa responsável', colaborador.empresa))
+    return itens
+
+
 def contexto_etapa_requisicao(colaborador: Colaborador, historico, user=None) -> dict:
+    from recursos_humanos.services.admissao_actions import (
+        garantir_requisicao_criada_por,
+        nomes_aprovadores_requisicao,
+    )
+    from recursos_humanos.services.papeis_fluxo import responsavel_admissao_colaborador
+    from recursos_humanos.services.reembolsos import reembolsos_para_contexto
+
     hist = list(historico)
-    solicitante = _extrair_autor_historico(hist, ('requisição criada', 'requisicao criada', 'rh —', 'rh -'))
-    gestor = colaborador.gestor_aprovador or _extrair_autor_historico(hist, ('gestor', 'aprovado', 'entrevista'))
+    garantir_requisicao_criada_por(colaborador)
+    responsavel = responsavel_admissao_colaborador(colaborador)
+    solicitante = responsavel or _extrair_autor_historico(
+        hist, ('requisição criada', 'requisicao criada', 'rh —', 'rh -'),
+    )
     obras = list(colaborador.obras.values_list('nome', flat=True))
     ctx = {
         'solicitante': solicitante or 'RH',
-        'gestor': gestor or 'Gestor responsável',
-        'gestor_user_id': colaborador.gestor_aprovador_user_id,
+        'responsavel': responsavel,
+        'gestor': responsavel,
+        'gestor_user_id': colaborador.requisicao_criada_por_id or colaborador.gestor_aprovador_user_id,
+        'aprovadores': ', '.join(nomes_aprovadores_requisicao(colaborador)) or '—',
         'requisicao_aprovada': colaborador.requisicao_aprovada_gestor,
         'requisicao_reprovada': colaborador.requisicao_reprovada,
         'motivo_reprovacao': colaborador.requisicao_motivo_reprovacao,
@@ -265,9 +334,14 @@ def contexto_etapa_requisicao(colaborador: Colaborador, historico, user=None) ->
         'motivo': colaborador.motivo_admissao or 'Nova contratação',
         'tipo_contrato': colaborador.tipo_contrato or 'CLT',
         'salario': formatar_salario_br(colaborador.salario),
+        'deslocamento_origem': colaborador.deslocamento_origem or '—',
+        'deslocamento_destino': colaborador.deslocamento_destino or '—',
+        'reembolsos': reembolsos_para_contexto(colaborador),
         'email': colaborador.email or '—',
         'telefone': colaborador.telefone or '—',
         'observacoes': colaborador.observacoes_requisicao,
+        'dados_candidato_itens': _itens_dados_candidato(colaborador),
+        'aprovacao': _contexto_aprovacao_requisicao(colaborador),
         'pode_aprovar': False,
         'pode_reprovar': False,
         'pode_corrigir': False,
@@ -284,8 +358,6 @@ def contexto_etapa_requisicao(colaborador: Colaborador, historico, user=None) ->
             and _usuario_pode_aprovar_requisicao(colaborador, user)
         )
         ctx['pode_reprovar'] = ctx['pode_aprovar']
-        from recursos_humanos.services.admissao_actions import garantir_requisicao_criada_por
-
         if colaborador.requisicao_reprovada:
             garantir_requisicao_criada_por(colaborador)
         ctx['pode_corrigir'] = (
@@ -355,6 +427,8 @@ def contexto_etapa_aprovacao(colaborador: Colaborador, resumo: dict) -> dict:
 
 
 def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
+    from recursos_humanos.services.reembolsos import reembolsos_para_contexto
+
     obras = list(colaborador.obras.values_list('nome', flat=True))
     inicio = colaborador.data_admissao
     try:
@@ -364,25 +438,43 @@ def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
     prazo_ativo = colaborador.prazos_contrato.filter(
         status=PrazoContrato.Status.ATIVO,
     ).first()
+    contrato_enviado = colaborador.historico_admissao.filter(
+        etapa=4,
+        descricao__icontains='Contrato enviado para assinatura',
+    ).exists()
     return {
         'tipo_contrato': colaborador.tipo_contrato or 'CLT',
         'cargo': colaborador.cargo,
         'obra': ', '.join(obras) if obras else '—',
         'data_inicio': inicio,
         'salario': formatar_salario_br(colaborador.salario),
+        'deslocamento_origem': colaborador.deslocamento_origem or '—',
+        'deslocamento_destino': colaborador.deslocamento_destino or '—',
+        'reembolsos': reembolsos_para_contexto(colaborador),
         'contrato': contrato,
         'prazo_ativo': prazo_ativo,
+        'contrato_enviado': contrato_enviado,
     }
 
 
 def montar_contexto_admissao(colaborador: Colaborador, historico, user=None) -> dict:
+    from recursos_humanos.services.documentos import documentacao_fluxo_completa
+    from recursos_humanos.services.papeis_fluxo import _usuario_eh_rh
+
     grupos = montar_grupos_documentos(colaborador)
     resumo = resumo_documentos(grupos)
     etapa = colaborador.etapa_admissao
+    usuario_rh_pode = _usuario_eh_rh(user) if user else False
     return {
         'etapa_atual': etapa,
         'doc_grupos': grupos,
         'doc_resumo': resumo,
+        'usuario_rh_pode': usuario_rh_pode,
+        'pode_encaminhar_validacao': (
+            etapa == 2
+            and resumo.get('completo')
+            and documentacao_fluxo_completa(colaborador)
+        ),
         'etapa_1': contexto_etapa_requisicao(colaborador, historico, user=user),
         'etapa_3': contexto_etapa_aprovacao(colaborador, resumo),
         'etapa_4': contexto_etapa_contrato(colaborador),

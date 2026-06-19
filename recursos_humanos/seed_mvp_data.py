@@ -88,8 +88,8 @@ def seed_rh_demo(apps, schema_editor):
         ('PIS', 'received', None),
         ('CTPS (Carteira de Trabalho)', 'received', None),
         ('Documentos dos Filhos', 'received', None),
-        ('ASO – Atestado de Saúde Ocupacional', 'pending', date(2026, 6, 25)),
-        ('NR-35 – Trabalho em Altura', 'missing', date(2026, 7, 30)),
+        ('ASO – Atestado de Saúde Ocupacional', 'received', date(2026, 6, 25)),
+        ('NR-35 – Trabalho em Altura', 'received', date(2026, 7, 30)),
     ])
 
     c2 = Colaborador.objects.create(
@@ -201,9 +201,9 @@ def seed_rh_demo(apps, schema_editor):
         ('Certificado de Escolaridade', 'received', None),
         ('PIS', 'received', None),
         ('CTPS (Carteira de Trabalho)', 'received', None),
-        ('Documentos dos Filhos', 'missing', None),
-        ('ASO – Atestado de Saúde Ocupacional', 'pending', date(2026, 7, 3)),
-        ('NR-35 – Trabalho em Altura', 'missing', date(2026, 6, 20)),
+        ('Documentos dos Filhos', 'received', None),
+        ('ASO – Atestado de Saúde Ocupacional', 'received', date(2026, 7, 3)),
+        ('NR-35 – Trabalho em Altura', 'received', date(2026, 6, 20)),
     ])
 
     c5 = Colaborador.objects.create(
@@ -277,6 +277,10 @@ def seed_rh_demo(apps, schema_editor):
             autor=ev[3],
             concluido=ev[4],
         )
+
+    from recursos_humanos.seed_exemplos_quadro import seed_exemplos_quadro
+
+    seed_exemplos_quadro(apps, schema_editor)
 
 
 def unseed_rh_demo(apps, schema_editor):

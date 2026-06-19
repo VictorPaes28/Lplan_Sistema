@@ -18,9 +18,11 @@ from .forms import (
     DocumentoRejeitarForm,
     DocumentoStatusForm,
     DocumentoUploadForm,
+    ESCOLARIDADE_CHOICES,
     NovaRequisicaoForm,
     PortalCandidatoDadosForm,
     ReprovarRequisicaoForm,
+    TipoDocumentoCatalogoForm,
     TipoDocumentoForm,
 )
 from .models import (
@@ -33,11 +35,14 @@ from .models import (
     TipoDocumento,
 )
 from .services.admissao import montar_contexto_admissao
+from .services.papeis_fluxo import ETAPAS_FLUXO_LABELS
 from .services.alertas_config import obter_configuracao_alertas
 from recursos_humanos.services.documentos import (
     admissao_etapa_concluida,
+    analisar_pendencias_coleta,
     colaborador_documentos_recebidos_validos,
     colaborador_tem_pendencia_documentos,
+    coleta_documentos_iniciada,
     documento_alerta_vencimento,
     documento_dias_restantes,
     documento_esta_vencido,
@@ -55,6 +60,7 @@ from .services.admissao_actions import (
     concluir_admissao,
     criar_requisicao,
     devolver_admissao,
+    enviar_contrato,
     enviar_lembrete_coleta_documentos,
     registrar_historico,
     reprovar_requisicao_gestor,
@@ -65,7 +71,8 @@ from .services.admissao_actions import (
     salvar_dados_portal_candidato,
     sincronizar_documentos_em_andamento,
     sincronizar_obras_gestao,
-    usuarios_gestor_list,
+    solicitar_pendencias_colaborador,
+    solicitar_correcao_dados_portal,
     aprovar_documento_arquivo,
     rejeitar_documento_arquivo,
     remover_documento_arquivo,
@@ -93,13 +100,25 @@ def _salvar_rascunho_requisicao(request, form=None, exc_msg=None):
         'cpf': request.POST.get('cpf', ''),
         'email': request.POST.get('email', ''),
         'telefone': request.POST.get('telefone', ''),
+        'rg': request.POST.get('rg', ''),
+        'data_nascimento': request.POST.get('data_nascimento', ''),
+        'pis': request.POST.get('pis', ''),
+        'endereco': request.POST.get('endereco', ''),
+        'dados_bancarios': request.POST.get('dados_bancarios', ''),
+        'escolaridade': request.POST.get('escolaridade', ''),
+        'tamanho_camisa': request.POST.get('tamanho_camisa', ''),
+        'tamanho_bota': request.POST.get('tamanho_bota', ''),
+        'empresa': request.POST.get('empresa', ''),
         'cargo': request.POST.get('cargo', ''),
         'cargo_rh': request.POST.get('cargo_rh', ''),
         'obra': request.POST.getlist('obra'),
+        'aprovadores': request.POST.getlist('aprovadores'),
         'tipo_contrato': request.POST.get('tipo_contrato', 'CLT'),
         'salario': request.POST.get('salario', ''),
+        'deslocamento_origem': request.POST.get('deslocamento_origem', ''),
+        'deslocamento_destino': request.POST.get('deslocamento_destino', ''),
+        'reembolsos_json': request.POST.get('reembolsos_json', '[]'),
         'data_inicio': request.POST.get('data_inicio', ''),
-        'gestor_id': request.POST.get('gestor_id', ''),
         'motivo': request.POST.get('motivo', 'Nova contratação'),
         'observacoes': request.POST.get('observacoes', ''),
         'prazo_duracao_dias': request.POST.get('prazo_duracao_dias', ''),
@@ -143,16 +162,25 @@ def _rh_nav_context(request, alertas_count=None):
         'rh_cargos_rh': CargoRH.objects.all(),
         'rh_solicitante_nome': solicitante,
         'rh_requisicao_draft': requisicao_draft,
-        'rh_usuarios_gestor': usuarios_gestor_list(),
+        'rh_escolaridade_choices': [c for c in ESCOLARIDADE_CHOICES if c[0]],
     }
 
 
 def _enriquecer_colaborador(c):
+    from .services.documentos import documento_conta_como_recebido
+    from .services.lista_colaboradores import enriquecer_lista_colaborador
+    from .services.status_colaborador import aplicar_status_exibicao
+
     docs = list(c.documentos.all())
-    c.docs_recebidos = sum(1 for d in docs if d.status == DocumentoColaborador.Status.RECEBIDO)
+    c.docs_recebidos = sum(1 for d in docs if documento_conta_como_recebido(d))
     c.docs_total = len(docs)
-    c.proximo_prazo_fmt = c.proximo_prazo().strftime('%d/%m/%Y') if c.proximo_prazo() else None
-    c.dias_proximo_prazo = c.dias_proximo_prazo()
+    aplicar_status_exibicao(c, docs_recebidos=c.docs_recebidos, docs_total=c.docs_total)
+    enriquecer_lista_colaborador(
+        c,
+        docs=docs,
+        recebidos=c.docs_recebidos,
+        total=c.docs_total,
+    )
 
 
 def _redirect_admissao(pk):
@@ -182,6 +210,88 @@ def _portal_status_permitido(colaborador):
     return colaborador.status in _PORTAL_STATUS_OK
 
 
+def _portal_colaborador_from_token(request, token):
+    from recursos_humanos.services.portal_token import colaborador_por_token_portal
+
+    colaborador = colaborador_por_token_portal(token)
+    if colaborador:
+        return colaborador, None
+    return None, render(request, 'recursos_humanos/portal_link_invalido.html')
+
+
+def _portal_exigir_autenticacao(request, token, colaborador):
+    from recursos_humanos.services.portal_auth import exigir_portal_autenticado
+
+    return exigir_portal_autenticado(request, token, colaborador)
+
+
+def _render_portal_acesso(request, colaborador, token, *, erro=''):
+    from recursos_humanos.services.portal_auth import pin_bloqueado
+
+    return render(
+        request,
+        'recursos_humanos/portal_acesso.html',
+        {
+            'colaborador': colaborador,
+            'token': token,
+            'erro_pin': erro,
+            'pin_bloqueado': pin_bloqueado(request, token),
+        },
+    )
+
+
+def _contexto_coleta_portal(colaborador, user):
+    """Dados do portal e pendências de coleta para admissão / perfil."""
+    from django.conf import settings
+
+    from recursos_humanos.services.documentos import (
+        analisar_pendencias_coleta,
+        colaborador_tem_contato_portal,
+        motivo_botao_pendencias_indisponivel,
+        pode_solicitar_pendencias_coleta,
+    )
+    from recursos_humanos.services.portal_token import PORTAL_TOKEN_VALIDADE_DIAS
+
+    from recursos_humanos.services.admissao_actions import contexto_dados_portal_rh
+    from recursos_humanos.services.papeis_fluxo import usuario_pode_conferir_documentos
+
+    pendencias = analisar_pendencias_coleta(colaborador)
+    pode = pode_solicitar_pendencias_coleta(colaborador, user)
+    dados_portal = contexto_dados_portal_rh(colaborador)
+    pode_corrigir_dados = (
+        dados_portal['tem_algum_preenchido']
+        and colaborador_tem_contato_portal(colaborador)
+        and usuario_pode_conferir_documentos(user, colaborador)
+        and colaborador.status == Colaborador.Status.EM_ADMISSAO
+        and colaborador.etapa_admissao >= 2
+    )
+    portal_url = None
+    if colaborador.token_portal and colaborador.status == Colaborador.Status.EM_ADMISSAO:
+        base = getattr(settings, 'SITE_URL', '').rstrip('/')
+        portal_url = f'{base}/rh/portal/{colaborador.token_portal}/'
+    return {
+        'pendencias_coleta': pendencias,
+        'pode_solicitar_pendencias': pode,
+        'url_solicitar_pendencias': (
+            reverse('recursos_humanos:colaborador_solicitar_pendencias', args=[colaborador.pk])
+            if pode else None
+        ),
+        'portal_url': portal_url,
+        'token_portal_valido': colaborador.token_portal_valido(),
+        'portal_token_validade_dias': PORTAL_TOKEN_VALIDADE_DIAS,
+        'tem_contato_portal': colaborador_tem_contato_portal(colaborador),
+        'motivo_botao_pendencias_indisponivel': motivo_botao_pendencias_indisponivel(
+            colaborador, user,
+        ),
+        'dados_portal': dados_portal,
+        'pode_solicitar_correcao_dados': pode_corrigir_dados,
+        'url_solicitar_correcao_dados': (
+            reverse('recursos_humanos:colaborador_solicitar_correcao_dados', args=[colaborador.pk])
+            if pode_corrigir_dados else None
+        ),
+    }
+
+
 _STATUS_ORDER = Case(
     When(status=Colaborador.Status.EM_ADMISSAO, then=Value(0)),
     When(status=Colaborador.Status.ATIVO, then=Value(1)),
@@ -196,7 +306,11 @@ _STATUS_ORDER = Case(
 def colaboradores_list_view(request):
     _sincronizar_notificacoes_rh()
     qs = (
-        Colaborador.objects.prefetch_related('obras', 'documentos')
+        Colaborador.objects.prefetch_related(
+            'obras',
+            'documentos__tipo',
+            'prazos_contrato',
+        )
         .annotate(
             status_order=_STATUS_ORDER,
             proximo_prazo_sort=Min('documentos__vencimento'),
@@ -228,9 +342,16 @@ def colaboradores_list_view(request):
     for c in page_obj:
         _enriquecer_colaborador(c)
 
+    em_andamento = [c for c in page_obj if c.status == Colaborador.Status.EM_ADMISSAO]
+    quadro = [c for c in page_obj if c.status != Colaborador.Status.EM_ADMISSAO]
+    lista_dividida = status_filtro == 'todos' and bool(em_andamento) and bool(quadro)
+
     ctx = {
         'page_obj': page_obj,
         'colaboradores': page_obj,
+        'colaboradores_em_andamento': em_andamento,
+        'colaboradores_quadro': quadro,
+        'lista_dividida': lista_dividida,
         'obras': obras_reais_queryset(),
         'busca': busca,
         'status_filtro': status_filtro,
@@ -287,14 +408,17 @@ def colaborador_detalhe_view(request, pk):
         elif acao == 'enviar_link_portal':
             telefone = request.POST.get('telefone', '').strip()
             if telefone and colaborador.status == Colaborador.Status.EM_ADMISSAO:
-                if not colaborador.token_portal_valido():
-                    colaborador.gerar_token_portal(dias=30)
-                from .services.notificacoes import enviar_link_portal_whatsapp
+                from recursos_humanos.services.documentos import analisar_pendencias_coleta
+                from recursos_humanos.services.portal_token import renovar_token_portal_colaborador
+                from .services.notificacoes import enviar_whatsapp_portal_colaborador
 
-                sucesso = enviar_link_portal_whatsapp(
-                    telefone,
-                    colaborador.nome,
-                    colaborador.token_portal,
+                colaborador.telefone = telefone
+                colaborador.save(update_fields=['telefone', 'atualizado_em'])
+                renovar_token_portal_colaborador(colaborador, renovar_pin=False)
+                sucesso = enviar_whatsapp_portal_colaborador(
+                    colaborador,
+                    modo='inicial',
+                    pendencias_coleta=analisar_pendencias_coleta(colaborador),
                 )
                 if sucesso:
                     messages.success(request, f'Link enviado para {telefone}.')
@@ -310,10 +434,14 @@ def colaborador_detalhe_view(request, pk):
         status=PrazoContrato.Status.ATIVO,
     ).first()
 
+    _enriquecer_colaborador(colaborador)
+
     portal_url = None
     if colaborador.status == Colaborador.Status.EM_ADMISSAO and colaborador.token_portal:
         base = getattr(settings, 'SITE_URL', '').rstrip('/')
         portal_url = f'{base}/rh/portal/{colaborador.token_portal}/'
+
+    from recursos_humanos.services.reembolsos import reembolsos_para_contexto
 
     ctx = {
         'colaborador': colaborador,
@@ -325,6 +453,7 @@ def colaborador_detalhe_view(request, pk):
         'token_portal_valido': colaborador.token_portal_valido(),
         'prazo_ativo': prazo_ativo,
         'prazo_tipo_choices': PrazoContrato.Tipo.choices,
+        'reembolsos_ctx': reembolsos_para_contexto(colaborador),
         **_rh_nav_context(request),
     }
     return render(request, 'recursos_humanos/colaborador_detalhe.html', ctx)
@@ -346,9 +475,12 @@ def colaborador_json_view(request, pk):
         alerta_venc = documento_alerta_vencimento(doc)
         vencido = documento_esta_vencido(doc)
         pode_reenvio, _ = documento_elegivel_reenvio(doc)
+        from recursos_humanos.services.papeis_fluxo import usuario_pode_conferir_documentos
+
         pode_aprovar = (
             bool(doc.arquivo)
             and doc.status == DocumentoColaborador.Status.PENDENTE
+            and usuario_pode_conferir_documentos(request.user, colaborador)
         )
         docs_data.append({
             'id': doc.pk,
@@ -383,6 +515,20 @@ def colaborador_json_view(request, pk):
 
     historico = serializar_historico_json(listar_historico_colaborador(colaborador))
 
+    from .services.status_colaborador import serializar_status_colaborador
+    from recursos_humanos.services.papeis_fluxo import usuario_pode_conferir_documentos
+
+    status_info = serializar_status_colaborador(
+        colaborador,
+        docs_recebidos=colaborador_documentos_recebidos_validos(colaborador),
+        docs_total=colaborador.documentos_total(),
+    )
+
+    pendencias_coleta = analisar_pendencias_coleta(colaborador)
+    from recursos_humanos.services.documentos import pode_solicitar_pendencias_coleta
+
+    pode_solicitar_pendencias = pode_solicitar_pendencias_coleta(colaborador, request.user)
+
     return JsonResponse({
         'id': colaborador.pk,
         'nome': colaborador.nome,
@@ -404,17 +550,27 @@ def colaborador_json_view(request, pk):
         'cargo_rh_nome': colaborador.cargo_rh.nome if colaborador.cargo_rh_id else '',
         'empresa': colaborador.empresa,
         'status': colaborador.status,
-        'status_display': colaborador.get_status_display(),
+        'status_display': status_info['status_display'],
+        'status_hint': status_info['status_hint'],
+        'status_tone': status_info['status_tone'],
         'data_admissao': colaborador.data_admissao.strftime('%Y-%m-%d') if colaborador.data_admissao else '',
         'data_admissao_fmt': colaborador.data_admissao.strftime('%d/%m/%Y') if colaborador.data_admissao else '',
         'tipo_contrato': colaborador.tipo_contrato,
         'salario': colaborador.salario,
+        'deslocamento_origem': colaborador.deslocamento_origem,
+        'deslocamento_destino': colaborador.deslocamento_destino,
         'observacoes_requisicao': colaborador.observacoes_requisicao,
         'obras': obras,
         'obras_ids': list(colaborador.obras.values_list('pk', flat=True)),
         'docs_recebidos': colaborador_documentos_recebidos_validos(colaborador),
         'docs_total': colaborador.documentos_total(),
         'pendencia_documentos': colaborador_tem_pendencia_documentos(colaborador),
+        'pendencias_coleta': pendencias_coleta,
+        'pode_solicitar_pendencias': pode_solicitar_pendencias,
+        'url_solicitar_pendencias': reverse(
+            'recursos_humanos:colaborador_solicitar_pendencias',
+            args=[colaborador.pk],
+        ) if pode_solicitar_pendencias else None,
         'documentos': docs_data,
         'prazo_contrato': prazo_data,
         'historico': historico,
@@ -447,6 +603,43 @@ def documento_solicitar_reenvio_view(request, pk, doc_pk):
     return redirect_para_colaborador(pk)
 
 
+@login_required
+@require_rh
+def colaborador_solicitar_pendencias_view(request, pk):
+    if request.method != 'POST':
+        return redirect_para_colaborador(pk)
+
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    ok, msg = solicitar_pendencias_colaborador(colaborador, request.user)
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    next_url = request.POST.get('next')
+    if next_url:
+        return HttpResponseRedirect(next_url)
+    return redirect_para_colaborador(pk)
+
+
+@login_required
+@require_rh
+def colaborador_solicitar_correcao_dados_view(request, pk):
+    if request.method != 'POST':
+        return redirect_para_colaborador(pk)
+
+    colaborador = get_object_or_404(Colaborador, pk=pk)
+    motivo = (request.POST.get('motivo') or '').strip()
+    ok, msg = solicitar_correcao_dados_portal(colaborador, request.user, motivo=motivo)
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    next_url = request.POST.get('next')
+    if next_url:
+        return HttpResponseRedirect(next_url)
+    return redirect_para_colaborador(pk)
+
+
 def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
     return {
         'colaborador_id': colaborador.pk,
@@ -454,13 +647,25 @@ def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
         'cpf': colaborador.cpf,
         'email': colaborador.email,
         'telefone': colaborador.telefone,
+        'rg': colaborador.rg,
+        'data_nascimento': colaborador.data_nascimento.isoformat() if colaborador.data_nascimento else '',
+        'pis': colaborador.pis,
+        'endereco': colaborador.endereco,
+        'dados_bancarios': colaborador.dados_bancarios,
+        'escolaridade': colaborador.escolaridade,
+        'tamanho_camisa': colaborador.tamanho_camisa,
+        'tamanho_bota': colaborador.tamanho_bota,
+        'empresa': colaborador.empresa,
         'cargo': colaborador.cargo,
         'cargo_rh': colaborador.cargo_rh_id or '',
         'obra': list(colaborador.obras.values_list('pk', flat=True)),
+        'aprovadores': list(colaborador.aprovadores_requisicao.values_list('pk', flat=True)),
         'tipo_contrato': colaborador.tipo_contrato,
         'salario': colaborador.salario,
+        'deslocamento_origem': colaborador.deslocamento_origem,
+        'deslocamento_destino': colaborador.deslocamento_destino,
+        'reembolsos': colaborador.reembolsos or [],
         'data_inicio': colaborador.data_admissao.isoformat() if colaborador.data_admissao else '',
-        'gestor_id': colaborador.gestor_aprovador_user_id or '',
         'motivo': colaborador.motivo_admissao or 'Nova contratação',
         'observacoes': colaborador.observacoes_requisicao,
         'motivo_reprovacao': colaborador.requisicao_motivo_reprovacao,
@@ -473,9 +678,11 @@ def _admissao_queryset(user=None):
 
 @login_required
 def gestor_aprovar_requisicao_view(request, pk):
-    """Aprovação de requisição pelo gestor (sem exigir perfil RH)."""
+    """Aprovação manual de requisição legada na etapa 1 (sem exigir perfil RH)."""
     colaborador = get_object_or_404(
-        Colaborador.objects.select_related('gestor_aprovador_user').prefetch_related('obras'),
+        Colaborador.objects.select_related('gestor_aprovador_user').prefetch_related(
+            'obras', 'aprovadores_requisicao',
+        ),
         pk=pk,
         status=Colaborador.Status.EM_ADMISSAO,
         etapa_admissao=1,
@@ -493,7 +700,11 @@ def gestor_aprovar_requisicao_view(request, pk):
     if request.method == 'POST':
         acao = request.POST.get('acao')
         if acao == 'aprovar_requisicao':
-            ok, msg = aprovar_requisicao_gestor(colaborador, request.user)
+            ok, msg = aprovar_requisicao_gestor(
+                colaborador,
+                request.user,
+                signature_data=request.POST.get('signature_data', ''),
+            )
         elif acao == 'reprovar_requisicao':
             form = ReprovarRequisicaoForm(request.POST)
             if form.is_valid():
@@ -578,7 +789,9 @@ def admissao_view(request):
     etapa_exibida = None
     somente_leitura = False
     pendencia_documentos = (
-        colaborador_tem_pendencia_documentos(selecionado) if selecionado else False
+        coleta_documentos_iniciada(selecionado)
+        and colaborador_tem_pendencia_documentos(selecionado)
+        if selecionado else False
     )
     etapa_fluxo = (
         etapa_fluxo_efetiva(selecionado) if selecionado else None
@@ -590,9 +803,7 @@ def admissao_view(request):
     for adm in adm_page_obj:
         adm.admissao_concluida_flag = admissoes_status.get(adm.pk, False)
         adm.admissao_pendencia_flag = (
-            adm.etapa_admissao >= 5
-            and adm.status == Colaborador.Status.ATIVO
-            and not adm.admissao_concluida_flag
+            not adm.admissao_concluida_flag
             and colaborador_tem_pendencia_documentos(adm)
         )
     if selecionado and admissao_ctx:
@@ -606,32 +817,28 @@ def admissao_view(request):
             if 1 <= ver_etapa <= etapa_atual:
                 etapa_exibida = ver_etapa
         if etapa_exibida is None:
-            if pendencia_documentos:
-                etapa_exibida = etapa_fluxo
+            if pendencia_documentos and etapa_atual > 2:
+                etapa_exibida = 2
             else:
                 etapa_exibida = etapa_atual
         somente_leitura = etapa_exibida < etapa_atual
-        if pendencia_documentos and etapa_exibida == etapa_fluxo:
+        if pendencia_documentos and etapa_exibida == 2 and etapa_atual > 2:
             somente_leitura = False
 
-    etapas_labels = [
-        (1, 'Requisição'),
-        (2, 'Coleta de Docs'),
-        (3, 'Aprovação RH'),
-        (4, 'Ass. Contrato'),
-        (5, 'Ativo'),
-    ]
+    etapas_labels = list(ETAPAS_FLUXO_LABELS)
     etapas_stepper = []
     if selecionado:
         for num, label in etapas_labels:
             concluida = admissao_etapa_concluida(selecionado, num)
+            etapa_reg = selecionado.etapa_admissao
             etapas_stepper.append({
                 'num': num,
                 'label': label,
                 'concluida': concluida,
-                'acessivel': num <= selecionado.etapa_admissao,
-                'atual': num == etapa_fluxo and pendencia_documentos,
+                'acessivel': num <= etapa_reg,
+                'etapa_registrada': num == etapa_reg,
                 'visualizando': etapa_exibida == num,
+                'reaberta_docs': num == 2 and pendencia_documentos and etapa_reg > 2,
             })
 
     ctx = {
@@ -654,6 +861,8 @@ def admissao_view(request):
         'admissoes_status': admissoes_status,
         **_rh_nav_context(request),
     }
+    if selecionado and selecionado.etapa_admissao >= 2:
+        ctx.update(_contexto_coleta_portal(selecionado, request.user))
     return render(request, 'recursos_humanos/admissao.html', ctx)
 
 
@@ -670,7 +879,10 @@ def admissao_nova_view(request):
                     nome=form.cleaned_data['cargo'].strip(),
                 )
                 request.session.pop('rh_requisicao_draft', None)
-                messages.success(request, f'Requisição criada para {colab.nome}.')
+                messages.success(
+                    request,
+                    f'Requisição criada para {colab.nome}. Coleta de documentos iniciada — link enviado ao candidato quando houver e-mail ou telefone.',
+                )
                 return _redirect_admissao(colab.pk)
             except Exception as exc:
                 _salvar_rascunho_requisicao(request, exc_msg=exc)
@@ -702,7 +914,7 @@ def admissao_atualizar_requisicao_view(request, pk):
                 nome=form.cleaned_data['cargo'].strip(),
             )
             request.session.pop('rh_requisicao_draft', None)
-            messages.success(request, f'Requisição de {colaborador.nome} corrigida e reenviada ao gestor.')
+            messages.success(request, f'Requisição de {colaborador.nome} corrigida. Coleta de documentos reiniciada.')
             return _redirect_admissao(colaborador.pk)
         except Exception as exc:
             _salvar_rascunho_requisicao(request, exc_msg=exc)
@@ -733,7 +945,11 @@ def admissao_acao_view(request, pk):
     acao = request.POST.get('acao')
 
     if acao == 'aprovar_requisicao':
-        ok, msg = aprovar_requisicao_gestor(colaborador, request.user)
+        ok, msg = aprovar_requisicao_gestor(
+            colaborador,
+            request.user,
+            signature_data=request.POST.get('signature_data', ''),
+        )
     elif acao == 'reprovar_requisicao':
         form = ReprovarRequisicaoForm(request.POST)
         if form.is_valid():
@@ -752,13 +968,15 @@ def admissao_acao_view(request, pk):
             ok, msg = False, 'Informe o motivo da devolução.'
     elif acao == 'concluir':
         ok, msg = concluir_admissao(colaborador, request.user)
+    elif acao == 'enviar_contrato':
+        ok, msg = enviar_contrato(colaborador, request.user)
     elif acao == 'enviar_lembrete':
         ok, msg = enviar_lembrete_coleta_documentos(colaborador, request.user)
     else:
         ok, msg = False, 'Ação inválida.'
 
     (messages.success if ok else messages.error)(request, msg)
-    if ok and acao == 'concluir':
+    if ok and acao in ('concluir',):
         return redirect_para_colaborador(colaborador.pk)
     return _redirect_admissao(colaborador.pk)
 
@@ -775,19 +993,39 @@ def documento_status_view(request, pk):
             form.cleaned_data['status'],
             form.cleaned_data['status'],
         )
-        atualizar_status_documento(
-            doc,
-            form.cleaned_data['status'],
-            form.cleaned_data.get('observacao', ''),
-            request.user,
-        )
-        messages.success(
-            request,
-            f'Status do documento atualizado para "{status_label}".',
-        )
+        try:
+            atualizar_status_documento(
+                doc,
+                form.cleaned_data['status'],
+                form.cleaned_data.get('observacao', ''),
+                request.user,
+            )
+            messages.success(
+                request,
+                f'Status do documento atualizado para "{status_label}".',
+            )
+        except PermissionError as exc:
+            messages.error(request, str(exc))
     else:
         messages.error(request, 'Status inválido.')
     next_url = request.POST.get('next') or url_colaboradores_com_modal(doc.colaborador_id)
+    return HttpResponseRedirect(next_url)
+
+
+def _wants_json(request) -> bool:
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+def _responder_documento_acao(request, next_url, ok, msg, doc=None):
+    if _wants_json(request):
+        from recursos_humanos.services.documento_acao_api import resposta_json_documento
+
+        status = 200 if ok else 400
+        return JsonResponse(resposta_json_documento(ok, msg, doc, user=request.user), status=status)
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
     return HttpResponseRedirect(next_url)
 
 
@@ -807,23 +1045,24 @@ def documento_aprovar_view(request, pk):
         from django.forms import DateField
         data_emissao = DateField().to_python(raw_emissao)
         if data_emissao is None:
-            messages.error(request, 'Data de emissão inválida.')
-            return HttpResponseRedirect(next_url)
+            return _responder_documento_acao(
+                request, next_url, False, 'Data de emissão inválida.',
+            )
 
     if doc.tipo.tem_validade and not data_emissao:
-        messages.error(
-            request,
-            f'Informe a data de emissão do documento "{doc.tipo.nome}" '
-            f'— necessária para calcular o vencimento.',
-        )
-        return HttpResponseRedirect(next_url)
+        if doc.data_emissao:
+            data_emissao = doc.data_emissao
+        else:
+            return _responder_documento_acao(
+                request,
+                next_url,
+                False,
+                f'"{doc.tipo.nome}" ainda não tem data de emissão. '
+                f'Solicite reenvio ao candidato para que informe a data no portal.',
+            )
 
     ok, msg = aprovar_documento_arquivo(doc, request.user, data_emissao)
-    if ok:
-        messages.success(request, msg)
-    else:
-        messages.error(request, msg)
-    return HttpResponseRedirect(next_url)
+    return _responder_documento_acao(request, next_url, ok, msg, doc if ok else None)
 
 
 @login_required
@@ -832,17 +1071,14 @@ def documento_rejeitar_view(request, pk):
     if request.method != 'POST':
         return redirect('recursos_humanos:colaboradores')
     doc = get_object_or_404(DocumentoColaborador.objects.select_related('colaborador', 'tipo'), pk=pk)
+    next_url = request.POST.get('next') or f'{reverse("recursos_humanos:admissao")}?id={doc.colaborador_id}'
     form = DocumentoRejeitarForm(request.POST)
     if form.is_valid():
         ok, msg = rejeitar_documento_arquivo(doc, form.cleaned_data['observacao'], request.user)
-        if ok:
-            messages.success(request, msg)
-        else:
-            messages.error(request, msg)
-    else:
-        messages.error(request, 'Informe uma observação para o candidato.')
-    next_url = request.POST.get('next') or f'{reverse("recursos_humanos:admissao")}?id={doc.colaborador_id}'
-    return HttpResponseRedirect(next_url)
+        return _responder_documento_acao(request, next_url, ok, msg, doc if ok else None)
+    return _responder_documento_acao(
+        request, next_url, False, 'Informe uma observação para o candidato.',
+    )
 
 
 @login_required
@@ -857,6 +1093,13 @@ def documento_upload_view(request, pk):
     next_url = request.POST.get('next') or url_colaboradores_com_modal(doc.colaborador_id)
     form = DocumentoUploadForm(request.POST, request.FILES)
     if form.is_valid():
+        from recursos_humanos.services.admissao_actions import _exigir_papel_conferencia_docs
+
+        ok_papel, msg_papel = _exigir_papel_conferencia_docs(request.user, doc.colaborador)
+        if not ok_papel:
+            messages.error(request, msg_papel)
+            return HttpResponseRedirect(next_url)
+
         arquivo = form.cleaned_data['arquivo']
         data_emissao = form.cleaned_data.get('data_emissao')
 
@@ -964,47 +1207,187 @@ def enviar_alertas_whatsapp_view(request):
 @login_required
 @require_rh
 def documentos_config_view(request):
+    from recursos_humanos.services.documentos_config import (
+        garantir_cargos_rh_padrao,
+        ids_docs_da_obra,
+        ids_docs_do_cargo,
+        montar_cards_tipos,
+        montar_catalogo_documentos,
+        montar_cargos_resumo,
+        montar_obras_resumo,
+        salvar_docs_da_obra,
+        salvar_docs_do_cargo,
+    )
+
+    garantir_cargos_rh_padrao()
+
     if request.method == 'POST':
         acao = request.POST.get('acao')
+        painel = request.POST.get('painel', 'todos')
+        cargo_sel = request.POST.get('cargo_id', '')
+        obra_sel = request.POST.get('obra_id', '')
+
+        def _redirect_painel():
+            url = reverse('recursos_humanos:documentos_config')
+            params = [f'painel={painel}']
+            if cargo_sel:
+                params.append(f'cargo={cargo_sel}')
+            if obra_sel:
+                params.append(f'obra={obra_sel}')
+            return redirect(f'{url}?{"&".join(params)}')
+
         if acao == 'criar':
-            form = TipoDocumentoForm(request.POST)
+            form = TipoDocumentoCatalogoForm(request.POST)
             if form.is_valid():
-                form.save()
+                tipo = form.save()
+                if tipo.aplica_a == TipoDocumento.AplicaA.POR_CARGO:
+                    cargo_ids = request.POST.getlist('cargos_aplicaveis')
+                    cargo_ctx = request.POST.get('cargo_context')
+                    if cargo_ctx and cargo_ctx not in cargo_ids:
+                        cargo_ids.append(cargo_ctx)
+                    if cargo_ids:
+                        tipo.cargos_aplicaveis.set(
+                            CargoRH.objects.filter(pk__in=cargo_ids),
+                        )
+                if tipo.aplica_a == TipoDocumento.AplicaA.POR_CARGO:
+                    painel = 'cargo'
+                    if tipo.cargos_aplicaveis.exists():
+                        cargo_sel = str(tipo.cargos_aplicaveis.first().pk)
                 novos = sincronizar_documentos_em_andamento()
-                msg = 'Tipo de documento criado.'
+                msg = 'Documento adicionado ao catálogo.'
                 if novos:
-                    msg += f' {novos} documento(s) adicionado(s) em admissões em andamento.'
+                    msg += f' {novos} pendência(s) criada(s) em admissões em andamento.'
                 messages.success(request, msg)
             else:
-                messages.error(request, 'Verifique os campos do novo tipo.')
+                messages.error(request, 'Verifique os campos do novo documento.')
         elif acao == 'editar':
             tipo = get_object_or_404(TipoDocumento, pk=request.POST.get('tipo_id'))
-            form = TipoDocumentoForm(request.POST, instance=tipo)
+            form = TipoDocumentoCatalogoForm(request.POST, instance=tipo)
             if form.is_valid():
                 form.save()
                 novos = sincronizar_documentos_em_andamento()
-                msg = 'Tipo de documento atualizado.'
+                msg = 'Documento atualizado.'
                 if novos:
-                    msg += f' {novos} documento(s) adicionado(s) em admissões em andamento.'
+                    msg += f' {novos} pendência(s) criada(s) em admissões em andamento.'
                 messages.success(request, msg)
             else:
                 messages.error(request, 'Verifique os campos.')
         elif acao == 'excluir':
             tipo = get_object_or_404(TipoDocumento, pk=request.POST.get('tipo_id'))
             if tipo.documentos_colaborador.exists():
-                messages.error(request, 'Não é possível excluir: documento em uso por colaboradores.')
+                messages.error(request, 'Não é possível excluir: documento já usado em colaboradores.')
             else:
                 tipo.delete()
-                messages.success(request, 'Tipo de documento excluído.')
-        return redirect('recursos_humanos:documentos_config')
+                messages.success(request, 'Documento removido do catálogo.')
+        elif acao == 'criar_cargo':
+            form = CargoRHForm(request.POST)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'Cargo «{form.cleaned_data["nome"]}» criado. Agora marque os documentos extras dele.')
+                painel = 'cargo'
+                cargo_sel = str(CargoRH.objects.order_by('-pk').values_list('pk', flat=True).first() or '')
+            else:
+                messages.error(request, 'Informe um nome válido para o cargo.')
+                painel = 'cargo'
+        elif acao == 'salvar_cargo':
+            cargo_id = request.POST.get('cargo_id')
+            if not cargo_id:
+                messages.error(request, 'Selecione um cargo.')
+            else:
+                novos = salvar_docs_do_cargo(int(cargo_id), request.POST.getlist('tipo_cargo'))
+                msg = 'Documentos do cargo salvos.'
+                if novos:
+                    msg += f' {novos} pendência(s) em admissões atualizadas.'
+                messages.success(request, msg)
+            painel = 'cargo'
+            cargo_sel = cargo_id or cargo_sel
+        elif acao == 'salvar_obra':
+            obra_id = request.POST.get('obra_id')
+            if not obra_id:
+                messages.error(request, 'Selecione uma obra.')
+            else:
+                novos = salvar_docs_da_obra(int(obra_id), request.POST.getlist('tipo_obra'))
+                msg = 'Documentos da obra salvos.'
+                if novos:
+                    msg += f' {novos} pendência(s) em admissões atualizadas.'
+                messages.success(request, msg)
+            painel = 'obra'
+            obra_sel = obra_id or obra_sel
+        return _redirect_painel()
 
-    tipos = TipoDocumento.objects.prefetch_related('cargos_aplicaveis', 'obras_aplicaveis').all()
-    tipos_forms = [(t, TipoDocumentoForm(instance=t)) for t in tipos]
+    tipos = list(
+        TipoDocumento.objects.prefetch_related('cargos_aplicaveis', 'obras_aplicaveis')
+        .order_by('ordem', 'nome')
+    )
+    cards = montar_cards_tipos(tipos)
+    cargos = montar_cargos_resumo(cards['por_cargo'])
+    obras = montar_obras_resumo(cards['por_obra'])
+
+    painel = request.GET.get('painel', 'todos')
+    if painel == 'obra':
+        painel = 'todos'
+    if painel not in ('todos', 'cargo'):
+        painel = 'todos'
+
+    cargo_ativo = None
+    cargo_id = request.GET.get('cargo')
+    if cargo_id:
+        cargo_ativo = CargoRH.objects.filter(pk=cargo_id).first()
+    if not cargo_ativo and cargos:
+        cargo_ativo = CargoRH.objects.filter(pk=cargos[0].pk).first()
+        cargo_id = str(cargo_ativo.pk) if cargo_ativo else ''
+
+    obra_ativa = None
+    obra_id = request.GET.get('obra')
+    if obra_id:
+        obra_ativa = ObraLocal.objects.filter(pk=obra_id).first()
+    if not obra_ativa and obras:
+        obra_ativa = ObraLocal.objects.filter(pk=obras[0].pk).first()
+        obra_id = str(obra_ativa.pk) if obra_ativa else ''
+
+    docs_cargo_ativos = ids_docs_do_cargo(cargo_ativo, tipos) if cargo_ativo else set()
+    docs_obra_ativos = ids_docs_da_obra(obra_ativa, tipos) if obra_ativa else set()
+
+    tipos_forms_edit = {t.pk: TipoDocumentoCatalogoForm(instance=t) for t in tipos}
+
     return render(request, 'recursos_humanos/documentos_config.html', {
-        'tipos_forms': tipos_forms,
-        'form_novo': TipoDocumentoForm(),
+        'cards': cards,
+        'catalogo_docs': montar_catalogo_documentos(cards),
+        'cargos': cargos,
+        'categorias': TipoDocumento.Categoria.choices,
+        'obras': obras,
+        'painel': painel,
+        'cargo_ativo': cargo_ativo,
+        'cargo_id': cargo_id,
+        'obra_ativa': obra_ativa,
+        'obra_id': obra_id,
+        'docs_cargo_ativos': docs_cargo_ativos,
+        'docs_obra_ativos': docs_obra_ativos,
+        'form_novo': TipoDocumentoCatalogoForm(),
+        'form_cargo': CargoRHForm(),
+        'tipos_forms_edit': tipos_forms_edit,
+        'stats': {
+            'todos': len(cards['todos']),
+            'cargo': len(cards['por_cargo']),
+            'obra': len(cards['por_obra']),
+            'cargos': len(cargos),
+        },
         **_rh_nav_context(request),
     })
+
+
+@login_required
+@require_rh
+def documentos_config_preview_view(request):
+    from recursos_humanos.services.documentos_config import preview_kit_documentos
+
+    cargo_id = request.GET.get('cargo')
+    obra_id = request.GET.get('obra')
+    data = preview_kit_documentos(
+        cargo_id=int(cargo_id) if cargo_id else None,
+        obra_id=int(obra_id) if obra_id else None,
+    )
+    return JsonResponse(data)
 
 
 @login_required
@@ -1079,10 +1462,12 @@ def colaborador_desligar_view(request, pk):
             )
 
         if is_ajax:
+            colaborador.refresh_from_db()
+            from .services.status_colaborador import serializar_status_colaborador
+
             return JsonResponse({
                 'ok': True,
-                'status': colaborador.status,
-                'status_display': colaborador.get_status_display(),
+                **serializar_status_colaborador(colaborador),
             })
         messages.success(request, f'{colaborador.nome} desligado com sucesso.')
         return redirect_para_colaborador(pk)
@@ -1126,19 +1511,57 @@ def cargo_rh_quick_create_view(request):
 @login_required
 @require_rh
 def cargos_view(request):
-    if request.method == 'POST':
-        form = CargoRHForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Cargo cadastrado.')
-        else:
-            messages.error(request, 'Verifique o nome do cargo.')
-        return redirect('recursos_humanos:cargos')
+    return redirect(reverse('recursos_humanos:documentos_config') + '?painel=cargo')
 
-    return render(request, 'recursos_humanos/cargos.html', {
-        'cargos': CargoRH.objects.all(),
-        'form_cargo': CargoRHForm(),
+
+@login_required
+@require_rh
+def papeis_fluxo_view(request):
+    from recursos_humanos.services.papeis_fluxo import (
+        garantir_papeis_padrao,
+        listar_papeis_configurados,
+        meta_papel,
+        papel_eh_automatico,
+    )
+
+    garantir_papeis_padrao()
+    papeis = listar_papeis_configurados()
+
+    if request.method == 'POST':
+        from django.db import transaction
+
+        from .forms import PapelFluxoAdmissaoForm
+
+        forms_validos = []
+        for papel in papeis:
+            if papel_eh_automatico(papel.codigo):
+                continue
+            form = PapelFluxoAdmissaoForm(request.POST, instance=papel, prefix=papel.codigo)
+            forms_validos.append(form)
+        if all(f.is_valid() for f in forms_validos):
+            with transaction.atomic():
+                for form in forms_validos:
+                    form.save()
+            messages.success(request, 'Responsáveis do fluxo de admissão atualizados.')
+        else:
+            messages.error(request, 'Não foi possível salvar as configurações.')
+        return redirect('recursos_humanos:papeis_fluxo')
+
+    from .forms import PapelFluxoAdmissaoForm
+
+    forms_papeis = []
+    for papel in papeis:
+        meta = meta_papel(papel.codigo)
+        forms_papeis.append({
+            'papel': papel,
+            'form': None if meta.get('automatico') else PapelFluxoAdmissaoForm(
+                instance=papel, prefix=papel.codigo,
+            ),
+            'meta': meta,
+        })
+    return render(request, 'recursos_humanos/papeis_fluxo.html', {
         **_rh_nav_context(request),
+        'forms_papeis': forms_papeis,
     })
 
 
@@ -1146,15 +1569,47 @@ def cargos_view(request):
 @require_rh
 def cargo_excluir_view(request, pk):
     if request.method != 'POST':
-        return redirect('recursos_humanos:cargos')
+        return redirect(reverse('recursos_humanos:documentos_config') + '?painel=cargo')
     cargo = get_object_or_404(CargoRH, pk=pk)
     if cargo.colaboradores.exists() or cargo.tipos_documento.exists():
-        messages.error(request, 'Não é possível excluir: cargo em uso por colaboradores ou tipos de documento.')
+        messages.error(request, 'Não é possível excluir: cargo em uso por colaboradores ou documentos.')
     else:
         nome = cargo.nome
         cargo.delete()
         messages.success(request, f'Cargo «{nome}» excluído.')
-    return redirect('recursos_humanos:cargos')
+    return redirect(reverse('recursos_humanos:documentos_config') + '?painel=cargo')
+
+
+def _portal_sessao_upload_erros_key(token: str) -> str:
+    return f'rh_portal_upload_erros_{token}'
+
+
+def _portal_guardar_upload_erros_sessao(request, token: str, docs_erro_upload: set[int]) -> None:
+    if docs_erro_upload:
+        request.session[_portal_sessao_upload_erros_key(token)] = list(docs_erro_upload)
+
+
+def _portal_pop_upload_erros_sessao(request, token: str) -> set[int]:
+    key = _portal_sessao_upload_erros_key(token)
+    raw = request.session.pop(key, None)
+    if not raw:
+        return set()
+    return {int(pk) for pk in raw}
+
+
+def _portal_documentos_enriquecidos(colaborador, token, *, docs_erro_upload=None):
+    from recursos_humanos.services.documentos import (
+        documento_permite_envio_portal,
+        documentos_para_exibicao_portal,
+    )
+
+    erros = docs_erro_upload or set()
+    documentos = documentos_para_exibicao_portal(colaborador)
+    for doc in documentos:
+        doc.portal_arquivo = _meta_arquivo_portal(doc, token)
+        doc.portal_pode_enviar = documento_permite_envio_portal(doc, colaborador)
+        doc.portal_upload_erro = doc.pk in erros
+    return documentos
 
 
 def _meta_arquivo_portal(doc, token):
@@ -1181,7 +1636,11 @@ def _meta_arquivo_portal(doc, token):
 
 def portal_candidato_view(request, token):
     """Portal público — candidato vê e envia documentos. Não requer login."""
-    colaborador = get_object_or_404(Colaborador, token_portal=token)
+    from recursos_humanos.services.portal_token import colaborador_por_token_portal
+
+    colaborador = colaborador_por_token_portal(token)
+    if not colaborador:
+        return render(request, 'recursos_humanos/portal_link_invalido.html')
 
     if not colaborador.token_portal_valido():
         return render(
@@ -1197,24 +1656,161 @@ def portal_candidato_view(request, token):
             {'colaborador': colaborador},
         )
 
-    portal_modo_reenvio = colaborador.status == Colaborador.Status.ATIVO
+    from recursos_humanos.services.portal_auth import (
+        autenticar_portal,
+        consumir_aviso_sessao_expirada,
+        portal_esta_autenticado,
+        portal_exige_pin,
+    )
+
+    if portal_exige_pin(colaborador) and not portal_esta_autenticado(request, token, colaborador):
+        if request.method == 'POST' and request.POST.get('acao') == 'autenticar_portal':
+            pin = request.POST.get('portal_pin', '')
+            declaracao = request.POST.get('declaracao_identidade') == 'on'
+            ok, msg = autenticar_portal(request, token, colaborador, pin, declaracao)
+            if ok:
+                return redirect('recursos_humanos:portal', token=token)
+            return _render_portal_acesso(request, colaborador, token, erro=msg)
+        erro_expirada = ''
+        if consumir_aviso_sessao_expirada(request, token):
+            erro_expirada = (
+                'Por segurança, informe o código novamente '
+                '(a sessão expira a cada 10 minutos).'
+            )
+        return _render_portal_acesso(request, colaborador, token, erro=erro_expirada)
+
+    from recursos_humanos.services.documentos import (
+        dados_visivel_no_portal,
+        documento_permite_envio_portal,
+        documentos_para_exibicao_portal,
+        portal_em_modo_confirmacao,
+        portal_modo_envio_restrito,
+        portal_permite_editar_dados,
+        portal_permite_envio_documentos,
+    )
+
+    portal_upload_habilitado = portal_permite_envio_documentos(colaborador)
+    portal_modo_restrito = portal_modo_envio_restrito(colaborador)
+    portal_modo_confirmacao = portal_em_modo_confirmacao(colaborador)
+    portal_permite_dados = portal_permite_editar_dados(colaborador)
+    exibir_dados = dados_visivel_no_portal(colaborador)
 
     instanciar_documentos(colaborador)
 
-    dados_form = PortalCandidatoDadosForm(instance=colaborador)
-    if request.method == 'POST' and request.POST.get('acao') == 'salvar_dados':
-        dados_form = PortalCandidatoDadosForm(request.POST, instance=colaborador)
-        if dados_form.is_valid():
-            salvar_dados_portal_candidato(colaborador, dados_form.cleaned_data)
-            messages.success(request, 'Seus dados foram salvos com sucesso!')
-            return redirect('recursos_humanos:portal', token=token)
-        messages.error(request, 'Verifique os campos destacados e tente novamente.')
-
-    documentos = list(
-        colaborador.documentos.select_related('tipo').order_by('tipo__ordem', 'tipo__nome')
+    docs_erro_upload = _portal_pop_upload_erros_sessao(request, token)
+    documentos = _portal_documentos_enriquecidos(
+        colaborador,
+        token,
+        docs_erro_upload=docs_erro_upload,
     )
-    for doc in documentos:
-        doc.portal_arquivo = _meta_arquivo_portal(doc, token)
+    portal_tem_documentos_para_envio = portal_upload_habilitado and any(
+        d.portal_pode_enviar for d in documentos
+    )
+    portal_pode_submeter = not portal_modo_confirmacao and (
+        portal_permite_dados or portal_tem_documentos_para_envio
+    )
+
+    dados_form = PortalCandidatoDadosForm(instance=colaborador)
+    if request.method == 'POST' and request.POST.get('acao') == 'submeter_portal':
+        if not portal_pode_submeter:
+            messages.error(request, 'O envio não está disponível nesta etapa do processo.')
+            return redirect('recursos_humanos:portal', token=token)
+
+        dados_ok = True
+        dados_alterados = False
+        if portal_permite_dados:
+            dados_form = PortalCandidatoDadosForm(request.POST, instance=colaborador)
+            if dados_form.is_valid():
+                salvar_dados_portal_candidato(colaborador, dados_form.cleaned_data)
+                dados_alterados = True
+            else:
+                dados_ok = False
+
+        enviados: list[str] = []
+        upload_erros: list[str] = []
+        if portal_upload_habilitado:
+            for doc in documentos:
+                if not doc.portal_pode_enviar:
+                    continue
+                arquivo = request.FILES.get(f'doc_{doc.pk}')
+                if not arquivo:
+                    continue
+                form_data = {}
+                if doc.tipo.tem_validade:
+                    form_data['data_emissao'] = request.POST.get(f'doc_emissao_{doc.pk}', '')
+                upload_form = DocumentoUploadForm(
+                    form_data,
+                    {'arquivo': arquivo},
+                    requer_emissao=doc.tipo.tem_validade,
+                )
+                if upload_form.is_valid():
+                    upload_documento_arquivo(
+                        doc,
+                        upload_form.cleaned_data['arquivo'],
+                        'Candidato (portal)',
+                        upload_form.cleaned_data.get('data_emissao'),
+                    )
+                    enviados.append(doc.tipo.nome)
+                else:
+                    upload_erros.append(doc.tipo.nome)
+                    docs_erro_upload.add(doc.pk)
+
+        colaborador.refresh_from_db()
+        documentos = _portal_documentos_enriquecidos(
+            colaborador,
+            token,
+            docs_erro_upload=docs_erro_upload,
+        )
+        portal_tem_documentos_para_envio = portal_upload_habilitado and any(
+            d.portal_pode_enviar for d in documentos
+        )
+        portal_pode_submeter = not portal_modo_confirmacao and (
+            portal_permite_dados or portal_tem_documentos_para_envio
+        )
+
+        if dados_ok and not upload_erros:
+            if enviados and dados_alterados:
+                messages.success(
+                    request,
+                    f'Dados salvos e {len(enviados)} documento(s) enviado(s)! Aguarde a conferência do RH.',
+                )
+                return redirect('recursos_humanos:portal', token=token)
+            if enviados:
+                messages.success(
+                    request,
+                    f'{len(enviados)} documento(s) enviado(s)! Aguarde a conferência do RH.',
+                )
+                return redirect('recursos_humanos:portal', token=token)
+            if dados_alterados:
+                messages.success(request, 'Seus dados foram salvos com sucesso!')
+                return redirect('recursos_humanos:portal', token=token)
+            messages.warning(request, 'Preencha seus dados e/ou selecione arquivos antes de enviar.')
+        else:
+            if dados_ok:
+                dados_form = PortalCandidatoDadosForm(instance=colaborador)
+            if enviados:
+                messages.success(
+                    request,
+                    f'{len(enviados)} documento(s) recebido(s): {", ".join(enviados)}.',
+                )
+            if dados_alterados:
+                messages.info(request, 'Seus dados pessoais foram salvos.')
+            if not dados_ok:
+                dados_form = PortalCandidatoDadosForm(request.POST, instance=colaborador)
+                messages.error(request, 'Verifique os campos destacados e tente novamente.')
+            if upload_erros:
+                messages.error(
+                    request,
+                    f'Corrija estes itens: {", ".join(upload_erros)}. '
+                    f'Verifique arquivo (máx. 10 MB) e data de emissão quando solicitada. '
+                    f'Os demais enviados nesta tentativa já foram recebidos.',
+                )
+            if enviados:
+                _portal_guardar_upload_erros_sessao(request, token, docs_erro_upload)
+                return redirect('recursos_humanos:portal', token=token)
+
+    from recursos_humanos.forms import PORTAL_UPLOAD_MAX_BYTES
+
     total = len(documentos)
     recebidos = sum(1 for d in documentos if d.status == DocumentoColaborador.Status.RECEBIDO)
     progresso = int(recebidos / total * 100) if total else 0
@@ -1227,22 +1823,42 @@ def portal_candidato_view(request, token):
             'documentos': documentos,
             'dados_form': dados_form,
             'dados_completos': dados_portal_completos(colaborador),
+            'exibir_dados_pessoais': exibir_dados,
             'token': token,
             'total_docs': total,
             'recebidos_docs': recebidos,
             'progresso_pct': progresso,
-            'portal_modo_reenvio': portal_modo_reenvio,
+            'portal_modo_restrito': portal_modo_restrito,
+            'portal_modo_confirmacao': portal_modo_confirmacao,
+            'portal_permite_editar_dados': portal_permite_dados,
+            'portal_upload_habilitado': portal_upload_habilitado,
+            'portal_pode_submeter': portal_pode_submeter,
+            'portal_max_upload_bytes': PORTAL_UPLOAD_MAX_BYTES,
         },
     )
 
 
 def portal_upload_view(request, token, doc_pk):
     """Upload de documento pelo candidato."""
-    colaborador = get_object_or_404(Colaborador, token_portal=token)
+    from recursos_humanos.services.documentos import (
+        documento_permite_envio_portal,
+        portal_permite_envio_documentos,
+    )
+
+    colaborador, invalid_resp = _portal_colaborador_from_token(request, token)
+    if invalid_resp:
+        return invalid_resp
+
+    auth_redir = _portal_exigir_autenticacao(request, token, colaborador)
+    if auth_redir:
+        return auth_redir
 
     if not colaborador.token_portal_valido():
         return redirect('recursos_humanos:portal', token=token)
     if not _portal_status_permitido(colaborador):
+        return redirect('recursos_humanos:portal', token=token)
+    if not portal_permite_envio_documentos(colaborador):
+        messages.error(request, 'O envio de documentos não está disponível nesta etapa do processo.')
         return redirect('recursos_humanos:portal', token=token)
 
     doc = get_object_or_404(
@@ -1250,14 +1866,32 @@ def portal_upload_view(request, token, doc_pk):
         pk=doc_pk,
         colaborador=colaborador,
     )
+    if not documento_permite_envio_portal(doc, colaborador):
+        messages.error(request, 'Este documento não está liberado para envio no momento.')
+        return redirect('recursos_humanos:portal', token=token)
 
     if request.method == 'POST':
-        form = DocumentoUploadForm(request.POST, request.FILES)
+        form_data = {}
+        if doc.tipo.tem_validade:
+            form_data['data_emissao'] = request.POST.get('data_emissao', '')
+        form = DocumentoUploadForm(
+            form_data,
+            request.FILES,
+            requer_emissao=doc.tipo.tem_validade,
+        )
         if form.is_valid():
-            upload_documento_arquivo(doc, form.cleaned_data['arquivo'], 'Candidato (portal)')
-            messages.success(request, f'"{doc.tipo.nome}" enviado! Aguarde a aprovação do gestor.')
+            upload_documento_arquivo(
+                doc,
+                form.cleaned_data['arquivo'],
+                'Candidato (portal)',
+                form.cleaned_data.get('data_emissao'),
+            )
+            messages.success(request, f'"{doc.tipo.nome}" enviado! Aguarde a conferência do RH.')
         else:
-            messages.error(request, 'Arquivo inválido. Máx. 10 MB.')
+            err = 'Arquivo inválido. Máx. 10 MB.'
+            if doc.tipo.tem_validade and form.errors.get('data_emissao'):
+                err = 'Informe a data de emissão e um arquivo válido (máx. 10 MB).'
+            messages.error(request, err)
 
     return redirect('recursos_humanos:portal', token=token)
 
@@ -1266,7 +1900,14 @@ def portal_arquivo_view(request, token, doc_pk):
     """Visualização do arquivo enviado pelo candidato (portal público com token)."""
     from django.http import FileResponse, Http404
 
-    colaborador = get_object_or_404(Colaborador, token_portal=token)
+    colaborador, invalid_resp = _portal_colaborador_from_token(request, token)
+    if invalid_resp:
+        return invalid_resp
+
+    auth_redir = _portal_exigir_autenticacao(request, token, colaborador)
+    if auth_redir:
+        return auth_redir
+
     if not colaborador.token_portal_valido():
         return redirect('recursos_humanos:portal', token=token)
     if not _portal_status_permitido(colaborador):
@@ -1286,11 +1927,25 @@ def portal_arquivo_view(request, token, doc_pk):
 
 def portal_remover_view(request, token, doc_pk):
     """Remove arquivo enviado pelo candidato (portal público com token)."""
-    colaborador = get_object_or_404(Colaborador, token_portal=token)
+    from recursos_humanos.services.documentos import (
+        documento_permite_envio_portal,
+        portal_permite_envio_documentos,
+    )
+
+    colaborador, invalid_resp = _portal_colaborador_from_token(request, token)
+    if invalid_resp:
+        return invalid_resp
+
+    auth_redir = _portal_exigir_autenticacao(request, token, colaborador)
+    if auth_redir:
+        return auth_redir
 
     if not colaborador.token_portal_valido():
         return redirect('recursos_humanos:portal', token=token)
     if not _portal_status_permitido(colaborador):
+        return redirect('recursos_humanos:portal', token=token)
+    if not portal_permite_envio_documentos(colaborador):
+        messages.error(request, 'O envio de documentos não está disponível nesta etapa do processo.')
         return redirect('recursos_humanos:portal', token=token)
 
     doc = get_object_or_404(
@@ -1298,6 +1953,9 @@ def portal_remover_view(request, token, doc_pk):
         pk=doc_pk,
         colaborador=colaborador,
     )
+    if not documento_permite_envio_portal(doc, colaborador):
+        messages.error(request, 'Este documento não está liberado para alteração no momento.')
+        return redirect('recursos_humanos:portal', token=token)
 
     if request.method == 'POST' and doc.arquivo:
         remover_documento_arquivo(doc, 'Candidato (portal)')
@@ -1317,6 +1975,11 @@ def contrato_gerar_view(request, pk):
     from .services.contrato import obter_ou_criar_contrato, salvar_rascunho_contrato
 
     colaborador = get_object_or_404(Colaborador, pk=pk, etapa_admissao=4)
+    from recursos_humanos.services.papeis_fluxo import _usuario_eh_rh
+
+    if not _usuario_eh_rh(request.user):
+        messages.error(request, 'Você não tem permissão para gerar contratos.')
+        return _redirect_admissao(pk)
     contrato = obter_ou_criar_contrato(colaborador)
     pdf_bytes = salvar_rascunho_contrato(contrato, colaborador)
 
@@ -1345,6 +2008,11 @@ def contrato_upload_view(request, pk):
         return redirect('recursos_humanos:admissao')
 
     colaborador = get_object_or_404(Colaborador, pk=pk, etapa_admissao=4)
+    from recursos_humanos.services.papeis_fluxo import _usuario_eh_rh
+
+    if not _usuario_eh_rh(request.user):
+        messages.error(request, 'Você não tem permissão para arquivar contratos.')
+        return _redirect_admissao(pk)
     arquivo = request.FILES.get('pdf_assinado')
     if not arquivo:
         messages.error(request, 'Selecione o PDF assinado.')
@@ -1354,11 +2022,26 @@ def contrato_upload_view(request, pk):
         return _redirect_admissao(pk)
 
     from .services.contrato import obter_ou_criar_contrato, salvar_contrato_assinado
+    from .services.admissao_actions import contrato_marcado_enviado_zapsign
+
+    if not contrato_marcado_enviado_zapsign(colaborador):
+        messages.error(
+            request,
+            'Marque o contrato como enviado ao ZapSign antes de arquivar o PDF assinado.',
+        )
+        return _redirect_admissao(pk)
 
     contrato = obter_ou_criar_contrato(colaborador)
     if salvar_contrato_assinado(contrato, arquivo, request.user):
-        messages.success(request, 'Contrato assinado arquivado. Colaborador ativado.')
-        return redirect_para_colaborador(colaborador.pk)
+        ok, msg = concluir_admissao(colaborador, request.user)
+        if ok:
+            messages.success(request, 'Contrato assinado arquivado. Colaborador ativado.')
+            return redirect_para_colaborador(colaborador.pk)
+        messages.warning(
+            request,
+            f'Contrato arquivado, mas não foi possível ativar o colaborador: {msg}',
+        )
+        return _redirect_admissao(pk)
 
     messages.error(request, 'Não foi possível salvar o contrato.')
     return _redirect_admissao(pk)

@@ -1,0 +1,67 @@
+<div id="rh-doc-reject-modal" class="rh-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="rh-doc-reject-title">
+  <div class="rh-modal-backdrop js-rh-doc-reject-close" aria-hidden="true"></div>
+  <div class="rh-modal-dialog" style="width: min(420px, 100%);">
+    <header class="rh-modal-header">
+      <div>
+        <h2 id="rh-doc-reject-title" class="rh-modal-title">Rejeitar documento</h2>
+        <p class="rh-modal-subtitle">A observação será exibida ao candidato no portal.</p>
+      </div>
+      <button type="button" class="rh-modal-close js-rh-doc-reject-close" aria-label="Fechar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <form method="post" id="rh-doc-reject-form" class="rh-modal-body-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}{% if request.GET.page %}&amp;page={{ request.GET.page }}{% endif %}&amp;ver_etapa=2">
+      <div class="rh-form-field">
+        <label for="rh-doc-reject-observacao">Observação <span class="rh-required">*</span></label>
+        <textarea name="observacao" id="rh-doc-reject-observacao" class="rh-input rh-textarea" rows="3" maxlength="300" required placeholder="Explique o que precisa ser corrigido ou reenviado..."></textarea>
+      </div>
+      <footer class="rh-modal-footer-actions">
+        <button type="button" class="rh-btn rh-btn-outline js-rh-doc-reject-close">Cancelar</button>
+        <button type="submit" class="rh-btn rh-btn-danger">Rejeitar e remover</button>
+      </footer>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('rh-doc-reject-modal');
+  var form = document.getElementById('rh-doc-reject-form');
+  if (!modal || !form || !window.RhMotion) return;
+
+  var title = document.getElementById('rh-doc-reject-title');
+  var observacao = document.getElementById('rh-doc-reject-observacao');
+  var rejectUrlTemplate = '{% url "recursos_humanos:documento_rejeitar" 0 %}';
+
+  function closeModal() {
+    window.RhMotion.closeRhModal(modal);
+    if (observacao) observacao.value = '';
+  }
+
+  function openModal(pk, nome) {
+    form.action = rejectUrlTemplate.replace('/0/', '/' + pk + '/');
+    if (title) title.textContent = 'Rejeitar — ' + (nome || 'documento');
+    window.RhMotion.closeAllOverlays();
+    window.RhMotion.openRhModal(modal);
+    if (observacao) {
+      observacao.value = '';
+      observacao.focus();
+    }
+  }
+
+  document.querySelectorAll('[data-doc-reject]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openModal(btn.getAttribute('data-doc-reject'), btn.getAttribute('data-doc-nome'));
+    });
+  });
+
+  modal.querySelectorAll('.js-rh-doc-reject-close').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
+})();
+</script>

@@ -1,0 +1,49 @@
+<tr class="rh-docs-catalog__row{% if not doc.ativo %} is-inactive{% endif %}">
+  <td class="rh-docs-catalog__name">
+    <span class="rh-docs-catalog__title">{{ doc.nome }}</span>
+    {% if doc.instrucoes_portal %}
+    <span class="rh-docs-catalog__hint">{{ doc.instrucoes_portal }}</span>
+    {% endif %}
+  </td>
+  <td>
+    <span class="rh-doc-badge rh-doc-badge--scope">{{ doc.aplica_label }}</span>
+    {% if doc.aplica_a == 'por_cargo' and doc.cargos %}
+    <span class="rh-docs-catalog__cargos">{{ doc.cargos|join:", " }}</span>
+    {% endif %}
+  </td>
+  <td><span class="rh-doc-badge rh-doc-badge--cat">{{ doc.categoria_label }}</span></td>
+  <td class="rh-docs-catalog__valid">
+    {% if doc.tem_validade %}{{ doc.dias_validade }} dias{% else %}—{% endif %}
+  </td>
+  <td>{% if doc.obrigatorio %}Sim{% else %}Não{% endif %}</td>
+  <td>
+    {% if doc.ativo %}<span class="rh-docs-catalog__status rh-docs-catalog__status--on">Ativo</span>
+    {% else %}<span class="rh-docs-catalog__status rh-docs-catalog__status--off">Inativo</span>{% endif %}
+  </td>
+  <td class="rh-docs-catalog__actions">
+    <button type="button" class="rh-btn rh-btn-outline rh-btn--xs js-docs-edit"
+            data-pk="{{ doc.pk }}"
+            data-nome="{{ doc.nome }}"
+            data-aplica="{{ doc.aplica_a }}"
+            data-categoria="{{ doc.categoria }}"
+            data-instrucoes="{{ doc.instrucoes_portal }}"
+            data-tem-validade="{% if doc.tem_validade %}1{% else %}0{% endif %}"
+            data-dias="{{ doc.dias_validade|default:365 }}"
+            data-obrigatorio="{% if doc.obrigatorio %}1{% else %}0{% endif %}"
+            data-ativo="{% if doc.ativo %}1{% else %}0{% endif %}"
+            data-cargo-ids="{{ doc.cargo_ids|join:',' }}">
+      <i class="fas fa-pen" aria-hidden="true"></i> Editar
+    </button>
+    <form method="post" class="rh-docs-catalog__delete"
+          onsubmit="return confirm('Remover «{{ doc.nome }}» do catálogo?');">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="excluir">
+      <input type="hidden" name="tipo_id" value="{{ doc.pk }}">
+      <input type="hidden" name="painel" value="{{ painel }}">
+      {% if cargo_id %}<input type="hidden" name="cargo_id" value="{{ cargo_id }}">{% endif %}
+      <button type="submit" class="rh-btn rh-btn-outline rh-btn--xs rh-btn--danger">
+        <i class="fas fa-trash" aria-hidden="true"></i>
+      </button>
+    </form>
+  </td>
+</tr>

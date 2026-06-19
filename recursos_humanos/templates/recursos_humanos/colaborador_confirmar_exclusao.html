@@ -1,15 +1,5 @@
 {% extends "recursos_humanos/base_rh.html" %}
 
-{% block rh_breadcrumb %}
-<nav class="rh-breadcrumb" aria-label="Navegação">
-  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-  <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">{{ colaborador.nome }}</a>
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="rh-breadcrumb-current">Excluir</span>
-</nav>
-{% endblock %}
-
 {% block rh_content %}
 <div class="rh-page">
   <a href="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}" class="rh-back">

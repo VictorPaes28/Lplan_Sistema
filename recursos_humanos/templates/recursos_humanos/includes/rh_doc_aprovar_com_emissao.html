@@ -1,0 +1,18 @@
+<div class="rh-doc-approve-panel">
+  <form method="post" action="{{ approve_url }}" class="rh-doc-action-form rh-doc-approve-panel__form js-rh-doc-ajax-approve">
+    {% csrf_token %}
+    {% if id_prefix == "adm" %}
+    <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ admissao_id }}&ver_etapa=2">
+    {% else %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    {% endif %}
+    <div class="rh-doc-approve-panel__field">
+      <label for="rh-doc-emissao-approve-{{ id_prefix }}-{{ doc_pk }}">Data de emissão</label>
+      <input type="date" name="data_emissao" id="rh-doc-emissao-approve-{{ id_prefix }}-{{ doc_pk }}" class="rh-input rh-doc-upload-panel__date" required>
+    </div>
+    <button type="submit" class="rh-btn rh-btn-primary rh-btn-sm">
+      <i class="fas fa-check" aria-hidden="true"></i> Aprovar documento
+    </button>
+  </form>
+  <p class="rh-doc-approve-panel__hint">Documento sem data de emissão — informe manualmente para concluir a aprovação.</p>
+</div>

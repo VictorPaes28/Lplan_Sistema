@@ -24,6 +24,48 @@ class AlertaRH:
     acao: str
     url: str
     acao_extra: dict = field(default_factory=dict)
+    titulo: str = ''
+    icone: str = 'fa-bell'
+    acao_label: str = ''
+    acao_hint: str = ''
+
+
+def _texto_situacao_prazo(dias: int) -> str:
+    if dias < 0:
+        return f'{abs(dias)} dias de atraso'
+    if dias == 0:
+        return 'Vence hoje'
+    if dias == 1:
+        return 'Vence amanhã'
+    return f'Vence em {dias} dias'
+
+
+def _montar_alerta_documento(doc, dias: int, tipo_alerta: str, acao: str) -> AlertaRH:
+    prazo_fmt = doc.vencimento.strftime('%d/%m/%Y')
+    nome_doc = doc.tipo.nome
+    if dias < 0:
+        titulo = f'{nome_doc} venceu em {prazo_fmt}'
+        detalhe = nome_doc
+    else:
+        titulo = f'{nome_doc} vence em {prazo_fmt}'
+        detalhe = nome_doc
+
+    return AlertaRH(
+        id=f'doc-{doc.pk}',
+        colaborador_id=doc.colaborador_id,
+        colaborador_nome=doc.colaborador.nome,
+        tipo=tipo_alerta,
+        detalhe=detalhe,
+        prazo=prazo_fmt,
+        dias_restantes=dias,
+        urgencia=_urgencia_por_dias(dias),
+        acao=acao,
+        url=_url_colaborador(doc.colaborador_id, tab='documentos', doc_id=doc.pk),
+        titulo=titulo,
+        icone='fa-exclamation-triangle' if dias < 0 else 'fa-file-alt',
+        acao_label='Abrir documentos',
+        acao_hint='Abre o perfil na aba Documentos com este item em destaque.',
+    )
 
 
 def _urgencia_por_dias(dias: int) -> str:
@@ -40,12 +82,14 @@ def _label_urgencia(urgencia: str) -> str:
     return {'red': 'Urgente', 'yellow': 'Atenção', 'green': 'Informativo'}.get(urgencia, 'Informativo')
 
 
-def _url_colaborador(pk: int, *, tab: str | None = None) -> str:
+def _url_colaborador(pk: int, *, tab: str | None = None, doc_id: int | None = None) -> str:
     from urllib.parse import urlencode
 
     params = {'abrir_colaborador': pk}
     if tab:
         params['abrir_colaborador_tab'] = tab
+    if doc_id:
+        params['abrir_colaborador_doc'] = doc_id
     url = reverse('recursos_humanos:colaboradores_list')
     return f'{url}?{urlencode(params)}'
 
@@ -102,20 +146,7 @@ def gerar_alertas() -> list[AlertaRH]:
             tipo_alerta = 'Documento vencendo'
             acao = 'Renovar' if dias <= 7 else 'Agendar'
 
-        alertas.append(
-            AlertaRH(
-                id=f'doc-{doc.pk}',
-                colaborador_id=doc.colaborador_id,
-                colaborador_nome=doc.colaborador.nome,
-                tipo=tipo_alerta,
-                detalhe=doc.tipo.nome + (f' (venceu {doc.vencimento:%d/%m/%Y})' if dias < 0 else ''),
-                prazo=doc.vencimento.strftime('%d/%m/%Y'),
-                dias_restantes=dias,
-                urgencia=_urgencia_por_dias(dias),
-                acao=acao,
-                url=_url_colaborador(doc.colaborador_id, tab='documentos'),
-            )
-        )
+        alertas.append(_montar_alerta_documento(doc, dias, tipo_alerta, acao))
 
     for colab in Colaborador.objects.filter(status=Colaborador.Status.EM_ADMISSAO):
         faltando = colab.documentos.filter(status=DocumentoColaborador.Status.FALTANDO).count()
@@ -137,6 +168,10 @@ def gerar_alertas() -> list[AlertaRH]:
                     urgencia=_urgencia_por_dias(dias),
                     acao='Aprovar',
                     url=_url_admissao(colab.pk),
+                    titulo='Admissão aguarda validação do RH',
+                    icone='fa-user-check',
+                    acao_label='Abrir admissão',
+                    acao_hint='Abre o fluxo de admissão na etapa de validação para aprovar ou devolver.',
                 )
             )
         elif faltando or pendentes:
@@ -149,6 +184,11 @@ def gerar_alertas() -> list[AlertaRH]:
             detalhe = 'Documentos pendentes'
             if nomes_faltando:
                 detalhe += ': ' + ', '.join(nomes_faltando)
+            titulo = 'Documentos pendentes na admissão'
+            if nomes_faltando:
+                titulo = f'Faltam documentos: {", ".join(nomes_faltando[:2])}'
+                if len(nomes_faltando) > 2:
+                    titulo += f' e mais {len(nomes_faltando) - 2}'
             alertas.append(
                 AlertaRH(
                     id=f'adm-{colab.pk}',
@@ -161,6 +201,10 @@ def gerar_alertas() -> list[AlertaRH]:
                     urgencia=_urgencia_por_dias(dias),
                     acao='Ver admissão',
                     url=_url_admissao(colab.pk),
+                    titulo=titulo,
+                    icone='fa-folder-open',
+                    acao_label='Abrir admissão',
+                    acao_hint='Abre o fluxo de admissão para conferir o que o candidato ainda precisa enviar.',
                 )
             )
 
@@ -168,16 +212,16 @@ def gerar_alertas() -> list[AlertaRH]:
         dias = prazo.dias_restantes()
         if dias < 0:
             urgencia = 'red'
-            detalhe = (
-                f'{prazo.get_tipo_display()} vencido há '
-                f'{abs(dias)} dia(s)'
-            )
         elif dias <= 7:
             urgencia = 'red'
-            detalhe = f'{prazo.get_tipo_display()} vence em {dias} dia(s)'
         else:
             urgencia = 'yellow'
-            detalhe = f'{prazo.get_tipo_display()} vence em {dias} dia(s)'
+        tipo_prazo = prazo.get_tipo_display()
+        prazo_fmt = prazo.data_fim.strftime('%d/%m/%Y')
+        if dias < 0:
+            titulo = f'{tipo_prazo} venceu em {prazo_fmt}'
+        else:
+            titulo = f'{tipo_prazo} vence em {prazo_fmt}'
 
         alertas.append(
             AlertaRH(
@@ -185,13 +229,17 @@ def gerar_alertas() -> list[AlertaRH]:
                 colaborador_id=prazo.colaborador_id,
                 colaborador_nome=prazo.colaborador.nome,
                 tipo='Prazo de contrato',
-                detalhe=detalhe,
-                prazo=prazo.data_fim.strftime('%d/%m/%Y'),
+                detalhe=tipo_prazo,
+                prazo=prazo_fmt,
                 dias_restantes=dias,
                 urgencia=urgencia,
                 acao='Decidir',
                 url=_url_colaborador(prazo.colaborador_id),
                 acao_extra={'prazo_id': prazo.pk, 'tipo': 'contrato'},
+                titulo=titulo,
+                icone='fa-file-signature',
+                acao_label='Decidir contrato',
+                acao_hint='Abre o formulário para efetivar, converter ou encerrar o prazo do contrato.',
             )
         )
 
@@ -225,12 +273,18 @@ def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
             or 'treinamento' in a.detalhe.lower()
         )
     )
+    documentos = sum(1 for a in alertas if a.tipo.startswith('Documento'))
+    urgentes = sum(1 for a in alertas if a.urgencia == 'red')
+    fluxo = admissoes + contratos
     return {
         'vencendo': vencendo,
         'vencidos': vencidos,
         'treinamentos': treinamentos,
         'admissoes': admissoes,
         'contratos': contratos,
+        'documentos': documentos,
+        'urgentes': urgentes,
+        'fluxo': fluxo,
         'dias_antecedencia_documentos': limite_doc,
         'total': len(alertas),
         'hoje': hoje,

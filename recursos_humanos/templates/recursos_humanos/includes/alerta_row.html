@@ -1,0 +1,54 @@
+{% if a.acao_extra.tipo == 'contrato' %}
+<article
+  class="rh-tarefa rh-tarefa--{{ a.urgencia }}"
+  data-urgencia="{{ a.urgencia }}"
+  data-categoria="fluxo"
+  data-search="{{ a.titulo }} {{ a.colaborador_nome }} {{ a.detalhe }}"
+>
+  <div class="rh-tarefa__icon" aria-hidden="true">
+    <i class="fas {{ a.icone }}"></i>
+  </div>
+  <div class="rh-tarefa__body">
+    <p class="rh-tarefa__titulo">{{ a.titulo }}</p>
+    <p class="rh-tarefa__meta">
+      <span class="rh-tarefa__pessoa"><i class="fas fa-user" aria-hidden="true"></i> {{ a.colaborador_nome }}</span>
+    </p>
+    <p class="rh-tarefa__hint">{{ a.acao_hint }}</p>
+    <p class="rh-tarefa__prazo {% if a.dias_restantes < 0 %}is-late{% elif a.dias_restantes <= 7 %}is-soon{% else %}is-ok{% endif %}">
+      {% if a.dias_restantes < 0 %}{% widthratio a.dias_restantes 1 -1 %} dias de atraso
+      {% elif a.dias_restantes == 0 %}Vence hoje
+      {% else %}{{ a.dias_restantes }} dias restantes{% endif %}
+    </p>
+  </div>
+  <button type="button" class="rh-tarefa__cta js-rh-prazo-decidir" data-prazo-pk="{{ a.acao_extra.prazo_id }}">
+    {{ a.acao_label|default:a.acao }} <i class="fas fa-arrow-right" aria-hidden="true"></i>
+  </button>
+</article>
+{% else %}
+<a
+  href="{{ a.url }}"
+  class="rh-tarefa rh-tarefa--link rh-tarefa--{{ a.urgencia }}"
+  data-urgencia="{{ a.urgencia }}"
+  data-categoria="{% if 'Documento' in a.tipo %}doc{% else %}fluxo{% endif %}"
+  data-search="{{ a.titulo }} {{ a.colaborador_nome }} {{ a.detalhe }}"
+>
+  <div class="rh-tarefa__icon" aria-hidden="true">
+    <i class="fas {{ a.icone }}"></i>
+  </div>
+  <div class="rh-tarefa__body">
+    <p class="rh-tarefa__titulo">{{ a.titulo }}</p>
+    <p class="rh-tarefa__meta">
+      <span class="rh-tarefa__pessoa"><i class="fas fa-user" aria-hidden="true"></i> {{ a.colaborador_nome }}</span>
+    </p>
+    <p class="rh-tarefa__hint">{{ a.acao_hint }}</p>
+    <p class="rh-tarefa__prazo {% if a.dias_restantes < 0 %}is-late{% elif a.dias_restantes <= 7 %}is-soon{% else %}is-ok{% endif %}">
+      {% if a.dias_restantes < 0 %}{% widthratio a.dias_restantes 1 -1 %} dias de atraso
+      {% elif a.dias_restantes == 0 %}Vence hoje
+      {% else %}{{ a.dias_restantes }} dias restantes{% endif %}
+    </p>
+  </div>
+  <span class="rh-tarefa__cta">
+    {{ a.acao_label|default:a.acao }} <i class="fas fa-arrow-right" aria-hidden="true"></i>
+  </span>
+</a>
+{% endif %}

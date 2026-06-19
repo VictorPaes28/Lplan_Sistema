@@ -69,7 +69,7 @@
     </section>
 
     {% if quick_match %}
-    <p class="mapa-controle-quick-result mb-2">Local encontrado para â€œ{{ quick_match.query }}â€: {{ quick_match.setor }} â€º {{ quick_match.bloco }} â€º {{ quick_match.pavimento }} â€º {{ quick_match.apto }}</p>
+    <p class="mapa-controle-quick-result mb-2">Local encontrado para «{{ quick_match.query }}»: {{ quick_match.setor }} › {{ quick_match.bloco }} › {{ quick_match.pavimento }} › {{ quick_match.apto }}</p>
     {% endif %}
 
     <div class="layer-block mb-2 mobile-priority-matrix">
@@ -193,9 +193,9 @@
         </nav>
 
         {% if coluna_filtrada_aviso and not is_area_comum %}
-        <p class="mapa-controle-hint mb-2" role="status">Coluna Â«{{ coluna_filtrada_aviso }}Â»: escolha um bloco e clique no % para ver unidades.</p>
+        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver unidades.</p>
         {% elif coluna_filtrada_aviso and is_area_comum %}
-        <p class="mapa-controle-hint mb-2" role="status">Coluna Â«{{ coluna_filtrada_aviso }}Â»: escolha um bloco e clique no % para ver o detalhe dos serviÃ§os.</p>
+        <p class="mapa-controle-hint mb-2" role="status">Coluna «{{ coluna_filtrada_aviso }}»: escolha um bloco e clique no % para ver o detalhe dos serviços.</p>
         {% endif %}
 
         <div class="matrix-wrap{% if coluna_filtrada_aviso %} matrix-wrap--col-filter{% endif %}">
@@ -326,12 +326,12 @@
                             <td class="footer-activity-col">
                                 <a class="cell-link"
                                    href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&atividade={{ total.atividade|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&grid_pct={{ total.pct }}#detalhe-celula"
-                                   title="Abrir detalhe por unidade (bloco jÃ¡ selecionado)">
+                                   title="Abrir detalhe por unidade (bloco já selecionado)">
                                     {{ total.pct|floatformat:2 }}%
                                 </a>
                             </td>
                             {% else %}
-                            <td class="footer-activity-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da mÃ©dia da coluna">{{ total.pct|floatformat:2 }}%</td>
+                            <td class="footer-activity-col" title="Selecione um bloco (linha ou chip) para abrir o detalhe a partir da média da coluna">{{ total.pct|floatformat:2 }}%</td>
                             {% endif %}
                         {% endfor %}
                         <td class="total-col matrix-grand-total">{% if matrix.total_geral != None %}{{ matrix.total_geral|floatformat:2 }}%{% else %}-{% endif %}</td>
@@ -346,7 +346,7 @@
     <div id="detalhe-celula" class="layer-block mb-2 mobile-priority-focus focus-detail-panel">
         <div class="focus-detail-header mb-2">
             <h6 class="focus-detail-title mb-1">{{ focus_detail.atividade }}</h6>
-            <p class="focus-detail-local mb-1 text-muted small">{{ focus_detail.bloco }}{% if focus_detail.recorte_linha %} Â· {{ focus_detail.recorte_linha }}{% endif %} Â· {{ focus_detail.registros_linhas }} linhas</p>
+            <p class="focus-detail-local mb-1 text-muted small">{{ focus_detail.bloco }}{% if focus_detail.recorte_linha %} · {{ focus_detail.recorte_linha }}{% endif %} · {{ focus_detail.registros_linhas }} linhas</p>
         </div>
         {% if focus_detail.pct_na_grade != None or focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
         <div class="focus-block focus-block--macro mb-2" aria-label="Resumo e ficha STATUS">
@@ -355,14 +355,14 @@
                 <span class="focus-grade-match-pct">{{ focus_detail.pct_na_grade }}%</span>
                 <span class="focus-grade-match-label">na grade</span>
                 {% if focus_detail.media_pct != None and focus_detail.media_pct != focus_detail.pct_na_grade %}
-                <p class="focus-grade-match-note mb-0" title="VÃ¡rias linhas por unidade ou % nÃ£o tratÃ¡vel em alguns registos">MÃ©dia no recorte: <strong>{{ focus_detail.media_pct }}%</strong> - pode divergir.</p>
+                <p class="focus-grade-match-note mb-0" title="Várias linhas por unidade ou % não tratável em alguns registos">Média no recorte: <strong>{{ focus_detail.media_pct }}%</strong> - pode divergir.</p>
                 {% endif %}
             </div>
             {% endif %}
             {% if focus_detail.status_macro or focus_detail.situacao or focus_detail.responsabilidade or focus_detail.prazo_execucao %}
             <div class="data-info-banner mb-0 {% if focus_detail.pct_na_grade != None %}mt-2{% endif %}">
                 {% if focus_detail.status_macro %}<span><strong>Status macro:</strong> {{ focus_detail.status_macro }}</span>{% endif %}
-                {% if focus_detail.situacao %}<span><strong>SituaÃ§Ã£o:</strong> {{ focus_detail.situacao }}</span>{% endif %}
+                {% if focus_detail.situacao %}<span><strong>Situação:</strong> {{ focus_detail.situacao }}</span>{% endif %}
                 {% if focus_detail.responsabilidade %}<span><strong>Resp.:</strong> {{ focus_detail.responsabilidade }}</span>{% endif %}
                 {% if focus_detail.prazo_execucao %}<span><strong>Prazo:</strong> {{ focus_detail.prazo_execucao }}</span>{% endif %}
             </div>
@@ -371,11 +371,11 @@
         {% endif %}
         <div class="focus-block focus-block--micro mb-2" aria-label="Detalhe por unidade">
         <div class="row g-2 mb-2">
-            <div class="col-md-2"><div class="kpi-box"><small>MÃ©dia da cÃ©lula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Média da célula</small><strong>{% if focus_detail.media_pct != None %}{{ focus_detail.media_pct }}%{% else %}-{% endif %}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>{% if focus_detail.omitir_apto %}Pavimentos{% else %}Aptos{% endif %}</small><strong>{{ focus_detail.total_aptos }}</strong></div></div>
-            <div class="col-md-2"><div class="kpi-box"><small>ConcluÃ­dos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Concluídos</small><strong>{{ focus_detail.concluidos }}</strong></div></div>
             <div class="col-md-2"><div class="kpi-box"><small>Andamento</small><strong>{{ focus_detail.em_andamento }}</strong></div></div>
-            <div class="col-md-2"><div class="kpi-box"><small>NÃ£o iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
+            <div class="col-md-2"><div class="kpi-box"><small>Não iniciados</small><strong>{{ focus_detail.nao_iniciados }}</strong></div></div>
             <div class="col-md-2 d-flex align-items-end justify-content-md-end"><a class="mapa-controle-link-quiet" href="?obra={{ obra_selecionada.id }}&setor={{ selected.setor|urlencode }}&bloco={{ selected.bloco|urlencode }}&pavimento={{ selected.pavimento|urlencode }}&apto={{ selected.apto|urlencode }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">Fechar detalhe</a></div>
         </div>
         <div class="table-responsive">
@@ -388,7 +388,7 @@
                         {% endif %}
                         <th>%</th>
                         <th>Status</th>
-                        <th>TÃ©rmino</th>
+                        <th>Término</th>
                         <th>Obs.</th>
                     </tr>
                 </thead>
@@ -403,7 +403,7 @@
                         <td>
                             {% if row.status_bucket == 'concluido' %}<span class="focus-badge focus-badge-ok">Concl.</span>
                             {% elif row.status_bucket == 'em_andamento' %}<span class="focus-badge focus-badge-mid">Andam.</span>
-                            {% elif row.status_bucket == 'nao_iniciado' %}<span class="focus-badge focus-badge-bad">NÃ£o ini.</span>
+                            {% elif row.status_bucket == 'nao_iniciado' %}<span class="focus-badge focus-badge-bad">Não ini.</span>
                             {% else %}<span class="focus-badge focus-badge-unk">-</span>{% endif %}
                             <span class="focus-status-txt">{{ row.status_texto|default:"-" }}</span>
                         </td>
@@ -420,7 +420,7 @@
     </div>
     {% endif %}
 
-    <nav class="layer-path mb-2 mobile-priority-path" aria-label="Atalhos do recorte (clique para voltar um nÃ­vel)">
+    <nav class="layer-path mb-2 mobile-priority-path" aria-label="Atalhos do recorte (clique para voltar um nível)">
         <a class="path-pill {% if selected.setor %}active{% endif %}"
            href="?obra={{ obra_selecionada.id }}&status={{ selected.status|urlencode }}&search={{ selected.search|urlencode }}&quick={{ selected.quick_find|urlencode }}&{{ matrix_stable_qs }}">
             Setor <span class="path-pill__v">{{ selected.setor|default:"(todos)" }}</span>
@@ -447,11 +447,11 @@
 
     {% if is_area_comum %}
     {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
-    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, % {{ qualidade.sem_status_percentual }}, tÃ©rmino {{ qualidade.sem_data_termino }}</p>
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
     {% endif %}
     {% else %}
     {% if qualidade.sem_bloco or qualidade.sem_pavimento or qualidade.sem_apto or qualidade.sem_status_percentual or qualidade.sem_data_termino %}
-    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, tÃ©rmino {{ qualidade.sem_data_termino }}</p>
+    <p class="data-quality-line mb-2">Registos sem dados completos: bloco {{ qualidade.sem_bloco }}, pav. {{ qualidade.sem_pavimento }}, unid. {{ qualidade.sem_apto }}, % {{ qualidade.sem_status_percentual }}, término {{ qualidade.sem_data_termino }}</p>
     {% endif %}
     {% endif %}
 
@@ -551,7 +551,7 @@
                         <th>Atividade</th>
                         <th>Status</th>
                         <th>%</th>
-                        <th>TÃ©rmino</th>
+                        <th>Término</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -942,7 +942,7 @@
         function normalizeWheelDeltaY(event) {
             var dy = Number(event.deltaY || 0);
             var mode = Number(event.deltaMode || 0);
-            // 0=pixel, 1=linha, 2=pÃ¡gina
+            // 0=pixel, 1=linha, 2=página
             if (mode === 1) dy *= 16;
             else if (mode === 2) dy *= Math.max(window.innerHeight || 0, 600);
             return dy;

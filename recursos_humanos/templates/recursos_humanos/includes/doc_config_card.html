@@ -1,0 +1,46 @@
+<article class="rh-doc-card{% if not doc.ativo %} rh-doc-card--inactive{% endif %}" data-doc-pk="{{ doc.pk }}">
+  <header class="rh-doc-card__head">
+    <h3 class="rh-doc-card__title">{{ doc.nome }}</h3>
+    <div class="rh-doc-card__actions">
+      <button type="button" class="rh-icon-btn js-docs-edit"
+              data-pk="{{ doc.pk }}"
+              data-nome="{{ doc.nome }}"
+              data-aplica="{{ doc.aplica_a }}"
+              data-categoria="{{ doc.categoria }}"
+              data-instrucoes="{{ doc.instrucoes_portal }}"
+              data-tem-validade="{% if doc.tem_validade %}1{% else %}0{% endif %}"
+              data-dias="{{ doc.dias_validade|default:365 }}"
+              data-obrigatorio="{% if doc.obrigatorio %}1{% else %}0{% endif %}"
+              data-ativo="{% if doc.ativo %}1{% else %}0{% endif %}"
+              data-cargos="{{ doc.cargo_ids|join:',' }}"
+              title="Editar">
+        <i class="fas fa-pen" aria-hidden="true"></i>
+      </button>
+      <form method="post" class="rh-doc-card__delete" onsubmit="return confirm('Remover «{{ doc.nome }}» do catálogo?');">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="excluir">
+        <input type="hidden" name="tipo_id" value="{{ doc.pk }}">
+        <input type="hidden" name="painel" value="{{ painel }}">
+        {% if cargo_id %}<input type="hidden" name="cargo_id" value="{{ cargo_id }}">{% endif %}
+        <button type="submit" class="rh-icon-btn rh-icon-btn--danger" title="Excluir">
+          <i class="fas fa-trash" aria-hidden="true"></i>
+        </button>
+      </form>
+    </div>
+  </header>
+  <div class="rh-doc-card__badges">
+    <span class="rh-doc-badge rh-doc-badge--scope">{{ doc.aplica_label }}</span>
+    <span class="rh-doc-badge rh-doc-badge--cat">{{ doc.categoria_label }}</span>
+    {% if doc.obrigatorio %}<span class="rh-doc-badge">Obrigatório</span>{% endif %}
+    {% if doc.tem_validade %}<span class="rh-doc-badge rh-doc-badge--valid">{{ doc.dias_validade }}d</span>{% endif %}
+    {% if not doc.ativo %}<span class="rh-doc-badge rh-doc-badge--muted">Inativo</span>{% endif %}
+  </div>
+  {% if doc.instrucoes_portal %}
+  <p class="rh-doc-card__hint">{{ doc.instrucoes_portal }}</p>
+  {% endif %}
+  {% if doc.aplica_a == 'por_cargo' and doc.cargos %}
+  <p class="rh-doc-card__scope">{{ doc.cargos|join:", " }}</p>
+  {% elif doc.aplica_a == 'por_obra' and doc.obras %}
+  <p class="rh-doc-card__scope">{{ doc.obras|join:", " }}</p>
+  {% endif %}
+</article>

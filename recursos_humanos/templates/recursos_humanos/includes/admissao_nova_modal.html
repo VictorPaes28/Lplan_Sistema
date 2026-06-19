@@ -39,7 +39,7 @@
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.path }}">
       <input type="hidden" name="motivo" value="Nova contratação">
-      <input type="hidden" name="gestor_id" id="req-gestor-id" value="">
+      <input type="hidden" name="reembolsos_json" id="req-reembolsos-json" value="[]">
 
       <div class="rh-wizard-body">
         <section class="rh-wizard-panel is-active" data-panel="1">
@@ -55,7 +55,7 @@
             <div class="rh-wizard-fields-row">
               <div class="rh-form-field">
                 <label for="req-cpf">CPF <span class="rh-required">*</span></label>
-                <input type="text" name="cpf" id="req-cpf" class="rh-input" maxlength="14" required placeholder="000.000.000-00">
+                <input type="text" name="cpf" id="req-cpf" class="rh-input" maxlength="14" required placeholder="000.000.000-00" inputmode="numeric" autocomplete="off">
               </div>
               <div class="rh-form-field">
                 <label for="req-solicitante">Responsável pela admissão</label>
@@ -65,21 +65,73 @@
             </div>
             <div class="rh-wizard-fields-row">
               <div class="rh-form-field">
-                <label for="req-email">E-mail <span class="rh-required">*</span></label>
-                <input type="email" name="email" id="req-email" class="rh-input" maxlength="254" required placeholder="candidato@email.com" autocomplete="email">
+                <label for="req-email">E-mail <span class="rh-optional-badge">opcional</span></label>
+                <input type="email" name="email" id="req-email" class="rh-input" maxlength="254" placeholder="candidato@email.com" autocomplete="email">
               </div>
               <div class="rh-form-field">
                 <label for="req-telefone">Telefone <span class="rh-required">*</span></label>
-                <input type="tel" name="telefone" id="req-telefone" class="rh-input" maxlength="20" required placeholder="(81) 99999-9999" autocomplete="tel">
+                <input type="tel" name="telefone" id="req-telefone" class="rh-input" maxlength="16" required placeholder="(00) 00000-0000" autocomplete="tel" inputmode="tel">
+              </div>
+            </div>
+
+            <div class="rh-wizard-subsection">
+              <div class="rh-wizard-subsection-head">
+                <h4 class="rh-wizard-subsection-title">Dados para admissão</h4>
+                <p class="rh-wizard-subsection-hint">
+                  Importantes para documentação, EPI e folha. Não precisa preencher agora se ainda não souber — pode completar depois na ficha do colaborador.
+                </p>
+              </div>
+              <div class="rh-wizard-fields rh-wizard-fields-grid">
+                <div class="rh-form-field">
+                  <label for="req-rg">RG</label>
+                  <input type="text" name="rg" id="req-rg" class="rh-input" maxlength="20" placeholder="Ex: 12.345.678-9">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-data-nascimento">Data de nascimento</label>
+                  <input type="date" name="data_nascimento" id="req-data-nascimento" class="rh-input">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-pis">PIS</label>
+                  <input type="text" name="pis" id="req-pis" class="rh-input" maxlength="20" placeholder="Ex: 123.45678.90-1">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-empresa">Empresa responsável</label>
+                  <input type="text" name="empresa" id="req-empresa" class="rh-input" maxlength="200" placeholder="Ex: LPLAN Engenharia">
+                </div>
+                <div class="rh-form-field rh-wizard-field-full">
+                  <label for="req-endereco">Endereço</label>
+                  <input type="text" name="endereco" id="req-endereco" class="rh-input" maxlength="300" placeholder="Rua, número, bairro, cidade/UF">
+                </div>
+                <div class="rh-form-field rh-wizard-field-full">
+                  <label for="req-dados-bancarios">Conta bancária</label>
+                  <input type="text" name="dados_bancarios" id="req-dados-bancarios" class="rh-input" maxlength="200" placeholder="Banco, agência, conta, PIX...">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-escolaridade">Escolaridade</label>
+                  <select name="escolaridade" id="req-escolaridade" class="rh-select">
+                    <option value="">Selecione...</option>
+                    {% for val, label in rh_escolaridade_choices %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-tamanho-camisa">Tam. camisa</label>
+                  <input type="text" name="tamanho_camisa" id="req-tamanho-camisa" class="rh-input" maxlength="10" placeholder="Ex: M, G, GG">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-tamanho-bota">Tam. bota</label>
+                  <input type="text" name="tamanho_bota" id="req-tamanho-bota" class="rh-input" maxlength="10" placeholder="Ex: 40, 41, 42">
+                </div>
               </div>
             </div>
           </div>
           <div class="rh-wizard-info rh-wizard-info--blue">
-            <strong>Próxima etapa:</strong> Após aprovação do gestor, o candidato receberá o link de documentação por e-mail. Os documentos exigidos são definidos na aba Config. Documentos.
+            <strong>Próxima etapa:</strong> Ao confirmar, a requisição será enviada para aprovação dos responsáveis selecionados. Após aprovada, o gestor preenche a documentação no sistema.
           </div>
         </section>
 
-        <section class="rh-wizard-panel" data-panel="2" hidden>
+        <section class="rh-wizard-panel" data-panel="2">
           <div class="rh-wizard-section-head rh-wizard-section-head--purple">
             <span class="rh-wizard-section-icon"><i class="fas fa-briefcase" aria-hidden="true"></i></span>
             <h3>Informações da Vaga</h3>
@@ -103,10 +155,10 @@
               </div>
             </div>
             <div class="rh-form-field">
-              <label for="req-cargo-rh">Cargo (RH)</label>
+              <label for="req-cargo-rh">Cargo (RH) <span class="rh-required">*</span></label>
               <div class="rh-cargo-picker">
-                <select name="cargo_rh" id="req-cargo-rh" class="rh-select">
-                  <option value="">— Opcional —</option>
+                <select name="cargo_rh" id="req-cargo-rh" class="rh-select" required>
+                  <option value="">Selecione o cargo (RH)</option>
                   {% for c in rh_cargos_rh %}
                   <option value="{{ c.pk }}">{{ c.nome }}</option>
                   {% endfor %}
@@ -120,36 +172,64 @@
             </div>
             <div class="rh-form-field rh-wizard-field-full">
               <span class="rh-wizard-obras-label">Obra <span class="rh-required">*</span></span>
-              <div class="rh-wizard-obras" id="req-obras-wrap">
-                {% for obra in rh_form_requisicao.fields.obra.queryset %}
-                <label class="rh-wizard-obra-item">
-                  <input type="checkbox" name="obra" value="{{ obra.pk }}" class="req-obra-cb">
-                  <span>{{ obra.nome }}</span>
-                </label>
-                {% empty %}
-                <p class="rh-muted">Nenhuma obra ativa encontrada no GestControll. Cadastre ou ative obras no sistema principal.</p>
-                {% endfor %}
+              <div class="rh-ms-picker" data-rh-ms-picker data-ms-placeholder="Selecione uma ou mais obras" id="req-obras-ms">
+                <button type="button" class="rh-ms-picker-trigger" aria-expanded="false" aria-haspopup="listbox" id="req-obras-trigger">
+                  <span class="rh-ms-picker-summary" data-ms-summary>Selecione uma ou mais obras</span>
+                  <i class="fas fa-chevron-down rh-ms-picker-chevron" aria-hidden="true"></i>
+                </button>
+                <div class="rh-ms-picker-dropdown" hidden>
+                  <div class="rh-ms-picker-search-wrap">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search" class="rh-input rh-ms-picker-search" placeholder="Buscar obra..." autocomplete="off" aria-label="Buscar obra">
+                  </div>
+                  <div class="rh-ms-picker-options" id="req-obras-wrap" role="listbox" aria-multiselectable="true">
+                    {% for obra in rh_form_requisicao.fields.obra.queryset %}
+                    <label class="rh-ms-picker-option" data-ms-label="{{ obra.nome|lower }}">
+                      <input type="checkbox" name="obra" value="{{ obra.pk }}" class="req-obra-cb">
+                      <span>{{ obra.nome }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="rh-muted rh-ms-picker-static-empty">Nenhuma obra ativa encontrada no GestControll.</p>
+                    {% endfor %}
+                  </div>
+                  <p class="rh-ms-picker-empty" hidden>Nenhuma obra encontrada para esta busca.</p>
+                </div>
+                <div class="rh-ms-picker-chips" data-ms-chips hidden></div>
               </div>
               <p class="rh-field-hint">Selecione uma ou mais obras de alocação do colaborador.</p>
             </div>
             <div class="rh-form-field rh-wizard-field-full">
-              <label for="req-gestor">Gestor responsável <span class="rh-required">*</span></label>
-              <div class="rh-user-picker" id="req-gestor-picker">
-                <input type="text" id="req-gestor" class="rh-input rh-user-picker-input" maxlength="120" required readonly placeholder="Clique para selecionar um usuário" autocomplete="off">
-                <button type="button" class="rh-user-picker-toggle" id="req-gestor-toggle" aria-label="Selecionar gestor" aria-expanded="false">
-                  <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span class="rh-wizard-obras-label">Aprovadores da requisição <span class="rh-required">*</span></span>
+              <div class="rh-ms-picker" data-rh-ms-picker data-ms-placeholder="Selecione um ou mais aprovadores" id="req-aprovadores-ms">
+                <button type="button" class="rh-ms-picker-trigger" aria-expanded="false" aria-haspopup="listbox" id="req-aprovadores-trigger">
+                  <span class="rh-ms-picker-summary" data-ms-summary>Selecione um ou mais aprovadores</span>
+                  <i class="fas fa-chevron-down rh-ms-picker-chevron" aria-hidden="true"></i>
                 </button>
-                <div class="rh-user-picker-dropdown" id="req-gestor-dropdown" hidden>
-                  <input type="search" class="rh-input rh-user-picker-search" id="req-gestor-search" placeholder="Buscar por nome ou usuário..." autocomplete="off">
-                  <ul class="rh-user-picker-list" id="req-gestor-list" role="listbox"></ul>
+                <div class="rh-ms-picker-dropdown" hidden>
+                  <div class="rh-ms-picker-search-wrap">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search" class="rh-input rh-ms-picker-search" placeholder="Buscar aprovador..." autocomplete="off" aria-label="Buscar aprovador">
+                  </div>
+                  <div class="rh-ms-picker-options" id="req-aprovadores-wrap" role="listbox" aria-multiselectable="true">
+                    {% for u in rh_form_requisicao.fields.aprovadores.queryset %}
+                    <label class="rh-ms-picker-option" data-ms-label="{{ u.get_full_name|default:u.username|lower }} {{ u.username|lower }}">
+                      <input type="checkbox" name="aprovadores" value="{{ u.pk }}" class="req-aprovador-cb">
+                      <span>{{ u.get_full_name|default:u.username }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="rh-muted rh-ms-picker-static-empty">Nenhum usuário ativo encontrado para aprovação.</p>
+                    {% endfor %}
+                  </div>
+                  <p class="rh-ms-picker-empty" hidden>Nenhum aprovador encontrado para esta busca.</p>
                 </div>
+                <div class="rh-ms-picker-chips" data-ms-chips hidden></div>
               </div>
-              <p class="rh-field-hint">Usuários ativos do sistema.</p>
+              <p class="rh-field-hint">Selecione um ou mais aprovadores. Somente eles poderão aprovar ou reprovar na etapa 1.</p>
             </div>
           </div>
         </section>
 
-        <section class="rh-wizard-panel" data-panel="3" hidden>
+        <section class="rh-wizard-panel" data-panel="3">
           <div class="rh-wizard-section-head rh-wizard-section-head--green">
             <span class="rh-wizard-section-icon"><i class="fas fa-file-alt" aria-hidden="true"></i></span>
             <h3>Dados Contratuais</h3>
@@ -184,6 +264,29 @@
               <label for="req-salario">Salário (R$) <span class="rh-required">*</span></label>
               <input type="text" name="salario" id="req-salario" class="rh-input" maxlength="40" required placeholder="Ex: 3.500,00">
             </div>
+            <div class="rh-wizard-fields-row rh-wizard-field-full">
+              <div class="rh-form-field">
+                <label for="req-deslocamento-origem">Cidade de origem (de onde vem)</label>
+                <input type="text" name="deslocamento_origem" id="req-deslocamento-origem" class="rh-input" maxlength="120" placeholder="Ex: Recife/PE">
+                <p class="rh-field-hint">Usado para reembolso de passagem e deslocamento.</p>
+              </div>
+              <div class="rh-form-field">
+                <label for="req-deslocamento-destino">Cidade de destino (para onde vai)</label>
+                <input type="text" name="deslocamento_destino" id="req-deslocamento-destino" class="rh-input" maxlength="120" placeholder="Ex: Maceió/AL">
+                <p class="rh-field-hint">Cidade da obra ou local de alocação do colaborador.</p>
+              </div>
+            </div>
+            <div class="rh-form-field rh-wizard-field-full rh-reembolsos-editor">
+              <div class="rh-reembolsos-editor__head">
+                <label>Reembolsos previstos <span class="rh-muted">(opcional)</span></label>
+                <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="req-reembolso-add">
+                  <i class="fas fa-plus" aria-hidden="true"></i> Adicionar reembolso
+                </button>
+              </div>
+              <p class="rh-field-hint">Informe título, descrição e valor de cada reembolso (passagem, hospedagem, etc.).</p>
+              <div id="req-reembolsos-list" class="rh-reembolsos-list"></div>
+              <p id="req-reembolsos-empty" class="rh-reembolsos-empty">Nenhum reembolso cadastrado.</p>
+            </div>
             <div class="rh-form-field rh-wizard-field-full">
               <label for="req-observacoes">Observações</label>
               <textarea name="observacoes" id="req-observacoes" class="rh-input rh-textarea" rows="3" placeholder="Informações adicionais relevantes para a contratação..."></textarea>
@@ -191,12 +294,12 @@
           </div>
         </section>
 
-        <section class="rh-wizard-panel" data-panel="4" hidden>
+        <section class="rh-wizard-panel" data-panel="4">
           <div class="rh-wizard-section-head rh-wizard-section-head--green">
             <span class="rh-wizard-section-icon"><i class="fas fa-check" aria-hidden="true"></i></span>
             <h3>Confirmar Requisição</h3>
           </div>
-          <p class="rh-wizard-confirm-intro">Revise os dados antes de enviar. Após a confirmação, a requisição seguirá para aprovação do gestor.</p>
+          <p class="rh-wizard-confirm-intro">Revise os dados antes de enviar. A requisição ficará pendente até que os aprovadores designados aprovem na etapa 1.</p>
           <div class="rh-wizard-summary">
             <div class="rh-wizard-summary-block">
               <h4>Candidato</h4>
@@ -206,6 +309,10 @@
                 <div><dt>E-mail</dt><dd id="sum-email">—</dd></div>
                 <div><dt>Telefone</dt><dd id="sum-telefone">—</dd></div>
                 <div><dt>Responsável</dt><dd id="sum-solicitante">—</dd></div>
+                <div id="sum-candidato-extra-wrap" class="rh-wizard-field-full" hidden>
+                  <dt>Dados para admissão</dt>
+                  <dd id="sum-candidato-extra">—</dd>
+                </div>
               </dl>
             </div>
             <div class="rh-wizard-summary-block">
@@ -214,7 +321,7 @@
                 <div><dt>Cargo</dt><dd id="sum-cargo">—</dd></div>
                 <div><dt>Cargo (RH)</dt><dd id="sum-cargo-rh">—</dd></div>
                 <div><dt>Obra</dt><dd id="sum-obra">—</dd></div>
-                <div><dt>Gestor</dt><dd id="sum-gestor">—</dd></div>
+                <div><dt>Aprovadores</dt><dd id="sum-aprovadores">—</dd></div>
               </dl>
             </div>
             <div class="rh-wizard-summary-block">
@@ -222,16 +329,18 @@
               <dl class="rh-wizard-summary-grid">
                 <div><dt>Tipo</dt><dd id="sum-tipo">—</dd></div>
                 <div><dt>Salário</dt><dd id="sum-salario">—</dd></div>
+                <div><dt>Origem</dt><dd id="sum-deslocamento-origem">—</dd></div>
+                <div><dt>Destino</dt><dd id="sum-deslocamento-destino">—</dd></div>
+                <div id="sum-reembolsos-wrap" class="rh-wizard-field-full" hidden>
+                  <dt>Reembolsos</dt>
+                  <dd id="sum-reembolsos">—</dd>
+                </div>
                 <div><dt>Início previsto</dt><dd id="sum-inicio">—</dd></div>
                 <div id="sum-prazo-wrap" class="rh-wizard-field-full" hidden><dt>Prazo</dt><dd id="sum-prazo">—</dd></div>
                 <div id="sum-clt-indeterminado-wrap" class="rh-wizard-field-full" hidden><dt>Prazo</dt><dd>Contrato CLT por tempo indeterminado.</dd></div>
                 <div><dt>Observações</dt><dd id="sum-observacoes">—</dd></div>
               </dl>
             </div>
-          </div>
-          <div class="rh-wizard-info rh-wizard-info--yellow" id="sum-gestor-alert">
-            <i class="fas fa-file-alt" aria-hidden="true"></i>
-            A requisição será encaminhada ao gestor <strong id="sum-gestor-nome">—</strong> para aprovação. Após aprovado, o link será enviado automaticamente ao e-mail do candidato.
           </div>
         </section>
       </div>
@@ -254,7 +363,6 @@
 {% if rh_requisicao_draft %}
 {{ rh_requisicao_draft|json_script:"rh-requisicao-draft-data" }}
 {% endif %}
-{{ rh_usuarios_gestor|json_script:"rh-usuarios-gestor-data" }}
 
 <script>
 (function () {
@@ -284,12 +392,296 @@
   var submitLabel = document.getElementById('rh-admissao-submit-label');
   var editColaboradorId = null;
   var cargoCatalogoUrl = '{% url "recursos_humanos:cargo_catalogo_create" %}';
+
+  function normalizeMsSearch(text) {
+    return (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function refreshMsPicker(picker) {
+    if (!picker) return;
+    var placeholder = picker.getAttribute('data-ms-placeholder') || 'Selecione';
+    var summary = picker.querySelector('[data-ms-summary]');
+    var chipsWrap = picker.querySelector('[data-ms-chips]');
+    var checkboxes = picker.querySelectorAll('.rh-ms-picker-options input[type="checkbox"]');
+    var selected = [];
+    checkboxes.forEach(function (cb) {
+      if (!cb.checked) return;
+      var opt = cb.closest('.rh-ms-picker-option');
+      var span = opt && opt.querySelector('span');
+      if (span) selected.push(span.textContent.trim());
+    });
+    if (summary) {
+      if (!selected.length) {
+        summary.textContent = placeholder;
+        summary.classList.remove('has-value');
+      } else if (selected.length === 1) {
+        summary.textContent = selected[0];
+        summary.classList.add('has-value');
+      } else {
+        summary.textContent = selected.length + ' selecionados';
+        summary.classList.add('has-value');
+      }
+    }
+    if (chipsWrap) {
+      chipsWrap.innerHTML = '';
+      if (!selected.length) {
+        chipsWrap.hidden = true;
+      } else {
+        chipsWrap.hidden = false;
+        selected.forEach(function (name) {
+          var chip = document.createElement('span');
+          chip.className = 'rh-ms-picker-chip';
+          chip.textContent = name;
+          chipsWrap.appendChild(chip);
+        });
+      }
+    }
+  }
+
+  function closeMsPicker(picker) {
+    if (!picker) return;
+    var dropdown = picker.querySelector('.rh-ms-picker-dropdown');
+    var trigger = picker.querySelector('.rh-ms-picker-trigger');
+    if (dropdown) dropdown.hidden = true;
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    picker.classList.remove('is-open');
+  }
+
+  function closeAllMsPickers(except) {
+    modal.querySelectorAll('[data-rh-ms-picker]').forEach(function (p) {
+      if (p !== except) closeMsPicker(p);
+    });
+  }
+
+  function filterMsPicker(picker, query) {
+    var normalized = normalizeMsSearch(query);
+    var options = picker.querySelectorAll('.rh-ms-picker-option');
+    var emptyMsg = picker.querySelector('.rh-ms-picker-empty');
+    var visible = 0;
+    options.forEach(function (opt) {
+      var label = opt.getAttribute('data-ms-label') || '';
+      var text = normalizeMsSearch(label || (opt.textContent || ''));
+      var show = !normalized || text.indexOf(normalized) >= 0;
+      opt.classList.toggle('is-filtered-out', !show);
+      if (show) visible += 1;
+    });
+    if (emptyMsg) emptyMsg.hidden = visible > 0 || options.length === 0;
+  }
+
+  function initRhMsPicker(picker) {
+    var trigger = picker.querySelector('.rh-ms-picker-trigger');
+    var dropdown = picker.querySelector('.rh-ms-picker-dropdown');
+    var search = picker.querySelector('.rh-ms-picker-search');
+    if (!trigger || !dropdown) return;
+
+    trigger.addEventListener('click', function (e) {
+      e.preventDefault();
+      var willOpen = dropdown.hidden;
+      closeAllMsPickers(picker);
+      dropdown.hidden = !willOpen;
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      picker.classList.toggle('is-open', willOpen);
+      if (willOpen && search) {
+        search.value = '';
+        filterMsPicker(picker, '');
+        window.setTimeout(function () { search.focus(); }, 0);
+      }
+    });
+
+    if (search) {
+      search.addEventListener('input', function () {
+        filterMsPicker(picker, search.value);
+      });
+      search.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          closeMsPicker(picker);
+          trigger.focus();
+        }
+      });
+    }
+
+    picker.querySelectorAll('.rh-ms-picker-options input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        refreshMsPicker(picker);
+      });
+    });
+
+    refreshMsPicker(picker);
+  }
+
+  modal.querySelectorAll('[data-rh-ms-picker]').forEach(initRhMsPicker);
+
+  document.addEventListener('click', function (e) {
+    if (!modal.classList.contains('is-open')) return;
+    if (e.target.closest('[data-rh-ms-picker]')) return;
+    closeAllMsPickers();
+  });
+
+  function refreshAllMsPickers() {
+    modal.querySelectorAll('[data-rh-ms-picker]').forEach(refreshMsPicker);
+  }
+
+  var REEMBOLSO_MAX = 20;
+  var reembolsosListEl = document.getElementById('req-reembolsos-list');
+  var reembolsosEmptyEl = document.getElementById('req-reembolsos-empty');
+  var reembolsosJsonEl = document.getElementById('req-reembolsos-json');
+  var reembolsoAddBtn = document.getElementById('req-reembolso-add');
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function reembolsoRowHtml(item, index) {
+    return (
+      '<div class="rh-reembolso-item" data-index="' + index + '">' +
+        '<div class="rh-reembolso-item__fields">' +
+          '<div class="rh-form-field">' +
+            '<label>Título</label>' +
+            '<input type="text" class="rh-input js-reembolso-titulo" maxlength="120" placeholder="Ex: Passagem aérea" value="' + escapeHtml(item.titulo || '') + '">' +
+          '</div>' +
+          '<div class="rh-form-field">' +
+            '<label>Valor (R$)</label>' +
+            '<input type="text" class="rh-input js-reembolso-valor" maxlength="40" placeholder="Ex: 850,00" value="' + escapeHtml(item.valor || '') + '">' +
+          '</div>' +
+          '<div class="rh-form-field rh-reembolso-item__desc">' +
+            '<label>Descrição</label>' +
+            '<input type="text" class="rh-input js-reembolso-descricao" maxlength="500" placeholder="Ex: Recife → Maceió" value="' + escapeHtml(item.descricao || '') + '">' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="rh-btn rh-btn-ghost rh-btn-icon js-reembolso-remove" title="Remover reembolso" aria-label="Remover reembolso">' +
+          '<i class="fas fa-trash-alt" aria-hidden="true"></i>' +
+        '</button>' +
+      '</div>'
+    );
+  }
+
+  function coletarReembolsosDoForm() {
+    if (!reembolsosListEl) return [];
+    var itens = [];
+    reembolsosListEl.querySelectorAll('.rh-reembolso-item').forEach(function (row) {
+      var titulo = (row.querySelector('.js-reembolso-titulo') || {}).value || '';
+      var descricao = (row.querySelector('.js-reembolso-descricao') || {}).value || '';
+      var valor = (row.querySelector('.js-reembolso-valor') || {}).value || '';
+      if (!titulo.trim() && !descricao.trim() && !valor.trim()) return;
+      itens.push({
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        valor: valor.trim(),
+      });
+    });
+    return itens.slice(0, REEMBOLSO_MAX);
+  }
+
+  function syncReembolsosJson() {
+    if (!reembolsosJsonEl) return;
+    reembolsosJsonEl.value = JSON.stringify(coletarReembolsosDoForm());
+  }
+
+  function atualizarReembolsosEmptyState() {
+    if (!reembolsosListEl || !reembolsosEmptyEl) return;
+    var temItens = reembolsosListEl.querySelectorAll('.rh-reembolso-item').length > 0;
+    reembolsosEmptyEl.hidden = temItens;
+    if (reembolsoAddBtn) {
+      reembolsoAddBtn.disabled = reembolsosListEl.querySelectorAll('.rh-reembolso-item').length >= REEMBOLSO_MAX;
+    }
+  }
+
+  function renderReembolsos(itens) {
+    if (!reembolsosListEl) return;
+    var lista = Array.isArray(itens) ? itens.slice(0, REEMBOLSO_MAX) : [];
+    reembolsosListEl.innerHTML = lista.map(function (item, idx) {
+      return reembolsoRowHtml(item, idx);
+    }).join('');
+    atualizarReembolsosEmptyState();
+    syncReembolsosJson();
+  }
+
+  function adicionarReembolso(item) {
+    if (!reembolsosListEl) return;
+    if (reembolsosListEl.querySelectorAll('.rh-reembolso-item').length >= REEMBOLSO_MAX) return;
+    var idx = reembolsosListEl.querySelectorAll('.rh-reembolso-item').length;
+    reembolsosListEl.insertAdjacentHTML('beforeend', reembolsoRowHtml(item || {}, idx));
+    atualizarReembolsosEmptyState();
+    syncReembolsosJson();
+  }
+
+  function parseReembolsosPayload(d) {
+    if (!d) return [];
+    if (Array.isArray(d.reembolsos)) return d.reembolsos;
+    if (d.reembolsos_json) {
+      try {
+        var parsed = JSON.parse(d.reembolsos_json);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  if (reembolsosListEl) {
+    reembolsosListEl.addEventListener('input', syncReembolsosJson);
+    reembolsosListEl.addEventListener('click', function (e) {
+      var btn = e.target.closest('.js-reembolso-remove');
+      if (!btn) return;
+      var row = btn.closest('.rh-reembolso-item');
+      if (row) row.remove();
+      atualizarReembolsosEmptyState();
+      syncReembolsosJson();
+    });
+  }
+  if (reembolsoAddBtn) {
+    reembolsoAddBtn.addEventListener('click', function () {
+      adicionarReembolso({});
+    });
+  }
+
   var cargoRhCreateUrl = '{% url "recursos_humanos:cargo_rh_quick_create" %}';
   var csrfInput = form ? form.querySelector('[name=csrfmiddlewaretoken]') : null;
 
   function getWizardCsrf() {
     return csrfInput ? csrfInput.value : '';
   }
+
+  function maskCpf(value) {
+    var d = String(value || '').replace(/\D/g, '').slice(0, 11);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return d.slice(0, 3) + '.' + d.slice(3);
+    if (d.length <= 9) return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6);
+    return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9);
+  }
+
+  function maskTelefone(value) {
+    var d = String(value || '').replace(/\D/g, '').slice(0, 11);
+    if (!d.length) return '';
+    if (d.length <= 2) return '(' + d;
+    if (d.length <= 6) return '(' + d.slice(0, 2) + ') ' + d.slice(2);
+    if (d.length <= 10) {
+      return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6);
+    }
+    return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+  }
+
+  function bindInputMask(input, maskFn) {
+    if (!input) return;
+    function applyMask() {
+      var masked = maskFn(input.value);
+      if (input.value !== masked) input.value = masked;
+    }
+    input.addEventListener('input', applyMask);
+    input.addEventListener('blur', applyMask);
+    input.addEventListener('paste', function () {
+      window.setTimeout(applyMask, 0);
+    });
+  }
+
+  bindInputMask(document.getElementById('req-cpf'), maskCpf);
+  bindInputMask(document.getElementById('req-telefone'), maskTelefone);
 
   function insertOptionBeforeNovo(select, value, label) {
     var novoOpt = select.querySelector('option[value="__novo__"]');
@@ -380,89 +772,6 @@
   setupCargoPicker('req-cargo-select', 'req-cargo', 'req-cargo-novo-wrap', 'req-cargo-novo', 'req-cargo-salvar', cargoCatalogoUrl);
   setupCargoPicker('req-cargo-rh', null, 'req-cargo-rh-novo-wrap', 'req-cargo-rh-novo', 'req-cargo-rh-salvar', cargoRhCreateUrl);
 
-  var usuariosGestor = [];
-  (function () {
-    var el = document.getElementById('rh-usuarios-gestor-data');
-    if (!el) return;
-    try { usuariosGestor = JSON.parse(el.textContent); } catch (e) { usuariosGestor = []; }
-  })();
-
-  function setupGestorPicker() {
-    var picker = document.getElementById('req-gestor-picker');
-    var input = document.getElementById('req-gestor');
-    var toggle = document.getElementById('req-gestor-toggle');
-    var dropdown = document.getElementById('req-gestor-dropdown');
-    var search = document.getElementById('req-gestor-search');
-    var list = document.getElementById('req-gestor-list');
-    if (!picker || !input || !dropdown || !list) return;
-
-    function renderList(filter) {
-      var q = (filter || '').toLowerCase().trim();
-      var items = usuariosGestor.filter(function (u) {
-        if (!q) return true;
-        return (u.nome || '').toLowerCase().indexOf(q) >= 0
-          || (u.username || '').toLowerCase().indexOf(q) >= 0;
-      });
-      if (!items.length) {
-        list.innerHTML = '<li class="rh-user-picker-empty">Nenhum usuário encontrado.</li>';
-        return;
-      }
-      list.innerHTML = items.map(function (u) {
-        return '<li><button type="button" class="rh-user-picker-option" role="option" data-id="' + esc(String(u.id)) + '" data-nome="' + esc(u.nome) + '">'
-          + '<span class="rh-user-picker-nome">' + esc(u.nome) + '</span>'
-          + '<span class="rh-user-picker-username">@' + esc(u.username) + '</span>'
-          + '</button></li>';
-      }).join('');
-    }
-
-    function openDropdown() {
-      dropdown.hidden = false;
-      if (toggle) toggle.setAttribute('aria-expanded', 'true');
-      renderList(search ? search.value : '');
-      if (search) {
-        search.value = '';
-        search.focus();
-      }
-    }
-
-    function closeDropdown() {
-      dropdown.hidden = true;
-      if (toggle) toggle.setAttribute('aria-expanded', 'false');
-    }
-
-    function esc(v) {
-      var d = document.createElement('div');
-      d.textContent = v == null ? '' : v;
-      return d.innerHTML;
-    }
-
-    input.addEventListener('click', openDropdown);
-    if (toggle) toggle.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (dropdown.hidden) openDropdown();
-      else closeDropdown();
-    });
-    if (search) {
-      search.addEventListener('input', function () { renderList(search.value); });
-      search.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDropdown(); });
-    }
-    list.addEventListener('click', function (e) {
-      var btn = e.target.closest('.rh-user-picker-option');
-      if (!btn) return;
-      input.value = btn.getAttribute('data-nome') || '';
-      var gestorIdEl = document.getElementById('req-gestor-id');
-      if (gestorIdEl) gestorIdEl.value = btn.getAttribute('data-id') || '';
-      closeDropdown();
-    });
-    document.addEventListener('click', function (e) {
-      if (!picker.contains(e.target)) closeDropdown();
-    });
-    renderList('');
-  }
-
-  setupGestorPicker();
-
   var draftEl = document.getElementById('rh-requisicao-draft-data');
   var edicaoEl = document.getElementById('rh-requisicao-edicao-data');
   var rhRequisicaoDraft = null;
@@ -511,44 +820,63 @@
     var nomeEl = document.getElementById('req-nome');
     if (nomeEl) nomeEl.value = d.nome || '';
     var cpfEl = document.getElementById('req-cpf');
-    if (cpfEl) cpfEl.value = d.cpf || '';
+    if (cpfEl) cpfEl.value = maskCpf(d.cpf || '');
     var emailEl = document.getElementById('req-email');
     if (emailEl) emailEl.value = d.email || '';
     var telefoneEl = document.getElementById('req-telefone');
-    if (telefoneEl) telefoneEl.value = d.telefone || '';
+    if (telefoneEl) telefoneEl.value = maskTelefone(d.telefone || '');
+    var rgEl = document.getElementById('req-rg');
+    if (rgEl) rgEl.value = d.rg || '';
+    var nascEl = document.getElementById('req-data-nascimento');
+    if (nascEl) nascEl.value = d.data_nascimento || '';
+    var pisEl = document.getElementById('req-pis');
+    if (pisEl) pisEl.value = d.pis || '';
+    var enderecoEl = document.getElementById('req-endereco');
+    if (enderecoEl) enderecoEl.value = d.endereco || '';
+    var bancoEl = document.getElementById('req-dados-bancarios');
+    if (bancoEl) bancoEl.value = d.dados_bancarios || '';
+    var escEl = document.getElementById('req-escolaridade');
+    if (escEl) escEl.value = d.escolaridade || '';
+    var camisaEl = document.getElementById('req-tamanho-camisa');
+    if (camisaEl) camisaEl.value = d.tamanho_camisa || '';
+    var botaEl = document.getElementById('req-tamanho-bota');
+    if (botaEl) botaEl.value = d.tamanho_bota || '';
+    var empresaEl = document.getElementById('req-empresa');
+    if (empresaEl) empresaEl.value = d.empresa || '';
     setCargoSelectValue('req-cargo-select', 'req-cargo', d.cargo || '');
     var cargoRh = document.getElementById('req-cargo-rh');
     if (cargoRh && d.cargo_rh) cargoRh.value = d.cargo_rh;
     document.querySelectorAll('.req-obra-cb').forEach(function (cb) {
       cb.checked = (d.obra || []).indexOf(cb.value) >= 0 || (d.obra || []).indexOf(String(cb.value)) >= 0;
     });
+    document.querySelectorAll('.req-aprovador-cb').forEach(function (cb) {
+      cb.checked = (d.aprovadores || []).indexOf(cb.value) >= 0
+        || (d.aprovadores || []).indexOf(parseInt(cb.value, 10)) >= 0
+        || (d.aprovadores || []).indexOf(String(cb.value)) >= 0;
+    });
     var tipo = document.getElementById('id_tipo_contrato');
     if (tipo && d.tipo_contrato) tipo.value = d.tipo_contrato;
-    var gestor = document.getElementById('req-gestor');
-    var gestorId = document.getElementById('req-gestor-id');
-    if (d.gestor_id && gestorId) {
-      gestorId.value = d.gestor_id;
-      var foundUser = usuariosGestor.find(function (u) { return String(u.id) === String(d.gestor_id); });
-      if (gestor && foundUser) gestor.value = foundUser.nome;
-    } else if (gestor && d.gestor) {
-      gestor.value = d.gestor;
-    }
     var inicio = document.getElementById('req-data-inicio');
     if (inicio) inicio.value = d.data_inicio || '';
     var salario = document.getElementById('req-salario');
     if (salario) salario.value = d.salario || '';
+    var origem = document.getElementById('req-deslocamento-origem');
+    if (origem) origem.value = d.deslocamento_origem || '';
+    var destino = document.getElementById('req-deslocamento-destino');
+    if (destino) destino.value = d.deslocamento_destino || '';
     var obs = document.getElementById('req-observacoes');
     if (obs) obs.value = d.observacoes || '';
+    renderReembolsos(parseReembolsosPayload(d));
     var prazoDias = document.getElementById('id_prazo_duracao_dias');
     var chkExp = document.getElementById('id_clt_periodo_experiencia');
-    atualizarDuracao();
     if (chkExp) chkExp.checked = !!d.clt_periodo_experiencia;
-    if (prazoDias && d.prazo_duracao_dias) prazoDias.value = d.prazo_duracao_dias;
+    if (prazoDias) prazoDias.value = d.prazo_duracao_dias || '';
     atualizarDuracao();
     ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.hidden = true;
     });
+    refreshAllMsPickers();
   }
 
   function restoreDraft() {
@@ -556,9 +884,7 @@
   }
 
   function openModalBase() {
-    modal.hidden = false;
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('rh-modal-open');
+    window.RhMotion.openRhModal(modal);
     ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.hidden = true;
@@ -579,23 +905,22 @@
     if (modalSubtitle) {
       var motivo = rhRequisicaoEdicao.motivo_reprovacao || '';
       modalSubtitle.textContent = motivo
-        ? 'Corrija os dados conforme o gestor solicitou: ' + motivo
-        : 'Corrija os dados e reenvie ao gestor responsável';
+        ? 'Corrija os dados conforme solicitado: ' + motivo
+        : 'Corrija os dados e reenvie a requisição';
     }
     openModalBase();
     populateFormData(rhRequisicaoEdicao);
   }
 
   function closeModal() {
-    modal.hidden = true;
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('rh-modal-open');
+    closeAllMsPickers();
+    window.RhMotion.closeRhModal(modal);
   }
 
   function updateSummary() {
     var obraNames = [];
     document.querySelectorAll('.req-obra-cb:checked').forEach(function (cb) {
-      var label = cb.closest('.rh-wizard-obra-item');
+      var label = cb.closest('.rh-ms-picker-option');
       if (label) {
         var span = label.querySelector('span');
         if (span) obraNames.push(span.textContent);
@@ -612,6 +937,41 @@
     document.getElementById('sum-email').textContent = document.getElementById('req-email').value || '—';
     document.getElementById('sum-telefone').textContent = document.getElementById('req-telefone').value || '—';
     document.getElementById('sum-solicitante').textContent = document.getElementById('req-solicitante').value || '—';
+    var candidatoExtra = [];
+    function pushExtra(label, elId, fmt) {
+      var el = document.getElementById(elId);
+      if (!el) return;
+      var val = (el.value || '').trim();
+      if (!val) return;
+      if (fmt === 'date' && val.indexOf('-') >= 0) {
+        var p = val.split('-');
+        if (p.length === 3) val = p[2] + '/' + p[1] + '/' + p[0];
+      }
+      if (fmt === 'select' && el.tagName === 'SELECT' && el.selectedIndex >= 0) {
+        val = el.options[el.selectedIndex].text;
+      }
+      candidatoExtra.push('<div><strong>' + label + ':</strong> ' + val + '</div>');
+    }
+    pushExtra('RG', 'req-rg');
+    pushExtra('Nascimento', 'req-data-nascimento', 'date');
+    pushExtra('PIS', 'req-pis');
+    pushExtra('Empresa', 'req-empresa');
+    pushExtra('Endereço', 'req-endereco');
+    pushExtra('Conta bancária', 'req-dados-bancarios');
+    pushExtra('Escolaridade', 'req-escolaridade', 'select');
+    pushExtra('Tam. camisa', 'req-tamanho-camisa');
+    pushExtra('Tam. bota', 'req-tamanho-bota');
+    var sumExtraWrap = document.getElementById('sum-candidato-extra-wrap');
+    var sumExtra = document.getElementById('sum-candidato-extra');
+    if (sumExtraWrap && sumExtra) {
+      if (candidatoExtra.length) {
+        sumExtra.innerHTML = candidatoExtra.join('');
+        sumExtraWrap.hidden = false;
+      } else {
+        sumExtra.textContent = '—';
+        sumExtraWrap.hidden = true;
+      }
+    }
     document.getElementById('sum-cargo').textContent = document.getElementById('req-cargo').value || '—';
     var cargoRhSelect = document.getElementById('req-cargo-rh');
     var cargoRhText = cargoRhSelect && cargoRhSelect.options[cargoRhSelect.selectedIndex]
@@ -619,13 +979,42 @@
       : '—';
     document.getElementById('sum-cargo-rh').textContent = cargoRhSelect && cargoRhSelect.value ? cargoRhText : '—';
     document.getElementById('sum-obra').textContent = obraNames.length ? obraNames.join(', ') : '—';
-    var gestorNome = document.getElementById('req-gestor').value || '—';
-    document.getElementById('sum-gestor').textContent = gestorNome;
-    var sumGestorNome = document.getElementById('sum-gestor-nome');
-    if (sumGestorNome) sumGestorNome.textContent = gestorNome;
+    var aprovadorNames = [];
+    document.querySelectorAll('.req-aprovador-cb:checked').forEach(function (cb) {
+      var label = cb.closest('.rh-ms-picker-option');
+      if (label) {
+        var span = label.querySelector('span');
+        if (span) aprovadorNames.push(span.textContent);
+      }
+    });
+    var sumAprovadores = document.getElementById('sum-aprovadores');
+    if (sumAprovadores) sumAprovadores.textContent = aprovadorNames.length ? aprovadorNames.join(', ') : '—';
     document.getElementById('sum-tipo').textContent = document.getElementById('id_tipo_contrato').value || '—';
     document.getElementById('sum-inicio').textContent = dataFmt;
     document.getElementById('sum-salario').textContent = document.getElementById('req-salario').value || '—';
+    var sumOrigem = document.getElementById('sum-deslocamento-origem');
+    var origemEl = document.getElementById('req-deslocamento-origem');
+    if (sumOrigem) sumOrigem.textContent = (origemEl && origemEl.value.trim()) ? origemEl.value.trim() : '—';
+    var sumDestino = document.getElementById('sum-deslocamento-destino');
+    var destinoEl = document.getElementById('req-deslocamento-destino');
+    if (sumDestino) sumDestino.textContent = (destinoEl && destinoEl.value.trim()) ? destinoEl.value.trim() : '—';
+    var sumReembWrap = document.getElementById('sum-reembolsos-wrap');
+    var sumReemb = document.getElementById('sum-reembolsos');
+    var reembolsos = coletarReembolsosDoForm();
+    if (sumReembWrap && sumReemb) {
+      if (reembolsos.length) {
+        sumReemb.innerHTML = reembolsos.map(function (item) {
+          var linha = escapeHtml(item.titulo || 'Reembolso');
+          if (item.descricao) linha += ' — ' + escapeHtml(item.descricao);
+          if (item.valor) linha += ' — R$ ' + escapeHtml(item.valor);
+          return '<div>' + linha + '</div>';
+        }).join('');
+        sumReembWrap.hidden = false;
+      } else {
+        sumReemb.textContent = '—';
+        sumReembWrap.hidden = true;
+      }
+    }
     var obsEl = document.getElementById('req-observacoes');
     var sumObs = document.getElementById('sum-observacoes');
     if (sumObs) sumObs.textContent = (obsEl && obsEl.value.trim()) ? obsEl.value.trim() : '—';
@@ -665,7 +1054,7 @@
 
   var hints = {
     'CLT_experiencia': 'Máximo legal: 90 dias (CLT art. 445).',
-    'CLT_determinado': 'Máximo legal: 730 dias / 2 anos (CLT art. 445).',
+    'CLT_indeterminado': '',
     'Temporário': '',
     'Estágio': 'Máximo legal: 730 dias / 2 anos (Lei 11.788/2008).',
     'Pessoa Jurídica': '',
@@ -696,20 +1085,43 @@
         if (hint) hint.textContent = hints['CLT_experiencia'];
         input.required = true;
       } else {
-        input.placeholder = 'Indeterminado';
+        input.placeholder = 'Indeterminado (deixe vazio)';
         if (label) label.textContent = 'Duração do contrato (dias)';
-        if (hint) hint.textContent = hints['CLT_determinado'];
+        if (hint) hint.textContent = hints['CLT_indeterminado'];
         input.required = false;
       }
     } else {
       if (expWrap) expWrap.hidden = true;
       if (chkExp) chkExp.checked = false;
-      input.value = defaults[tipo] || 180;
+      if (!input.value) input.value = defaults[tipo] || 180;
       input.placeholder = '';
       if (label) label.textContent = 'Duração do contrato (dias)';
       if (hint) hint.textContent = hints[tipo] || '';
       input.required = true;
     }
+  }
+
+  function validarPrazoCltStep3() {
+    var tipoEl = document.getElementById('id_tipo_contrato');
+    var input = document.getElementById('id_prazo_duracao_dias');
+    var chkExp = document.getElementById('id_clt_periodo_experiencia');
+    if (!tipoEl || tipoEl.value !== 'CLT' || !input) return true;
+    var dias = parseInt(input.value, 10);
+    if (!input.value || isNaN(dias) || dias <= 0) return true;
+    if (chkExp && chkExp.checked) {
+      if (dias > 90) {
+        alert('Período de experiência CLT: máximo 90 dias.');
+        input.focus();
+        return false;
+      }
+      return true;
+    }
+    if (dias > 730) {
+      alert('Contrato CLT por prazo determinado: máximo 730 dias (2 anos).');
+      input.focus();
+      return false;
+    }
+    return true;
   }
 
   var tipoContratoEl = document.getElementById('id_tipo_contrato');
@@ -741,32 +1153,42 @@
         cargoHidden.value = cargoSelect.options[cargoSelect.selectedIndex].textContent;
       }
       var cargoRh = document.getElementById('req-cargo-rh');
-      if (cargoRh && cargoRh.value === '__novo__') {
-        alert('Salve o novo cargo (RH) antes de continuar.');
-        return false;
+      if (cargoRh) {
+        if (cargoRh.value === '__novo__') {
+          alert('Salve o novo cargo (RH) antes de continuar.');
+          return false;
+        }
+        if (!cargoRh.value) {
+          cargoRh.focus();
+          alert('Selecione ou cadastre o cargo (RH).');
+          return false;
+        }
       }
       var obrasChecked = panel.querySelectorAll('.req-obra-cb:checked');
       if (!obrasChecked.length) {
         alert('Selecione ao menos uma obra.');
-        var wrap = document.getElementById('req-obras-wrap');
-        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        var obrasPicker = document.getElementById('req-obras-ms');
+        if (obrasPicker) obrasPicker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return false;
       }
-      var gestorIdEl = document.getElementById('req-gestor-id');
-      var gestorInput = document.getElementById('req-gestor');
-      if (!gestorIdEl || !gestorIdEl.value) {
-        alert('Selecione o gestor responsável.');
-        if (gestorInput) gestorInput.focus();
+      var aprovadoresChecked = panel.querySelectorAll('.req-aprovador-cb:checked');
+      if (!aprovadoresChecked.length) {
+        alert('Selecione ao menos um aprovador da requisição.');
+        var aprovPicker = document.getElementById('req-aprovadores-ms');
+        if (aprovPicker) aprovPicker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return false;
       }
+    }
+    if (step === 3 && !validarPrazoCltStep3()) {
+      return false;
     }
     var fields = panel.querySelectorAll('input, select, textarea');
     for (var i = 0; i < fields.length; i++) {
       var f = fields[i];
       if (f.readOnly || f.type === 'hidden' || f.getAttribute('aria-hidden') === 'true') continue;
-      if (f.id === 'req-gestor') continue;
       if (f.id === 'req-cargo-rh' && f.value === '__novo__') continue;
       if (f.classList && f.classList.contains('req-obra-cb')) continue;
+      if (f.classList && f.classList.contains('req-aprovador-cb')) continue;
       if (step === 3 && f.id === 'id_clt_periodo_experiencia') continue;
       if (step === 3 && f.id === 'id_prazo_duracao_dias' && f.value === '') continue;
       if (!f.checkValidity()) {
@@ -781,7 +1203,6 @@
   function goToStep(step) {
     current = step;
     panels.forEach(function (p) {
-      p.hidden = parseInt(p.getAttribute('data-panel'), 10) !== step;
       p.classList.toggle('is-active', parseInt(p.getAttribute('data-panel'), 10) === step);
     });
     steps.forEach(function (s) {
@@ -830,7 +1251,7 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hidden) closeModal();
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
   });
 
   if (btnNext) {
@@ -843,6 +1264,12 @@
   if (btnBack) {
     btnBack.addEventListener('click', function () {
       if (current > 1) goToStep(current - 1);
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function () {
+      syncReembolsosJson();
     });
   }
 

@@ -1,0 +1,73 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Acesso ao portal — Lplan</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}?v=4">
+</head>
+<body class="portal-body">
+  <div class="portal-wrap">
+    <header class="portal-header">
+      <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="portal-logo-img">
+      <h1 class="portal-greeting">Olá, {{ colaborador.nome }}!</h1>
+      <p class="portal-sub">Para proteger seus dados, confirme sua identidade antes de enviar documentos.</p>
+    </header>
+
+    <section class="portal-access-card" aria-labelledby="portal-access-title">
+      <div class="portal-access-icon" aria-hidden="true"><i class="fas fa-lock"></i></div>
+      <h2 id="portal-access-title" class="portal-access-title">Código de acesso</h2>
+      <p class="portal-access-lead">
+        Informe o código de <strong>6 dígitos</strong> enviado por e-mail ou WhatsApp junto com este link.
+      </p>
+
+      {% if erro_pin %}
+      <div class="portal-access-alert" role="alert">{{ erro_pin }}</div>
+      {% endif %}
+
+      <form method="post" class="portal-access-form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="autenticar_portal">
+
+        <label class="portal-access-label" for="portal_pin">Código de 6 dígitos</label>
+        <input
+          type="text"
+          id="portal_pin"
+          name="portal_pin"
+          class="portal-access-input"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocomplete="one-time-code"
+          placeholder="000000"
+          required
+          {% if pin_bloqueado %}disabled{% endif %}
+        >
+
+        <label class="portal-access-declaracao">
+          <input
+            type="checkbox"
+            name="declaracao_identidade"
+            value="on"
+            required
+            {% if pin_bloqueado %}disabled{% endif %}
+          >
+          <span>Declaro que sou <strong>{{ colaborador.nome }}</strong> e que os documentos enviados neste portal são meus.</span>
+        </label>
+
+        <button type="submit" class="portal-access-btn" {% if pin_bloqueado %}disabled{% endif %}>
+          Entrar no portal
+        </button>
+      </form>
+
+      <p class="portal-access-hint">
+        Por segurança, o código precisa ser informado novamente a cada 10 minutos.
+        Não recebeu o código? Verifique e-mail e WhatsApp de admissão ou peça ao RH para reenviar o link.
+      </p>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,299 +1,332 @@
 {% extends "recursos_humanos/base_rh.html" %}
-
-{% block rh_breadcrumb %}
-<nav class="rh-breadcrumb" aria-label="Navegação">
-  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="rh-breadcrumb-current">Config. Documentos</span>
-</nav>
-{% endblock %}
+{% load static %}
 
 {% block rh_content %}
-<div class="rh-page rh-page--docconfig">
-  <div class="rh-page-header">
+<div class="rh-page rh-docs-hub" data-preview-url="{% url 'recursos_humanos:documentos_config_preview' %}">
+
+  <header class="rh-docs-hub__hero">
     <div>
-      <h1 class="rh-title">Configuração de Documentos</h1>
-      <p class="rh-subtitle">Defina os tipos de documentos exigidos e suas regras de validade</p>
+      <h1 class="rh-title">Documentos</h1>
+      <p class="rh-subtitle">Kit de admissão: universais + extras por cargo.</p>
     </div>
-    <button type="button" class="rh-btn rh-btn-outline" id="docconfig-novo-btn" aria-expanded="false" aria-controls="docconfig-novo-panel">
-      <i class="fas fa-plus" aria-hidden="true"></i> Novo Tipo de Documento
+    <button type="button" class="rh-btn rh-btn-primary" id="rh-docs-open-modal" data-mode="criar"
+            data-scope="{% if painel == 'cargo' %}por_cargo{% else %}todos{% endif %}"
+            {% if cargo_id %}data-cargo="{{ cargo_id }}"{% endif %}>
+      <i class="fas fa-plus" aria-hidden="true"></i> Novo documento
     </button>
+  </header>
+
+  <div class="rh-docs-stats rh-docs-stats--3">
+    <div class="rh-docs-stat">
+      <span class="rh-docs-stat__value">{{ stats.cargos }}</span>
+      <span class="rh-docs-stat__label">Cargos</span>
+    </div>
+    <div class="rh-docs-stat">
+      <span class="rh-docs-stat__value">{{ stats.todos }}</span>
+      <span class="rh-docs-stat__label">Para todos</span>
+    </div>
+    <div class="rh-docs-stat">
+      <span class="rh-docs-stat__value">{{ stats.cargo }}</span>
+      <span class="rh-docs-stat__label">Extras por cargo</span>
+    </div>
   </div>
 
-  <div id="docconfig-novo-panel" class="rh-docconfig-novo-panel" hidden>
-    <div class="rh-docconfig-novo-card">
-      <h3 class="rh-docconfig-novo-title">Novo tipo de documento</h3>
-      <form method="post" class="rh-docconfig-form rh-docconfig-form--novo">
+  <nav class="rh-docs-nav" role="tablist" aria-label="Seções de configuração">
+    <a href="?painel=todos{% if cargo_id %}&cargo={{ cargo_id }}{% endif %}"
+       class="rh-docs-nav__btn {% if painel == 'todos' %}is-active{% endif %}" role="tab">Catálogo</a>
+    <a href="?painel=cargo{% if cargo_id %}&cargo={{ cargo_id }}{% endif %}"
+       class="rh-docs-nav__btn {% if painel == 'cargo' %}is-active{% endif %}" role="tab">Por cargo</a>
+  </nav>
+
+  {% if painel == 'todos' %}
+  <section class="rh-docs-panel rh-docs-catalog" aria-label="Catálogo de documentos">
+    {% if catalogo_docs %}
+    <div class="rh-docs-catalog__wrap">
+      <table class="rh-docs-catalog__table">
+        <thead>
+          <tr>
+            <th scope="col">Documento</th>
+            <th scope="col">Escopo</th>
+            <th scope="col">Categoria</th>
+            <th scope="col">Validade</th>
+            <th scope="col">Obrig.</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in catalogo_docs %}
+          {% include "recursos_humanos/includes/doc_catalog_row.html" with doc=doc %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="rh-empty rh-docs-empty">Nenhum documento cadastrado. Clique em <strong>Novo documento</strong> para começar.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if painel == 'cargo' %}
+  <section class="rh-docs-split" aria-label="Configuração por cargo">
+    <aside class="rh-docs-rail">
+      <div class="rh-docs-rail__head">
+        <h2 class="rh-docs-rail__title">Cargos</h2>
+        <p class="rh-docs-rail__hint">Selecione um cargo e marque os documentos extras.</p>
+      </div>
+      <ul class="rh-docs-rail__list">
+        {% for c in cargos %}
+        <li>
+          <a href="?painel=cargo&cargo={{ c.pk }}"
+             class="rh-docs-rail__item {% if cargo_ativo and c.pk == cargo_ativo.pk %}is-active{% endif %}">
+            <span class="rh-docs-rail__name">{{ c.nome }}</span>
+            <span class="rh-docs-rail__meta">{{ c.docs_extras }} extra{{ c.docs_extras|pluralize:"s" }}</span>
+          </a>
+        </li>
+        {% empty %}
+        <li class="rh-muted rh-docs-rail__empty">Nenhum cargo ainda.</li>
+        {% endfor %}
+      </ul>
+      <form method="post" class="rh-docs-rail__add">
         {% csrf_token %}
-        <input type="hidden" name="acao" value="criar">
+        <input type="hidden" name="acao" value="criar_cargo">
+        <input type="hidden" name="painel" value="cargo">
+        <input type="text" name="nome" class="rh-input rh-input--sm" placeholder="Novo cargo…" maxlength="120" required>
+        <button type="submit" class="rh-btn rh-btn-outline rh-btn--sm" title="Adicionar cargo">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+        </button>
+      </form>
+    </aside>
 
-        <div class="rh-docconfig-novo-row rh-docconfig-novo-row--fields">
-          <div class="rh-form-field rh-docconfig-novo-name">
-            <label for="{{ form_novo.nome.id_for_label }}">Nome do documento <span class="rh-required">*</span></label>
-            {{ form_novo.nome }}
+    {% if cargo_ativo %}
+    <div class="rh-docs-workspace">
+      <form method="post" class="rh-docs-cargo-form" id="rh-docs-cargo-form">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="salvar_cargo">
+        <input type="hidden" name="painel" value="cargo">
+        <input type="hidden" name="cargo_id" value="{{ cargo_ativo.pk }}">
+
+        <header class="rh-docs-workspace__head">
+          <div>
+            <h2 class="rh-docs-workspace__title">{{ cargo_ativo.nome }}</h2>
+            <p class="rh-docs-workspace__desc">
+              Herda <strong>{{ stats.todos }}</strong> documento{{ stats.todos|pluralize:"s" }} universais
+              + marque abaixo os extras deste cargo.
+              <a href="?painel=todos" class="rh-docs-workspace__link">Editar documentos no catálogo</a>
+            </p>
           </div>
-          <div class="rh-form-field rh-docconfig-novo-aplica">
-            <label for="{{ form_novo.aplica_a.id_for_label }}">Aplica-se a</label>
-            {{ form_novo.aplica_a }}
+          <div class="rh-docs-workspace__actions">
+            <button type="button" class="rh-btn rh-btn-outline rh-btn--sm js-docs-novo-cargo"
+                    data-cargo="{{ cargo_ativo.pk }}">
+              <i class="fas fa-file-circle-plus" aria-hidden="true"></i> Doc só deste cargo
+            </button>
+            <button type="submit" class="rh-btn rh-btn-primary">
+              <i class="fas fa-save" aria-hidden="true"></i> Salvar cargo
+            </button>
           </div>
-        </div>
+        </header>
 
-        <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--cargos" data-aplica-panel="por_cargo" hidden>
-          <p class="rh-docconfig-aplica-panel-title">Selecionar Cargos específicos</p>
-          <div class="rh-checkbox-grid">{{ form_novo.cargos_aplicaveis }}</div>
-        </div>
+        {% if cards.por_cargo %}
+        <p class="rh-docs-toggle-list__hint">Marque os extras que este cargo exige. Só seleção — para alterar regras, use o <a href="?painel=todos">Catálogo</a>.</p>
+        <ul class="rh-docs-toggle-list">
+          {% for doc in cards.por_cargo %}
+          <li class="rh-docs-toggle-item{% if not doc.ativo %} is-inactive{% endif %}">
+            <label class="rh-docs-toggle rh-docs-toggle--full">
+              <input type="checkbox" name="tipo_cargo" value="{{ doc.pk }}"
+                     {% if doc.pk in docs_cargo_ativos %}checked{% endif %}
+                     {% if not doc.ativo %}disabled{% endif %}
+                     class="rh-docs-toggle__input js-docs-cargo-check">
+              <span class="rh-docs-toggle__box" aria-hidden="true"></span>
+              <span class="rh-docs-toggle__body">
+                <span class="rh-docs-toggle__name">{{ doc.nome }}{% if not doc.ativo %} <em class="rh-muted">(inativo)</em>{% endif %}</span>
+                <span class="rh-docs-toggle__meta">
+                  {% if doc.obrigatorio %}Obrigatório{% else %}Opcional{% endif %}
+                  {% if doc.tem_validade %} · {{ doc.dias_validade }} dias{% endif %}
+                </span>
+              </span>
+            </label>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="rh-empty">Nenhum extra por cargo. Crie em <a href="?painel=todos">Catálogo</a> ou use <strong>Doc só deste cargo</strong>.</p>
+        {% endif %}
 
-        <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--obras" data-aplica-panel="por_obra" hidden>
-          <p class="rh-docconfig-aplica-panel-title">Selecionar Obras específicas</p>
-          <div class="rh-checkbox-grid">{{ form_novo.obras_aplicaveis }}</div>
-        </div>
-
-        <div class="rh-docconfig-novo-row rh-docconfig-novo-row--bottom">
-          <div class="rh-form-field rh-docconfig-novo-dias">
-            <label for="{{ form_novo.dias_validade.id_for_label }}">Validade (dias)</label>
-            {{ form_novo.dias_validade }}
+        <div class="rh-docs-inherited">
+          <h3 class="rh-docs-inherited__title">Sempre incluídos (todos)</h3>
+          <div class="rh-docs-chip-row">
+            {% for doc in cards.todos %}
+            <span class="rh-docs-chip">{{ doc.nome }}</span>
+            {% endfor %}
           </div>
-          <label class="rh-toggle">
-            {{ form_novo.tem_validade }}
-            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
-            <span class="rh-toggle-label">Possui validade</span>
-          </label>
-          <label class="rh-toggle">
-            {{ form_novo.obrigatorio }}
-            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
-            <span class="rh-toggle-label">Obrigatório</span>
-          </label>
-        </div>
-
-        <div class="rh-docconfig-form-actions">
-          <button type="submit" class="rh-btn rh-btn-primary">Adicionar documento</button>
-          <button type="button" class="rh-btn rh-btn-outline" id="docconfig-novo-cancel">Cancelar</button>
         </div>
       </form>
     </div>
-  </div>
 
-  <div class="rh-card rh-table-wrap rh-docconfig-table-wrap">
-    <table class="rh-table rh-docconfig-table">
-      <thead>
-        <tr>
-          <th>Nome do documento</th>
-          <th>Aplica-se a</th>
-          <th>Escopo</th>
-          <th>Possui validade</th>
-          <th>Prazo de validade</th>
-          <th>Obrigatório</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t, form_edit in tipos_forms %}
-        <tr class="rh-docconfig-data-row">
-          <td class="rh-docconfig-name">{{ t.nome }}</td>
-          <td>
-            <span class="rh-tag-aplica rh-tag-aplica-{{ t.aplica_a }}">{{ t.get_aplica_a_display }}</span>
-          </td>
-          <td class="rh-docconfig-escopo">
-            {% if t.aplica_a == 'por_cargo' %}
-              {% for c in t.cargos_aplicaveis.all %}
-              <span class="rh-tag">{{ c.nome }}</span>
-              {% empty %}<span class="rh-muted">—</span>{% endfor %}
-            {% elif t.aplica_a == 'por_obra' %}
-              {% for o in t.obras_aplicaveis.all %}
-              <span class="rh-tag">{{ o.nome }}</span>
-              {% empty %}<span class="rh-muted">—</span>{% endfor %}
-            {% else %}
-              <span class="rh-muted">Todos</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if t.tem_validade %}
-            <span class="rh-yesno rh-yesno--sim"><i class="fas fa-check" aria-hidden="true"></i> Sim</span>
-            {% else %}
-            <span class="rh-yesno rh-yesno--nao"><i class="fas fa-times" aria-hidden="true"></i> Não</span>
-            {% endif %}
-          </td>
-          <td class="rh-docconfig-prazo">
-            {% if t.tem_validade and t.dias_validade %}{{ t.dias_validade }} dias{% else %}<span class="rh-muted">—</span>{% endif %}
-          </td>
-          <td>
-            {% if t.obrigatorio %}
-            <span class="rh-yesno rh-yesno--sim"><i class="fas fa-check" aria-hidden="true"></i> Sim</span>
-            {% else %}
-            <span class="rh-yesno rh-yesno--nao"><i class="fas fa-times" aria-hidden="true"></i> Não</span>
-            {% endif %}
-          </td>
-          <td>
-            <div class="rh-docconfig-actions">
-              <button type="button" class="rh-icon-btn rh-docconfig-edit-btn" data-docconfig-edit="{{ t.pk }}" title="Editar" aria-label="Editar {{ t.nome }}">
-                <i class="fas fa-pen" aria-hidden="true"></i>
-              </button>
-              <form method="post" class="rh-docconfig-delete-form" onsubmit="return confirm('Excluir este tipo de documento?');">
-                {% csrf_token %}
-                <input type="hidden" name="acao" value="excluir">
-                <input type="hidden" name="tipo_id" value="{{ t.pk }}">
-                <button type="submit" class="rh-icon-btn rh-icon-btn--danger" title="Excluir" aria-label="Excluir {{ t.nome }}">
-                  <i class="fas fa-trash" aria-hidden="true"></i>
-                </button>
-              </form>
+    <aside class="rh-docs-preview" id="rh-docs-preview" aria-live="polite">
+      <h3 class="rh-docs-preview__title">Prévia do kit</h3>
+      <p class="rh-docs-preview__context" id="rh-docs-preview-context">{{ cargo_ativo.nome }}</p>
+      <div class="rh-docs-preview__stats" id="rh-docs-preview-stats">
+        <span><strong id="rh-preview-total">—</strong> documentos</span>
+        <span><strong id="rh-preview-obr">—</strong> obrigatórios</span>
+      </div>
+      <ul class="rh-docs-preview__list" id="rh-docs-preview-list"></ul>
+    </aside>
+    {% else %}
+    <div class="rh-docs-workspace rh-docs-workspace--empty">
+      <p class="rh-empty">Cadastre um cargo à esquerda para começar.</p>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+</div>
+
+<div class="rh-docs-modal-root" id="rh-docs-modal" hidden aria-hidden="true">
+  <div class="rh-docs-modal" role="dialog" aria-labelledby="rh-docs-modal-title" aria-modal="true">
+    <header class="rh-docs-modal__header">
+      <div>
+        <h2 class="rh-docs-modal__title" id="rh-docs-modal-title">Novo documento</h2>
+        <p class="rh-docs-modal__subtitle" id="rh-docs-modal-subtitle">Adicione ao catálogo de exigências da admissão.</p>
+      </div>
+      <button type="button" class="rh-modal__close" id="rh-docs-modal-close" aria-label="Fechar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <form method="post" class="rh-docs-modal__form" id="rh-docs-modal-form">
+      {% csrf_token %}
+      <input type="hidden" name="acao" id="rh-docs-modal-acao" value="criar">
+      <input type="hidden" name="tipo_id" id="rh-docs-modal-tipo-id" value="">
+      <input type="hidden" name="painel" value="{{ painel }}">
+      <input type="hidden" name="cargo_context" id="rh-docs-cargo-context" value="">
+      <input type="hidden" name="aplica_a" id="id_aplica_a_modal" value="todos">
+      {% if cargo_id %}<input type="hidden" name="cargo_id" value="{{ cargo_id }}">{% endif %}
+
+      <fieldset class="rh-docs-modal__scope" id="rh-docs-modal-scope">
+        <legend class="rh-docs-modal__scope-legend">Aplica-se a <span class="rh-required">*</span></legend>
+        <div class="rh-docs-scope-options" id="rh-docs-scope-options" role="radiogroup" aria-label="Escopo do documento">
+          <label class="rh-docs-scope-option">
+            <input type="radio" name="rh_docs_scope_choice" value="todos" class="js-docs-scope-radio" checked>
+            <span class="rh-docs-scope-option__body">
+              <strong>Para todos</strong>
+              <span>Toda admissão, independente do cargo</span>
+            </span>
+          </label>
+          <label class="rh-docs-scope-option">
+            <input type="radio" name="rh_docs_scope_choice" value="por_cargo" class="js-docs-scope-radio">
+            <span class="rh-docs-scope-option__body">
+              <strong>Por cargo específico</strong>
+              <span>Documento extra — marque os cargos abaixo</span>
+            </span>
+          </label>
+        </div>
+        <p class="rh-docs-modal__scope-readonly" id="rh-docs-modal-scope-readonly" hidden></p>
+        <p class="rh-docs-modal__scope-hint" id="rh-docs-modal-scope-hint">
+          Entra em toda admissão, independente do cargo.
+        </p>
+        <div class="rh-docs-modal__cargos" id="rh-docs-modal-cargos" hidden>
+          <p class="rh-docs-modal__cargos-label">Cargos que exigem este documento</p>
+          {% if cargos %}
+          <ul class="rh-docs-modal__cargos-list">
+            {% for c in cargos %}
+            <li>
+              <label class="rh-docs-modal__cargo-item">
+                <input type="checkbox" name="cargos_aplicaveis" value="{{ c.pk }}" class="js-docs-cargo-pick">
+                <span>{{ c.nome }}</span>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="rh-muted rh-docs-modal__cargos-empty">Cadastre cargos na aba <strong>Por cargo</strong> antes de vincular.</p>
+          {% endif %}
+        </div>
+      </fieldset>
+
+      <div class="rh-form-field">
+        <label for="id_nome_modal">Nome do documento <span class="rh-required">*</span></label>
+        <input type="text" name="nome" id="id_nome_modal" class="rh-input" required
+               placeholder="Ex: NR-35 – Trabalho em Altura" autocomplete="off">
+        <p class="rh-docs-modal__field-hint">Use o nome que o candidato e o RH reconhecem no dia a dia.</p>
+      </div>
+
+      <div class="rh-form-field">
+        <label for="id_categoria_modal">Categoria</label>
+        <select name="categoria" id="id_categoria_modal" class="rh-select">
+          {% for val, label in categorias %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <p class="rh-docs-modal__field-hint">Organiza a lista no portal e na etapa de coleta.</p>
+      </div>
+
+      <div class="rh-form-field">
+        <label for="id_instrucoes_modal">Instruções para o candidato</label>
+        <input type="text" name="instrucoes_portal" id="id_instrucoes_modal" class="rh-input" maxlength="200"
+               placeholder="Ex: Envie frente e verso em PDF ou foto legível">
+        <p class="rh-docs-modal__field-hint">Texto curto exibido abaixo do nome no portal (opcional).</p>
+      </div>
+
+      <div class="rh-docs-modal__block">
+        <div class="rh-docs-option-row">
+          <div class="rh-docs-option-row__text">
+            <span class="rh-docs-option-row__label">Tem validade</span>
+            <span class="rh-docs-option-row__desc">Gera alerta quando estiver perto de vencer</span>
+          </div>
+          <label class="rh-toggle rh-toggle--sm">
+            <input type="checkbox" name="tem_validade" id="id_tem_validade_modal" class="rh-docconfig-tem-validade">
+            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div class="rh-docs-validade-panel" id="rh-docs-validade-panel" hidden>
+          <label class="rh-docs-validade-panel__label" for="id_dias_validade_modal">Validade (dias)</label>
+          <div class="rh-docs-validade-panel__row">
+            <input type="number" name="dias_validade" id="id_dias_validade_modal"
+                   class="rh-input rh-docconfig-dias-validade" min="1" max="3650" value="365">
+            <div class="rh-docs-validade-presets" role="group" aria-label="Atalhos de validade">
+              <button type="button" class="rh-docs-preset-btn js-docs-preset-dias" data-dias="90">90d</button>
+              <button type="button" class="rh-docs-preset-btn js-docs-preset-dias" data-dias="365">1 ano</button>
+              <button type="button" class="rh-docs-preset-btn js-docs-preset-dias" data-dias="730">2 anos</button>
             </div>
-          </td>
-        </tr>
-        <tr class="rh-docconfig-edit-row" id="docconfig-edit-{{ t.pk }}" hidden>
-          <td colspan="7">
-            <div class="rh-docconfig-edit-inner">
-              <form method="post" class="rh-docconfig-form rh-docconfig-form--edit rh-docconfig-form--novo">
-                {% csrf_token %}
-                <input type="hidden" name="acao" value="editar">
-                <input type="hidden" name="tipo_id" value="{{ t.pk }}">
+          </div>
+        </div>
+      </div>
 
-                <div class="rh-docconfig-novo-row rh-docconfig-novo-row--fields">
-                  <div class="rh-form-field rh-docconfig-novo-name">
-                    <label for="{{ form_edit.nome.id_for_label }}">Nome do documento <span class="rh-required">*</span></label>
-                    {{ form_edit.nome }}
-                  </div>
-                  <div class="rh-form-field rh-docconfig-novo-aplica">
-                    <label for="{{ form_edit.aplica_a.id_for_label }}">Aplica-se a</label>
-                    {{ form_edit.aplica_a }}
-                  </div>
-                </div>
+      <div class="rh-docs-modal__block">
+        <div class="rh-docs-option-row">
+          <div class="rh-docs-option-row__text">
+            <span class="rh-docs-option-row__label">Obrigatório</span>
+            <span class="rh-docs-option-row__desc">Bloqueia o avanço da admissão se estiver pendente</span>
+          </div>
+          <label class="rh-toggle rh-toggle--sm">
+            <input type="checkbox" name="obrigatorio" id="id_obrigatorio_modal" checked>
+            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+          </label>
+        </div>
+      </div>
 
-                <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--cargos" data-aplica-panel="por_cargo" {% if t.aplica_a != 'por_cargo' %}hidden{% endif %}>
-                  <p class="rh-docconfig-aplica-panel-title">Selecionar Cargos específicos</p>
-                  <div class="rh-checkbox-grid">{{ form_edit.cargos_aplicaveis }}</div>
-                </div>
+      <div class="rh-docs-modal__block">
+        <div class="rh-docs-option-row">
+          <div class="rh-docs-option-row__text">
+            <span class="rh-docs-option-row__label">Ativo</span>
+            <span class="rh-docs-option-row__desc">Inativos não entram em novas admissões</span>
+          </div>
+          <label class="rh-toggle rh-toggle--sm">
+            <input type="checkbox" name="ativo" id="id_ativo_modal" checked>
+            <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
+          </label>
+        </div>
+      </div>
 
-                <div class="rh-docconfig-aplica-panel rh-docconfig-aplica-panel--obras" data-aplica-panel="por_obra" {% if t.aplica_a != 'por_obra' %}hidden{% endif %}>
-                  <p class="rh-docconfig-aplica-panel-title">Selecionar Obras específicas</p>
-                  <div class="rh-checkbox-grid">{{ form_edit.obras_aplicaveis }}</div>
-                </div>
-
-                <div class="rh-docconfig-novo-row rh-docconfig-novo-row--bottom">
-                  <div class="rh-form-field rh-docconfig-novo-dias">
-                    <label for="{{ form_edit.dias_validade.id_for_label }}">Validade (dias)</label>
-                    {{ form_edit.dias_validade }}
-                  </div>
-                  <label class="rh-toggle">
-                    {{ form_edit.tem_validade }}
-                    <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
-                    <span class="rh-toggle-label">Possui validade</span>
-                  </label>
-                  <label class="rh-toggle">
-                    {{ form_edit.obrigatorio }}
-                    <span class="rh-toggle-track"><span class="rh-toggle-thumb"></span></span>
-                    <span class="rh-toggle-label">Obrigatório</span>
-                  </label>
-                </div>
-
-                <div class="rh-docconfig-form-actions">
-                  <button type="submit" class="rh-btn rh-btn-primary"><i class="fas fa-save" aria-hidden="true"></i> Salvar alterações</button>
-                  <button type="button" class="rh-btn rh-btn-outline rh-docconfig-edit-cancel" data-docconfig-edit="{{ t.pk }}">Cancelar</button>
-                </div>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="7" class="rh-empty">Nenhum tipo cadastrado.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <footer class="rh-docs-modal__footer">
+        <button type="button" class="rh-btn rh-btn-outline" id="rh-docs-modal-cancel">Cancelar</button>
+        <button type="submit" class="rh-btn rh-btn-primary" id="rh-docs-modal-submit">
+          <i class="fas fa-check" aria-hidden="true"></i> Salvar documento
+        </button>
+      </footer>
+    </form>
   </div>
 </div>
 
-<script>
-(function () {
-  var novoBtn = document.getElementById('docconfig-novo-btn');
-  var novoPanel = document.getElementById('docconfig-novo-panel');
-  var novoCancel = document.getElementById('docconfig-novo-cancel');
-
-  function closeAllEdits() {
-    document.querySelectorAll('.rh-docconfig-edit-row').forEach(function (row) {
-      row.hidden = true;
-    });
-  }
-
-  function syncAplicaPanels(scope) {
-    var root = scope || document;
-    root.querySelectorAll('form').forEach(function (form) {
-      var select = form.querySelector('.rh-aplica-a-select, select[name="aplica_a"]');
-      if (!select) return;
-      function update() {
-        var val = select.value;
-        form.querySelectorAll('[data-aplica-panel]').forEach(function (panel) {
-          panel.hidden = panel.getAttribute('data-aplica-panel') !== val;
-        });
-      }
-      select.removeEventListener('change', select._rhAplicaHandler);
-      select._rhAplicaHandler = update;
-      select.addEventListener('change', update);
-      update();
-    });
-  }
-
-  function syncValidadeFields(scope) {
-    var root = scope || document;
-    root.querySelectorAll('form').forEach(function (form) {
-      var temValidade = form.querySelector('.rh-docconfig-tem-validade, input[name="tem_validade"]');
-      var diasInput = form.querySelector('.rh-docconfig-dias-validade, input[name="dias_validade"]');
-      if (!temValidade || !diasInput) return;
-      function update() {
-        diasInput.disabled = !temValidade.checked;
-      }
-      temValidade.removeEventListener('change', temValidade._rhValidadeHandler);
-      temValidade._rhValidadeHandler = update;
-      temValidade.addEventListener('change', update);
-      update();
-    });
-  }
-
-  if (novoBtn && novoPanel) {
-    novoBtn.addEventListener('click', function () {
-      var open = novoPanel.hidden;
-      closeAllEdits();
-      novoPanel.hidden = !open;
-      novoBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) {
-        syncAplicaPanels(novoPanel);
-        syncValidadeFields(novoPanel);
-      }
-    });
-  }
-
-  if (novoCancel && novoPanel && novoBtn) {
-    novoCancel.addEventListener('click', function () {
-      novoPanel.hidden = true;
-      novoBtn.setAttribute('aria-expanded', 'false');
-    });
-  }
-
-  document.querySelectorAll('.rh-docconfig-edit-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var id = btn.getAttribute('data-docconfig-edit');
-      var row = document.getElementById('docconfig-edit-' + id);
-      if (!row) return;
-      if (novoPanel) novoPanel.hidden = true;
-      if (novoBtn) novoBtn.setAttribute('aria-expanded', 'false');
-      var willOpen = row.hidden;
-      closeAllEdits();
-      row.hidden = !willOpen;
-      if (willOpen) {
-        syncAplicaPanels(row);
-        syncValidadeFields(row);
-      }
-    });
-  });
-
-  document.querySelectorAll('.rh-docconfig-edit-cancel').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var id = btn.getAttribute('data-docconfig-edit');
-      var row = document.getElementById('docconfig-edit-' + id);
-      if (row) row.hidden = true;
-    });
-  });
-
-  syncAplicaPanels(novoPanel);
-  syncValidadeFields(novoPanel);
-})();
-</script>
+<script src="{% static 'recursos_humanos/js/rh-docs-config.js' %}?v=8"></script>
 {% endblock %}

@@ -3,61 +3,97 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Documentos para admissão — Lplan</title>
+  <title>Portal de admissão — LPLAN</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       line-height: 1.6;
       color: #374151;
-      max-width: 560px;
+      max-width: 600px;
       margin: 0 auto;
-      padding: 24px 20px;
-      background-color: #f9fafb;
+      padding: 24px 16px;
+      background-color: #f3f4f6;
     }
     .email-container {
       background: #ffffff;
       border: 1px solid #e5e7eb;
-      border-radius: 10px;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
     }
     .email-header {
-      padding: 20px 24px;
+      padding: 24px 28px 20px;
       border-bottom: 1px solid #e5e7eb;
-      background: #ffffff;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      text-align: center;
     }
-    .brand-name {
-      font-size: 22px;
-      font-weight: 700;
-      color: #0e6da8;
-      margin: 0 0 4px 0;
+    .email-logo {
+      display: block;
+      margin: 0 auto 12px;
+      max-width: 160px;
+      height: auto;
     }
     .brand-sub {
       font-size: 11px;
       color: #64748b;
-      letter-spacing: .08em;
+      letter-spacing: .1em;
       text-transform: uppercase;
       margin: 0;
     }
     .email-header-meta {
-      margin: 12px 0 0 0;
+      margin: 10px 0 0 0;
       font-size: 12px;
-      color: #64748b;
+      color: #94a3b8;
     }
     .email-body {
-      padding: 24px;
+      padding: 28px;
     }
     .email-body p {
       margin: 0 0 16px 0;
       font-size: 15px;
+      color: #374151;
+    }
+    .email-intro {
+      font-size: 16px;
+      color: #111827;
+    }
+    .pendencias-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 20px 0;
+    }
+    .pendencias-box h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #92400e;
+    }
+    .pendencias-box ul {
+      margin: 0 0 14px 0;
+      padding-left: 18px;
+      font-size: 14px;
+      color: #78350f;
+    }
+    .pendencias-box ul:last-child {
+      margin-bottom: 0;
+    }
+    .pendencias-box li {
+      margin: 4px 0;
+    }
+    .pendencias-detalhe {
+      color: #a16207;
     }
     .btn-wrap {
-      margin: 24px 0;
+      margin: 28px 0 20px;
       text-align: center;
     }
     .btn {
       display: inline-block;
-      padding: 12px 24px;
+      padding: 14px 28px;
       background: #2563eb;
       color: #ffffff !important;
       text-decoration: none;
@@ -70,61 +106,160 @@
       border: 1px solid #bae6fd;
       border-radius: 8px;
       padding: 12px 16px;
-      font-size: 14px;
+      font-size: 13px;
       color: #0369a1;
-      margin: 16px 0 0 0;
+      margin: 0;
     }
     .email-footer {
-      padding: 16px 24px;
+      padding: 18px 28px;
       border-top: 1px solid #f3f4f6;
       font-size: 12px;
       color: #9ca3af;
       background: #f8fafc;
     }
     .email-footer p {
-      margin: 0 0 4px 0;
+      margin: 0 0 6px 0;
+    }
+    .email-footer a {
+      color: #2563eb;
+    }
+    .pin-box {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin: 0 0 24px;
+      text-align: center;
+    }
+    .pin-box h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #166534;
+    }
+    .pin-code {
+      margin: 0 0 10px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: .25em;
+      color: #14532d;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .pin-note {
+      margin: 0;
+      font-size: 13px;
+      color: #15803d;
+      line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <div class="email-container">
     <div class="email-header">
-      <p class="brand-name">Lplan</p>
+      {% if logo_cid %}
+      <img src="{{ logo_cid }}" alt="LPLAN Engenharia Integrada" class="email-logo" width="160">
+      {% elif logo_url %}
+      <img src="{{ logo_url }}" alt="LPLAN Engenharia Integrada" class="email-logo" width="160">
+      {% endif %}
       <p class="brand-sub">Engenharia integrada</p>
       <p class="email-header-meta">Recursos Humanos · Comunicação automática</p>
     </div>
     <div class="email-body">
-      <p>Olá, <strong>{{ nome }}</strong>!</p>
-      {% if lembrete and documentos_pendentes %}
+      <p class="email-intro">Olá, <strong>{{ nome }}</strong>!</p>
+
+      {% if solicitacao_pendencias and pendencias_coleta %}
+      <p>
+        O RH identificou itens pendentes no seu cadastro de admissão.
+        Acesse o portal pelo botão abaixo e complete <strong>apenas o que está listado</strong>:
+      </p>
+      <div class="pendencias-box">
+        {% regroup pendencias_coleta by tipo as grupos_pendencias %}
+        {% for grupo in grupos_pendencias %}
+        <h3>{% if grupo.grouper == 'dado' %}Dados pessoais{% else %}Documentos{% endif %}</h3>
+        <ul>
+          {% for item in grupo.list %}
+          <li>
+            {{ item.label }}
+            {% if item.detalhe %}<span class="pendencias-detalhe"> — {{ item.detalhe }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+      </div>
+      {% elif primeiro_acesso and pendencias_coleta %}
+      <p>
+        Sua admissão na LPLAN foi iniciada.
+        Acesse o portal e envie os itens abaixo (coleta inicial — todos ficam liberados no primeiro acesso):
+      </p>
+      <div class="pendencias-box">
+        {% regroup pendencias_coleta by tipo as grupos_pendencias %}
+        {% for grupo in grupos_pendencias %}
+        <h3>{% if grupo.grouper == 'dado' %}Dados pessoais{% else %}Documentos{% endif %}</h3>
+        <ul>
+          {% for item in grupo.list %}
+          <li>
+            {{ item.label }}
+            {% if item.detalhe %}<span class="pendencias-detalhe"> — {{ item.detalhe }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+      </div>
+      {% elif lembrete and documentos_pendentes %}
       <p>
         Lembramos que ainda há documentos pendentes na sua admissão.
         Acesse o portal pelo link abaixo para enviá-los:
       </p>
-      <ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 15px;">
-        {% for doc in documentos_pendentes %}
-        <li>{{ doc }}</li>
-        {% endfor %}
-      </ul>
+      <div class="pendencias-box">
+        <h3>Documentos</h3>
+        <ul>
+          {% for doc in documentos_pendentes %}
+          <li>{{ doc }}</li>
+          {% endfor %}
+        </ul>
+      </div>
       {% elif reenvio and documento_nome %}
       <p>
         O documento <strong>{{ documento_nome }}</strong> {{ motivo_texto }}
         e precisa ser reenviado pelo portal abaixo.
       </p>
+      <p class="info-note" style="margin-top:16px;">
+        No portal, somente este documento estará liberado para envio.
+      </p>
       {% else %}
       <p>
-        Sua admissão na Lplan foi iniciada.
-        Para concluir o processo, envie seus documentos pelo link abaixo:
+        Sua admissão na LPLAN foi iniciada.
+        Para concluir o processo, envie seus dados e documentos pelo link abaixo:
       </p>
       {% endif %}
-      <div class="btn-wrap">
-        <a href="{{ link }}" class="btn">{% if lembrete %}Acessar portal e enviar documentos{% elif reenvio %}Acessar portal e reenviar{% else %}Enviar meus documentos{% endif %}</a>
+
+      {% if portal_pin %}
+      <div class="pin-box">
+        <h3>Código de acesso ao portal</h3>
+        <p class="pin-code">{{ portal_pin }}</p>
+        <p class="pin-note">
+          Na primeira tela do link, informe este código de 6 dígitos.
+          Não compartilhe o código com terceiros.
+        </p>
       </div>
-      <p class="info-note">⏰ O link é válido por 30 dias.</p>
+      {% endif %}
+
+      <div class="btn-wrap">
+        <a href="{{ link }}" class="btn">
+          {% if solicitacao_pendencias %}Completar pendências no portal
+          {% elif primeiro_acesso %}Acessar portal de admissão
+          {% elif lembrete %}Acessar portal e enviar documentos
+          {% elif reenvio %}Acessar portal e reenviar documento
+          {% else %}Acessar portal de admissão{% endif %}
+        </a>
+      </div>
+      <p class="info-note">O link é válido por 30 dias. Em caso de dúvidas, fale com o RH.</p>
     </div>
     <div class="email-footer">
-      <p>Em caso de dúvidas, entre em contato com o setor de RH pelo e-mail
-        <a href="mailto:rh@lplan.com.br">rh@lplan.com.br</a>.</p>
-      <p>Mensagem automática. Não responda a este e-mail.</p>
+      <p>Dúvidas: <a href="mailto:rh@lplan.com.br">rh@lplan.com.br</a></p>
+      <p>Mensagem automática — não responda a este e-mail.</p>
     </div>
   </div>
 </body>

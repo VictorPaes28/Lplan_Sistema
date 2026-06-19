@@ -314,9 +314,13 @@ LOGIN_REDIRECT_URL = '/select-system/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 # E-mail (recuperação de senha): em desenvolvimento o link sai no console do servidor
+# Backend legível (texto + resumo do portal) — sem dump base64 de HTML/logo no terminal.
 # Em produção, configure no .env: EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_USE_SSL/EMAIL_USE_TLS, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 # Remetente das mensagens enviadas pelo sistema (notificações, diários, etc.). Contato para dúvidas: suporte@lplan.com.br
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'core.email_backends.ReadableConsoleEmailBackend',
+)
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '25'))
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 'yes')
@@ -524,6 +528,10 @@ WHATSAPP_BUSINESS_ACCOUNT_ID = os.environ.get('WHATSAPP_BUSINESS_ACCOUNT_ID', ''
 # RH/DP: telefone para notificações WhatsApp
 # Formato E.164: +5581999999999
 RH_WHATSAPP_NOTIFICACAO = os.environ.get('RH_WHATSAPP_NOTIFICACAO', '')
+# Envio de link/PIN do portal ao colaborador (e-mail e WhatsApp). Desligado: gestor preenche no sistema.
+RH_ENVIO_PORTAL_CANDIDATO_ATIVO = os.environ.get('RH_ENVIO_PORTAL_CANDIDATO_ATIVO', 'False').lower() in (
+    '1', 'true', 'yes', 'on',
+)
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')

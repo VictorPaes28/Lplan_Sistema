@@ -1,0 +1,153 @@
+{% extends "recursos_humanos/base_rh.html" %}
+
+{% block rh_content %}
+<div class="rh-page">
+  <div class="rh-page-header">
+    <div>
+      <h1 class="rh-title">Papéis do fluxo</h1>
+      <p class="rh-subtitle">Quem pode atuar em cada etapa da admissão.</p>
+    </div>
+  </div>
+
+  <form method="post" class="rh-papel-fluxo-form">
+    {% csrf_token %}
+
+    <p class="rh-papel-fluxo-hint">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
+      Nas etapas configuráveis (3 e 4): lista vazia = <strong>qualquer usuário do RH</strong>.
+    Etapa 1: quem cria a admissão. Etapa 2: preferencialmente o mesmo — qualquer RH pode conferir.
+    </p>
+
+    <div class="rh-papel-fluxo-grid">
+      {% for item in forms_papeis %}
+      {% with papel=item.papel form=item.form meta=item.meta %}
+      <section class="rh-card rh-papel-card{% if meta.automatico %} rh-papel-card--auto{% endif %}" id="papel-{{ papel.codigo }}">
+        <header class="rh-papel-card__head">
+          <p class="rh-papel-card__etapa">Etapa {{ papel.etapa }}</p>
+          <h2 class="rh-papel-card__title">{{ meta.responsavel }}</h2>
+          <p class="rh-muted rh-papel-card__nota">{{ meta.nota }}</p>
+        </header>
+
+        {% if meta.automatico %}
+        <p class="rh-papel-card__auto">
+          <i class="fas fa-magic" aria-hidden="true"></i>
+          {{ meta.auto_msg }}
+        </p>
+        {% else %}
+        <div class="rh-form-field">
+          <label class="rh-papel-card__usuarios-label">Usuários responsáveis</label>
+          <div class="rh-search-wrap rh-papel-usuario-search">
+            <i class="fas fa-search rh-search-icon" aria-hidden="true"></i>
+            <input
+              type="search"
+              class="rh-input rh-search-input js-papel-usuario-busca"
+              placeholder="Buscar usuário…"
+              autocomplete="off"
+              enterkeyhint="search"
+              aria-label="Buscar responsável em {{ meta.responsavel }}"
+            >
+          </div>
+          <p class="rh-muted rh-papel-busca-status js-papel-busca-status" aria-live="polite"></p>
+          <div class="rh-checkbox-list rh-papel-checkbox-list" data-papel-user-list>
+            {{ form.usuarios }}
+          </div>
+          <p class="rh-papel-lista-vazia rh-muted" data-papel-lista-vazia hidden>
+            Nenhum usuário encontrado.
+          </p>
+          {% if form.usuarios.errors %}
+          <p class="rh-form-error">{{ form.usuarios.errors|join:', ' }}</p>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+      {% endwith %}
+      {% endfor %}
+    </div>
+
+    <div class="rh-papel-fluxo-actions">
+      <button type="submit" class="rh-btn rh-btn-primary">
+        <i class="fas fa-save" aria-hidden="true"></i> Salvar responsáveis
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  function normalizar(texto) {
+    return (texto || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  function linhasUsuario(lista) {
+    var grupo = lista.querySelector('[id$="-usuarios"]');
+    if (grupo) {
+      return Array.prototype.slice.call(grupo.children).filter(function (el) {
+        return el.tagName === 'DIV';
+      });
+    }
+    return Array.prototype.slice.call(lista.querySelectorAll('li, :scope > div'));
+  }
+
+  function filtrarCard(campo) {
+    var card = campo.closest('.rh-papel-card');
+    if (!card) return;
+    var lista = card.querySelector('[data-papel-user-list]');
+    var status = card.querySelector('.js-papel-busca-status');
+    var vazia = card.querySelector('[data-papel-lista-vazia]');
+    if (!lista) return;
+
+    var termo = normalizar(campo.value);
+    var itens = linhasUsuario(lista);
+    var visiveis = 0;
+
+    itens.forEach(function (row) {
+      var label = row.querySelector('label');
+      var texto = normalizar(label ? label.textContent : row.textContent);
+      var match = !termo || texto.indexOf(termo) !== -1;
+      row.classList.toggle('is-filtered-out', !match);
+      row.removeAttribute('hidden');
+      if (match) visiveis += 1;
+    });
+
+    if (vazia) {
+      vazia.hidden = visiveis > 0 || itens.length === 0;
+    }
+    if (!status) return;
+    if (!termo) {
+      status.textContent = '';
+    } else if (visiveis === 0) {
+      status.textContent = 'Nenhum resultado.';
+    } else if (visiveis === 1) {
+      status.textContent = '1 encontrado.';
+    } else {
+      status.textContent = visiveis + ' encontrados.';
+    }
+  }
+
+  function init() {
+    document.querySelectorAll('.js-papel-usuario-busca').forEach(function (input) {
+      input.addEventListener('input', function () { filtrarCard(input); });
+      input.addEventListener('keyup', function () { filtrarCard(input); });
+      input.addEventListener('search', function () { filtrarCard(input); });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          input.value = '';
+          filtrarCard(input);
+          input.blur();
+        }
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+{% endblock %}

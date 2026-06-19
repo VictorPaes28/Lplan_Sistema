@@ -1,88 +1,76 @@
 {% extends "recursos_humanos/base_rh.html" %}
 
-{% block rh_breadcrumb %}
-<nav class="rh-breadcrumb" aria-label="Navegação">
-  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="rh-breadcrumb-current">Prazos e Alertas</span>
-</nav>
-{% endblock %}
-
 {% block rh_content %}
-<div class="rh-page">
+<div class="rh-page rh-alertas-page">
   <div class="rh-page-header">
     <div>
       <h1 class="rh-title">Prazos e Alertas</h1>
-      <p class="rh-subtitle">Monitoramento de documentos, treinamentos e admissões em tempo real</p>
+      <p class="rh-subtitle">Pendências do RH — cada item diz o problema e para onde o clique leva.</p>
     </div>
     <button type="button" class="rh-btn rh-btn-outline" id="rh-alertas-config-btn">
-      <i class="fas fa-bell" aria-hidden="true"></i> Configurar alertas
+      <i class="fas fa-cog" aria-hidden="true"></i> Configurar
     </button>
   </div>
 
-  <div class="rh-summary-grid">
-    <div class="rh-summary-card rh-summary-yellow">
-      <i class="fas fa-clock" aria-hidden="true"></i>
-      <div>
-        <strong>{{ resumo.vencendo }}</strong>
-        <span>Documentos vencendo ({{ resumo.dias_antecedencia_documentos }} dias)</span>
-      </div>
-    </div>
-    <div class="rh-summary-card rh-summary-red">
-      <i class="fas fa-times-circle" aria-hidden="true"></i>
-      <div><strong>{{ resumo.vencidos }}</strong><span>Documentos vencidos</span></div>
-    </div>
-    <div class="rh-summary-card rh-summary-orange">
-      <i class="fas fa-book" aria-hidden="true"></i>
-      <div><strong>{{ resumo.treinamentos }}</strong><span>Treinamentos pendentes</span></div>
-    </div>
-    <div class="rh-summary-card rh-summary-green">
-      <i class="fas fa-user-plus" aria-hidden="true"></i>
-      <div><strong>{{ resumo.admissoes }}</strong><span>Admissões em andamento</span></div>
-    </div>
-    <div class="rh-summary-card rh-summary-orange">
-      <i class="fas fa-file-contract" aria-hidden="true"></i>
-      <div><strong>{{ resumo.contratos }}</strong><span>Prazos de contrato</span></div>
+  <div class="rh-alertas-toolbar">
+    <div class="rh-alertas-filters" role="tablist" aria-label="Filtrar alertas">
+      <button type="button" class="rh-alertas-filter is-active" data-filter="all" role="tab" aria-selected="true">
+        Todos <span class="rh-alertas-filter__count">{{ resumo.total }}</span>
+      </button>
+      <button type="button" class="rh-alertas-filter" data-filter="urgente" role="tab" aria-selected="false">
+        Urgentes <span class="rh-alertas-filter__count rh-alertas-filter__count--red">{{ resumo.urgentes }}</span>
+      </button>
+      <button type="button" class="rh-alertas-filter" data-filter="doc" role="tab" aria-selected="false">
+        Documentos <span class="rh-alertas-filter__count">{{ resumo.documentos }}</span>
+      </button>
+      <button type="button" class="rh-alertas-filter" data-filter="fluxo" role="tab" aria-selected="false">
+        Admissões e contratos <span class="rh-alertas-filter__count">{{ resumo.fluxo }}</span>
+      </button>
     </div>
   </div>
+  <div class="rh-search-wrap rh-alertas-search rh-alertas-search--full">
+    <i class="fas fa-search rh-search-icon" aria-hidden="true"></i>
+    <input
+      type="search"
+      class="rh-input rh-search-input js-rh-alertas-busca"
+      placeholder="Buscar colaborador ou documento…"
+      autocomplete="off"
+      aria-label="Buscar alertas"
+    >
+  </div>
 
-  <div class="rh-card">
-    <div class="rh-card-header-row rh-pad">
-      <h3 class="rh-card-title">Todos os alertas</h3>
-      <span class="rh-muted">{{ alertas|length }} itens</span>
-    </div>
-    <div class="rh-alert-list">
-      {% for a in alertas %}
-      <div class="rh-alert-row">
-        <span class="rh-alert-dot rh-alert-{{ a.urgencia }}" aria-hidden="true"></span>
-        <div class="rh-alert-body">
-          <strong>{{ a.colaborador_nome }}</strong>
-          <span class="rh-muted">· {{ a.tipo }}</span>
-          <p class="rh-muted">{{ a.detalhe }}</p>
+  <p class="rh-alertas-legenda">
+    <strong>O que aconteceu</strong> em cima · <strong>de quem é</strong> no meio · <strong>para onde vai</strong> ao clicar em «Abrir…»
+  </p>
+
+  <div class="rh-alertas-panel">
+    <div class="rh-alert-list" id="rh-alertas-list">
+      {% regroup alertas by urgencia as por_urgencia %}
+      {% for grupo in por_urgencia %}
+      <section class="rh-alertas-grupo" data-grupo-urgencia="{{ grupo.grouper }}">
+        <header class="rh-alertas-grupo__head rh-alertas-grupo__head--{{ grupo.grouper }}">
+          {% if grupo.grouper == 'red' %}
+          <i class="fas fa-circle-exclamation" aria-hidden="true"></i> Urgente
+          {% elif grupo.grouper == 'yellow' %}
+          <i class="fas fa-clock" aria-hidden="true"></i> Atenção
+          {% else %}
+          <i class="fas fa-circle-check" aria-hidden="true"></i> Em dia
+          {% endif %}
+          <span class="rh-alertas-grupo__count">{{ grupo.list|length }}</span>
+        </header>
+        <div class="rh-alertas-grupo__list">
+          {% for a in grupo.list %}
+          {% include "recursos_humanos/includes/alerta_row.html" with a=a %}
+          {% endfor %}
         </div>
-        <div class="rh-alert-meta">
-          <div class="rh-alert-date-col">
-            <span class="rh-alert-date">{{ a.prazo }}</span>
-            <span class="rh-alert-days {% if a.dias_restantes < 0 %}bad{% elif a.dias_restantes <= 7 %}warn{% else %}ok{% endif %}">
-              {% if a.dias_restantes < 0 %}{% widthratio a.dias_restantes 1 -1 %} dias de atraso
-              {% elif a.dias_restantes == 0 %}Hoje
-              {% else %}{{ a.dias_restantes }} dias{% endif %}
-            </span>
-          </div>
-          <span class="rh-urgency-badge rh-urgency-{{ a.urgencia }}">
-            {% if a.urgencia == 'red' %}Urgente{% elif a.urgencia == 'yellow' %}Atenção{% else %}Informativo{% endif %}
-          </span>
-        </div>
-        {% if a.acao_extra.tipo == 'contrato' %}
-        <button type="button" class="rh-alert-action js-rh-prazo-decidir" data-prazo-pk="{{ a.acao_extra.prazo_id }}">Decidir <i class="fas fa-gavel" aria-hidden="true"></i></button>
-        {% else %}
-        <a href="{{ a.url }}" class="rh-alert-action">{{ a.acao }} <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-        {% endif %}
-      </div>
+      </section>
       {% empty %}
-      <p class="rh-empty rh-pad">Nenhum alerta no momento.</p>
+      <p class="rh-empty">Nenhum alerta no momento.</p>
       {% endfor %}
     </div>
+    <p class="rh-empty rh-alertas-empty-filter" id="rh-alertas-empty-filter" hidden>
+      Nenhum alerta neste filtro.
+    </p>
   </div>
 </div>
 
@@ -92,7 +80,7 @@
     <header class="rh-modal-header">
       <div>
         <h2 id="rh-alertas-config-title" class="rh-modal-title">Configurar alertas</h2>
-        <p class="rh-modal-subtitle">Defina quando e como o sistema notifica o RH</p>
+        <p class="rh-modal-subtitle">Antecedência, canais de aviso e quem recebe o e-mail diário.</p>
       </div>
       <button type="button" class="rh-modal-close js-rh-alertas-config-close" aria-label="Fechar">
         <i class="fas fa-times" aria-hidden="true"></i>
@@ -102,10 +90,11 @@
       {% csrf_token %}
       <div class="rh-modal-body-scroll">
         <section class="rh-alertas-config-section">
-          <h3>Antecedência dos alertas</h3>
+          <h3>Antecedência</h3>
+          <p class="rh-muted rh-alertas-config-hint">Define quando documentos e contratos entram nesta lista e com que frequência itens vencidos reaparecem.</p>
           <div class="rh-alertas-antecedencia-list">
             <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_antecedencia_documentos">Documentos e prazos de contrato — avisar com antecedência</label>
+              <label for="id_dias_antecedencia_documentos">Avisar documentos e contratos</label>
               <div class="rh-alertas-antecedencia-control">
                 <div class="rh-days-field">
                   <input type="number" name="dias_antecedencia_documentos" id="id_dias_antecedencia_documentos"
@@ -123,7 +112,7 @@
               </div>
             </div>
             <div class="rh-alertas-antecedencia-row">
-              <label for="id_dias_renotificar_vencidos">Documentos vencidos — renotificar a cada</label>
+              <label for="id_dias_renotificar_vencidos">Renotificar vencidos a cada</label>
               <div class="rh-alertas-antecedencia-control">
                 <div class="rh-days-field">
                   <input type="number" name="dias_renotificar_vencidos" id="id_dias_renotificar_vencidos"
@@ -144,22 +133,23 @@
         </section>
 
         <section class="rh-alertas-config-section">
-          <h3>Canais de notificação</h3>
+          <h3>Canais</h3>
+          <p class="rh-muted rh-alertas-config-hint">E-mail envia um resumo por dia. Notificação no sistema alimenta o sino e o contador da aba Prazos e Alertas.</p>
           <div class="rh-alertas-check-grid">
             <label class="rh-alertas-check-card">
               <input type="checkbox" name="notificar_email" {% if config_alertas.notificar_email %}checked{% endif %}>
-              E-mail para os responsáveis
+              <span>E-mail diário</span>
             </label>
             <label class="rh-alertas-check-card">
               <input type="checkbox" name="notificar_sistema" {% if config_alertas.notificar_sistema %}checked{% endif %}>
-              Notificação no sistema (badge/painel)
+              <span>Sino e badge na aba</span>
             </label>
           </div>
         </section>
 
         <section class="rh-alertas-config-section">
-          <h3>Responsáveis por receber alertas</h3>
-          <p class="rh-muted rh-alertas-config-hint">Estes usuários recebem o e-mail com os alertas, se o canal de e-mail estiver ativo.</p>
+          <h3>Responsáveis do e-mail</h3>
+          <p class="rh-muted rh-alertas-config-hint">Somente quem recebe o resumo por e-mail — não altera quem vê a lista na tela.</p>
           <div class="rh-alertas-check-grid">
             {% for u in usuarios_alertas %}
             <label class="rh-alertas-check-card">
@@ -171,10 +161,10 @@
           </div>
         </section>
       </div>
-      <div class="rh-form-actions rh-pad" style="border-top: 1px solid var(--rh-border, #e5e7eb);">
+      <div class="rh-form-actions rh-pad rh-modal-config-actions">
         <button type="button" class="rh-btn rh-btn-outline js-rh-alertas-config-close">Cancelar</button>
         <button type="submit" class="rh-btn rh-btn-primary" id="rh-alertas-config-save">
-          <i class="fas fa-save" aria-hidden="true"></i> Salvar configurações
+          <i class="fas fa-save" aria-hidden="true"></i> Salvar
         </button>
       </div>
     </form>
@@ -183,21 +173,84 @@
 
 <script>
 (function () {
+  function normalizar(texto) {
+    return (texto || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  var filtroAtivo = 'all';
+  var buscaInput = document.querySelector('.js-rh-alertas-busca');
+  var cards = document.querySelectorAll('.rh-tarefa');
+  var grupos = document.querySelectorAll('.rh-alertas-grupo');
+  var emptyFilter = document.getElementById('rh-alertas-empty-filter');
+
+  function rowVisivel(card) {
+    var termo = buscaInput ? normalizar(buscaInput.value) : '';
+    var texto = normalizar(card.getAttribute('data-search') || '');
+    var matchBusca = !termo || texto.indexOf(termo) !== -1;
+    var urgencia = card.getAttribute('data-urgencia');
+    var categoria = card.getAttribute('data-categoria');
+    var matchFiltro = filtroAtivo === 'all'
+      || (filtroAtivo === 'urgente' && urgencia === 'red')
+      || (filtroAtivo === 'doc' && categoria === 'doc')
+      || (filtroAtivo === 'fluxo' && categoria === 'fluxo');
+    return matchBusca && matchFiltro;
+  }
+
+  function aplicarFiltros() {
+    var visiveis = 0;
+    cards.forEach(function (card) {
+      var show = rowVisivel(card);
+      card.hidden = !show;
+      if (show) visiveis += 1;
+    });
+    grupos.forEach(function (grupo) {
+      var visiveisNoGrupo = grupo.querySelectorAll('.rh-tarefa:not([hidden])').length;
+      grupo.hidden = visiveisNoGrupo === 0;
+    });
+    if (emptyFilter) {
+      emptyFilter.hidden = visiveis > 0 || cards.length === 0;
+    }
+  }
+
+  document.querySelectorAll('.rh-alertas-filter').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      filtroAtivo = btn.getAttribute('data-filter') || 'all';
+      document.querySelectorAll('.rh-alertas-filter').forEach(function (b) {
+        var ativo = b === btn;
+        b.classList.toggle('is-active', ativo);
+        b.setAttribute('aria-selected', ativo ? 'true' : 'false');
+      });
+      aplicarFiltros();
+    });
+  });
+
+  if (buscaInput) {
+    buscaInput.addEventListener('input', aplicarFiltros);
+    buscaInput.addEventListener('search', aplicarFiltros);
+    buscaInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        buscaInput.value = '';
+        aplicarFiltros();
+        buscaInput.blur();
+      }
+    });
+  }
+
   var modal = document.getElementById('rh-alertas-config-modal');
   var openBtn = document.getElementById('rh-alertas-config-btn');
   var form = document.getElementById('rh-alertas-config-form');
   if (!modal || !openBtn || !form) return;
 
   function openModal() {
-    modal.hidden = false;
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('rh-modal-open');
+    window.RhMotion.openRhModal(modal);
   }
 
   function closeModal() {
-    modal.hidden = true;
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('rh-modal-open');
+    window.RhMotion.closeRhModal(modal);
   }
 
   openBtn.addEventListener('click', openModal);
@@ -205,7 +258,7 @@
     el.addEventListener('click', closeModal);
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hidden) closeModal();
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
   });
 
   form.querySelectorAll('.rh-days-spin-btn').forEach(function (btn) {

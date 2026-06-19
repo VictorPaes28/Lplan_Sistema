@@ -1,0 +1,133 @@
+{% load static %}
+<div id="rh-aprovar-requisicao-modal" class="rh-modal" hidden aria-hidden="true" role="dialog" aria-labelledby="rh-aprovar-requisicao-title">
+  <div class="rh-modal-backdrop js-rh-aprovar-requisicao-close" aria-hidden="true"></div>
+  <div class="rh-modal-dialog">
+    <header class="rh-modal-header">
+      <div>
+        <h2 id="rh-aprovar-requisicao-title" class="rh-modal-title">Assinar aprovação</h2>
+        <p class="rh-modal-subtitle">
+          Confirme a aprovação da requisição com sua assinatura.
+          {% if request.user.is_authenticated %}
+          Aprovador: <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+          {% endif %}
+        </p>
+      </div>
+      <button type="button" class="rh-modal-close js-rh-aprovar-requisicao-close" aria-label="Fechar">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </header>
+    <form method="post" action="{{ aprovar_form_url }}" class="rh-modal-body-form" id="rh-aprovar-requisicao-form">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="aprovar_requisicao">
+      <input type="hidden" id="rh-aprovar-signature-data" name="signature_data" value="">
+      <div class="rh-signature-block">
+        <div class="rh-signature-head">
+          <label class="rh-field-label">Assinatura manual <span class="rh-required">*</span></label>
+          <div class="rh-signature-actions">
+            <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="rh-aprovar-use-last-sig">Usar última assinatura</button>
+            <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="rh-aprovar-clear-sig">Limpar</button>
+          </div>
+        </div>
+        <canvas
+          id="rh-aprovar-signature-canvas"
+          class="rh-signature-canvas"
+          height="160"
+          aria-label="Quadro para desenhar assinatura manual"
+        ></canvas>
+        <p class="rh-field-hint">Desenhe sua assinatura para confirmar a aprovação desta requisição.</p>
+      </div>
+      <footer class="rh-modal-footer-actions">
+        <button type="button" class="rh-btn rh-btn-outline js-rh-aprovar-requisicao-close">Cancelar</button>
+        <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check" aria-hidden="true"></i> Confirmar aprovação</button>
+      </footer>
+    </form>
+  </div>
+</div>
+<script src="{% static 'workflow_aprovacao/js/wf_manual_signature.js' %}"></script>
+<script>
+(function () {
+  var modal = document.getElementById('rh-aprovar-requisicao-modal');
+  var openBtn = document.getElementById('rh-aprovar-requisicao-open');
+  var form = document.getElementById('rh-aprovar-requisicao-form');
+  if (!modal || !openBtn) return;
+
+  var uid = {{ request.user.pk|default:"0" }};
+  var sig = null;
+
+  function initSignature() {
+    if (!window.WfManualSignature) return null;
+    return new WfManualSignature({
+      canvasId: 'rh-aprovar-signature-canvas',
+      hiddenId: 'rh-aprovar-signature-data',
+      storageKey: 'lplan_rh_requisicao_signature_u' + uid,
+      fallbackKeys: [
+        'lplan_gestao_last_signature_u' + uid,
+        'lplan_workflow_last_signature_u' + uid,
+      ],
+    });
+  }
+
+  function openModal() {
+    if (!sig) sig = initSignature();
+    if (sig) sig.clear();
+    if (window.RhMotion && window.RhMotion.openRhModal) {
+      window.RhMotion.openRhModal(modal);
+    } else {
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+      modal.classList.add('is-open');
+      document.body.classList.add('rh-modal-open');
+    }
+    setTimeout(function () {
+      var canvas = document.getElementById('rh-aprovar-signature-canvas');
+      if (canvas && typeof canvas.__signatureResize === 'function') canvas.__signatureResize();
+    }, 80);
+  }
+
+  function closeModal() {
+    if (window.RhMotion && window.RhMotion.closeRhModal) {
+      window.RhMotion.closeRhModal(modal);
+    } else {
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('rh-modal-open');
+    }
+  }
+
+  openBtn.addEventListener('click', openModal);
+  modal.querySelectorAll('.js-rh-aprovar-requisicao-close').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
+
+  var useLast = document.getElementById('rh-aprovar-use-last-sig');
+  var clearSig = document.getElementById('rh-aprovar-clear-sig');
+  if (useLast) {
+    useLast.addEventListener('click', function () {
+      if (!sig) sig = initSignature();
+      if (sig) sig.useLast();
+    });
+  }
+  if (clearSig) {
+    clearSig.addEventListener('click', function () {
+      if (!sig) sig = initSignature();
+      if (sig) sig.clear();
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!sig) sig = initSignature();
+      if (!sig || !sig.hasSignature()) {
+        e.preventDefault();
+        alert('Desenhe sua assinatura no quadro antes de confirmar a aprovação.');
+        return;
+      }
+      sig.save();
+    });
+  }
+})();
+</script>

@@ -20,7 +20,13 @@
 
         <h1 class="rh-title">{{ colaborador.nome }}</h1>
 
-        <span class="rh-status rh-status-pill rh-status-{{ colaborador.status }}">{{ colaborador.get_status_display }}</span>
+        <div class="rh-status-stack rh-status-stack--inline">
+
+          <span class="rh-status rh-status-pill rh-status-{{ colaborador.status }} rh-status--{{ colaborador.status_tone }}">{{ colaborador.status_label }}</span>
+
+          <span class="rh-status-hint">{{ colaborador.status_hint }}</span>
+
+        </div>
 
       </div>
 
@@ -78,40 +84,6 @@
 
 
 
-  {% if colaborador.status == 'em_admissao' %}
-  <div class="rh-card rh-pad rh-portal-section">
-    <h3 class="rh-card-title"><i class="fas fa-link" aria-hidden="true"></i> Portal do candidato</h3>
-    <p class="rh-muted">Envie o link para o candidato enviar documentos sem acesso ao sistema.</p>
-
-    {% if portal_url %}
-    <div class="rh-portal-link-row">
-      <input type="text" class="rh-input" id="rh-portal-url" value="{{ portal_url }}" readonly>
-      <button type="button" class="rh-btn rh-btn-outline" id="rh-portal-copy-btn">
-        <i class="fas fa-copy" aria-hidden="true"></i> Copiar
-      </button>
-    </div>
-    {% if not token_portal_valido %}
-    <p class="rh-muted rh-portal-hint">Link expirado — um novo será gerado ao enviar por WhatsApp.</p>
-    {% endif %}
-    {% else %}
-    <p class="rh-muted">O link será gerado ao enviar por WhatsApp.</p>
-    {% endif %}
-
-    <form method="post" class="rh-portal-whatsapp-form">
-      {% csrf_token %}
-      <input type="hidden" name="acao" value="enviar_link_portal">
-      <div class="rh-portal-whatsapp-row">
-        <input type="tel" name="telefone" class="rh-input" value="{{ colaborador.telefone }}" placeholder="+5581999999999" required autocomplete="tel">
-        <button type="submit" class="rh-btn rh-btn-primary">
-          <i class="fab fa-whatsapp" aria-hidden="true"></i> Enviar por WhatsApp
-        </button>
-      </div>
-    </form>
-  </div>
-  {% endif %}
-
-
-
   <div class="rh-profile-tabs-card" id="rh-profile-tabs-card">
     <div class="rh-colab-tabs" role="tablist" aria-label="Seções do cadastro" id="rh-profile-tabs">
       <button type="button" class="rh-colab-tab active" data-colab-tab="pessoal" role="tab" aria-selected="true">Dados Pessoais</button>
@@ -143,6 +115,8 @@
           <div><span class="rh-field-label">Empresa responsável</span><span class="rh-field-value">{{ colaborador.empresa|default:"—" }}</span></div>
           <div><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ colaborador.tipo_contrato|default:"—" }}</span></div>
           <div><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ colaborador.salario|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ colaborador.deslocamento_origem|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ colaborador.deslocamento_destino|default:"—" }}</span></div>
           <div class="rh-field-full">
             <span class="rh-field-label">Obras vinculadas</span>
             <span class="rh-field-value">
@@ -154,6 +128,7 @@
           {% if colaborador.observacoes_requisicao %}
           <div class="rh-field-full"><span class="rh-field-label">Observações</span><span class="rh-field-value">{{ colaborador.observacoes_requisicao }}</span></div>
           {% endif %}
+          {% include "recursos_humanos/includes/admissao_reembolsos_resumo.html" with reembolsos_ctx=reembolsos_ctx %}
         </div>
       </div>
     </div>
@@ -189,6 +164,8 @@
             <div class="rh-form-field"><label for="{{ form_colaborador.empresa.id_for_label }}">Empresa responsável</label>{{ form_colaborador.empresa }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.tipo_contrato.id_for_label }}">Tipo de contrato</label>{{ form_colaborador.tipo_contrato }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.salario.id_for_label }}">Salário</label>{{ form_colaborador.salario }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.deslocamento_origem.id_for_label }}">Cidade de origem</label>{{ form_colaborador.deslocamento_origem }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.deslocamento_destino.id_for_label }}">Cidade de destino</label>{{ form_colaborador.deslocamento_destino }}</div>
             <div class="rh-form-field rh-form-field-full">
               <span class="rh-field-label">Obras vinculadas</span>
               <div class="rh-obras-checkbox-grid">{{ form_colaborador.obras }}</div>
@@ -345,21 +322,6 @@
   if (cancelBtn) {
     cancelBtn.addEventListener('click', function () {
       showEdit(false);
-    });
-  }
-
-  var copyBtn = document.getElementById('rh-portal-copy-btn');
-  var portalUrl = document.getElementById('rh-portal-url');
-  if (copyBtn && portalUrl) {
-    copyBtn.addEventListener('click', function () {
-      portalUrl.select();
-      portalUrl.setSelectionRange(0, 99999);
-      navigator.clipboard.writeText(portalUrl.value).then(function () {
-        copyBtn.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i> Copiado';
-        setTimeout(function () {
-          copyBtn.innerHTML = '<i class="fas fa-copy" aria-hidden="true"></i> Copiar';
-        }, 2000);
-      });
     });
   }
 

@@ -1,0 +1,31 @@
+{% if reembolsos_ctx.tem_itens %}
+<div class="rh-reembolsos-resumo rh-wizard-field-full">
+  <span class="rh-field-label">Reembolsos previstos</span>
+  <table class="rh-reembolsos-table">
+    <thead>
+      <tr>
+        <th>Título</th>
+        <th>Descrição</th>
+        <th class="rh-reembolsos-table__valor">Valor (R$)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in reembolsos_ctx.itens %}
+      <tr>
+        <td>{{ item.titulo }}</td>
+        <td>{{ item.descricao|default:"—" }}</td>
+        <td class="rh-reembolsos-table__valor">{% if item.valor %}R$ {{ item.valor }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% if reembolsos_ctx.total %}
+    <tfoot>
+      <tr>
+        <td colspan="2"><strong>Total</strong></td>
+        <td class="rh-reembolsos-table__valor"><strong>R$ {{ reembolsos_ctx.total }}</strong></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endif %}

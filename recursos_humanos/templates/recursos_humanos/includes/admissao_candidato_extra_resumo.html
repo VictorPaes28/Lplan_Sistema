@@ -1,0 +1,10 @@
+{% if dados_candidato_itens %}
+<div class="rh-candidato-extra-resumo rh-wizard-field-full">
+  <span class="rh-field-label">Dados para admissão</span>
+  <div class="rh-info-grid">
+    {% for label, valor in dados_candidato_itens %}
+    <div class="rh-info-box"><span class="rh-field-label">{{ label }}</span><span class="rh-field-value">{{ valor }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

@@ -6,7 +6,7 @@
 {% block page_subtitle %}Requisição de contratação aguardando sua decisão{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=34">
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=86">
 {% endblock %}
 
 {% block content %}
@@ -40,7 +40,7 @@
       </div>
     </div>
     <p class="rh-etapa-intro">
-      Você foi indicado como gestor aprovador. Revise os dados e aprove ou reprove a contratação.
+      Registro legado aguardando decisão. Revise os dados e aprove ou reprove a contratação.
     </p>
 
     <div class="rh-info-grid">
@@ -52,8 +52,12 @@
       <div class="rh-info-box"><span class="rh-field-label">Início previsto</span><span class="rh-field-value">{% if ctx.data_requisicao %}{{ ctx.data_requisicao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
       <div class="rh-info-box"><span class="rh-field-label">Contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
       <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
-      <div class="rh-info-box"><span class="rh-field-label">Responsável RH</span><span class="rh-field-value">{{ ctx.solicitante }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ ctx.deslocamento_origem }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ ctx.deslocamento_destino }}</span></div>
+      <div class="rh-info-box"><span class="rh-field-label">Responsável pela admissão</span><span class="rh-field-value">{{ ctx.responsavel }}</span></div>
     </div>
+
+    {% include "recursos_humanos/includes/admissao_reembolsos_resumo.html" with reembolsos_ctx=ctx.reembolsos %}
 
     {% if ctx.observacoes %}
     <p class="rh-muted rh-etapa-obs">{{ ctx.observacoes }}</p>
@@ -61,15 +65,16 @@
 
     {% if ctx.pode_aprovar %}
     <div class="rh-action-row" style="margin-top:1.25rem;">
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="acao" value="aprovar_requisicao">
-        <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar requisição</button>
-      </form>
+      <button type="button" class="rh-btn rh-btn-success" id="rh-aprovar-requisicao-open">
+        <i class="fas fa-check" aria-hidden="true"></i> Aprovar requisição
+      </button>
       <button type="button" class="rh-btn rh-btn-danger-outline" id="gestor-reprovar-open">
         <i class="fas fa-times"></i> Reprovar requisição
       </button>
     </div>
+
+    {% url 'recursos_humanos:gestor_aprovar_requisicao' colaborador.pk as rh_aprovar_requisicao_url %}
+    {% include "recursos_humanos/includes/admissao_aprovar_assinatura_modal.html" with aprovar_form_url=rh_aprovar_requisicao_url %}
 
     <div id="gestor-reprovar-panel" class="rh-card rh-pad" hidden style="margin-top:1rem;border:1px solid #fecaca;">
       <h3 class="rh-card-title">Reprovar requisição</h3>

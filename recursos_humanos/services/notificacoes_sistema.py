@@ -7,14 +7,10 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from core.notification_utils import criar_notificacao, marcar_lidas_por_event_key
-from recursos_humanos.models import Colaborador, DocumentoColaborador
+from recursos_humanos.models import Colaborador, DocumentoColaborador, PapelFluxoAdmissao
 from recursos_humanos.services.alertas_config import obter_configuracao_alertas, usuarios_staff_alertas
 
 logger = logging.getLogger(__name__)
-
-
-def _url_gestor_aprovar(colaborador_id: int) -> str:
-    return reverse('recursos_humanos:gestor_aprovar_requisicao', args=[colaborador_id])
 
 
 def _url_admissao(colaborador_id: int) -> str:
@@ -65,6 +61,27 @@ def _notificar_rh(tipo: str, titulo: str, mensagem: str, *, url: str = '', event
     _notificar_usuarios(_usuarios_rh(), tipo, titulo, mensagem, url=url, event_key=event_key)
 
 
+def _notificar_papel(
+    codigo: str,
+    tipo: str,
+    titulo: str,
+    mensagem: str,
+    *,
+    url: str = '',
+    event_key: str = '',
+) -> None:
+    from recursos_humanos.services.papeis_fluxo import usuarios_destinatarios_papel
+
+    _notificar_usuarios(
+        usuarios_destinatarios_papel(codigo),
+        tipo,
+        titulo,
+        mensagem,
+        url=url,
+        event_key=event_key,
+    )
+
+
 def _destinatarios_reprovacao(colaborador: Colaborador) -> list[User]:
     vistos: set[int] = set()
     dest: list[User] = []
@@ -78,27 +95,30 @@ def _destinatarios_reprovacao(colaborador: Colaborador) -> list[User]:
     return dest
 
 
-def notificar_gestor_requisicao_pendente(colaborador: Colaborador) -> None:
-    gestor = colaborador.gestor_aprovador_user
-    if not gestor or not gestor.is_active:
-        return
+def notificar_aprovadores_requisicao_pendente(colaborador: Colaborador) -> None:
+    dest = list(colaborador.aprovadores_requisicao.filter(is_active=True))
+    if not dest and colaborador.gestor_aprovador_user_id:
+        gestor = colaborador.gestor_aprovador_user
+        if gestor and gestor.is_active:
+            dest = [gestor]
     _notificar_usuarios(
-        gestor,
+        dest,
         'rh_requisicao_pendente',
-        f'Aprovar admissão: {colaborador.nome}',
-        f'Cargo {colaborador.cargo}. Requisição aguardando sua aprovação.',
-        url=_url_gestor_aprovar(colaborador.pk),
+        f'Aprovar requisição — {colaborador.nome}',
+        f'Requisição de admissão para {colaborador.cargo} aguarda sua aprovação.',
+        url=_url_admissao(colaborador.pk),
         event_key=_event_colab(colaborador.pk, 'requisicao'),
     )
 
 
 def notificar_rh_requisicao_reprovada(colaborador: Colaborador) -> None:
     motivo = (colaborador.requisicao_motivo_reprovacao or '').strip()
-    msg = f'Gestor {colaborador.gestor_aprovador} reprovou a requisição de {colaborador.nome}.'
+    msg = f'A requisição de {colaborador.nome} foi reprovada.'
     if motivo:
         msg += f' Motivo: {motivo}'
+    destinatarios = _destinatarios_reprovacao(colaborador)
     _notificar_usuarios(
-        _destinatarios_reprovacao(colaborador),
+        destinatarios,
         'rh_requisicao_reprovada',
         f'Requisição reprovada — {colaborador.nome}',
         msg,
@@ -107,15 +127,26 @@ def notificar_rh_requisicao_reprovada(colaborador: Colaborador) -> None:
     )
 
 
+def _destinatarios_responsavel_admissao(colaborador: Colaborador) -> list[User]:
+    from recursos_humanos.services.admissao_actions import garantir_requisicao_criada_por
+
+    garantir_requisicao_criada_por(colaborador)
+    criador = colaborador.requisicao_criada_por
+    if criador and criador.is_active:
+        return [criador]
+    return _usuarios_rh()
+
+
 def notificar_rh_coleta_iniciada(colaborador: Colaborador) -> None:
     marcar_lidas_por_event_key(
         _event_colab(colaborador.pk, 'requisicao'),
         notification_types=('rh_requisicao_pendente',),
     )
-    _notificar_rh(
+    _notificar_usuarios(
+        _destinatarios_responsavel_admissao(colaborador),
         'rh_coleta_docs',
-        f'Coleta de docs: {colaborador.nome}',
-        f'Gestor aprovou a requisição. Candidato em etapa de envio de documentos ({colaborador.cargo}).',
+        f'Conferência de docs: {colaborador.nome}',
+        f'Coleta de documentos iniciada ({colaborador.cargo}).',
         url=_url_admissao(colaborador.pk),
         event_key=_event_colab(colaborador.pk, 'coleta'),
     )
@@ -123,7 +154,8 @@ def notificar_rh_coleta_iniciada(colaborador: Colaborador) -> None:
 
 def notificar_rh_documento_recebido(doc: DocumentoColaborador) -> None:
     colab = doc.colaborador
-    _notificar_rh(
+    _notificar_usuarios(
+        _destinatarios_responsavel_admissao(colab),
         'rh_documento_recebido',
         f'Documento recebido — {colab.nome}',
         f'«{doc.tipo.nome}» enviado pelo candidato no portal.',
@@ -133,10 +165,11 @@ def notificar_rh_documento_recebido(doc: DocumentoColaborador) -> None:
 
 
 def notificar_rh_documentacao_pronta(colaborador: Colaborador) -> None:
-    _notificar_rh(
+    _notificar_usuarios(
+        _destinatarios_responsavel_admissao(colaborador),
         'rh_documentacao_pronta',
         f'Documentação completa — {colaborador.nome}',
-        'Todos os documentos obrigatórios foram recebidos. Pronto para aprovação do RH.',
+        'Todos os documentos foram conferidos. Pronto para validação final.',
         url=_url_admissao(colaborador.pk),
         event_key=_event_colab(colaborador.pk, 'docs_ok'),
     )
@@ -145,10 +178,24 @@ def notificar_rh_documentacao_pronta(colaborador: Colaborador) -> None:
 def notificar_rh_aprovacao_pendente(colaborador: Colaborador) -> None:
     _notificar_rh(
         'rh_admissao_pendente',
-        f'Aprovar admissão — {colaborador.nome}',
-        'Documentação na etapa de aprovação do RH.',
+        f'Validação final — {colaborador.nome}',
+        'Documentação encaminhada para validação final.',
         url=_url_admissao(colaborador.pk),
         event_key=_event_colab(colaborador.pk, 'aprovacao_rh'),
+    )
+
+
+def notificar_rh_devolucao_documentacao(colaborador: Colaborador, motivo: str) -> None:
+    msg = f'Processo devolvido para conferência de documentos.'
+    if motivo:
+        msg += f' Motivo: {motivo}'
+    _notificar_usuarios(
+        _destinatarios_responsavel_admissao(colaborador),
+        'rh_devolucao_docs',
+        f'Devolução — {colaborador.nome}',
+        msg,
+        url=f'{_url_admissao(colaborador.pk)}&ver_etapa=2',
+        event_key=_event_colab(colaborador.pk, 'devolucao'),
     )
 
 

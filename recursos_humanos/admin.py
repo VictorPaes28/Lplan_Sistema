@@ -8,6 +8,7 @@ from .models import (
     ContratoAdmissao,
     DocumentoColaborador,
     ObraLocal,
+    PapelFluxoAdmissao,
     PrazoContrato,
     TipoDocumento,
 )
@@ -23,6 +24,15 @@ class CargoRHAdmin(admin.ModelAdmin):
     search_fields = ('nome',)
 
 
+@admin.register(PapelFluxoAdmissao)
+class PapelFluxoAdmissaoAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'codigo', 'etapa', 'ordem', 'atualizado_em')
+    list_filter = ('etapa',)
+    search_fields = ('titulo', 'codigo')
+    filter_horizontal = ('usuarios',)
+    readonly_fields = ('codigo', 'titulo', 'descricao', 'etapa', 'ordem', 'atualizado_em')
+
+
 @admin.register(CargoCatalogo)
 class CargoCatalogoAdmin(admin.ModelAdmin):
     search_fields = ('nome',)
@@ -31,8 +41,8 @@ class CargoCatalogoAdmin(admin.ModelAdmin):
 
 @admin.register(TipoDocumento)
 class TipoDocumentoAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'aplica_a', 'tem_validade', 'dias_validade', 'obrigatorio', 'ordem')
-    list_filter = ('aplica_a', 'obrigatorio', 'tem_validade')
+    list_display = ('nome', 'categoria', 'aplica_a', 'ativo', 'tem_validade', 'dias_validade', 'obrigatorio', 'ordem')
+    list_filter = ('aplica_a', 'categoria', 'ativo', 'obrigatorio', 'tem_validade')
     filter_horizontal = ('cargos_aplicaveis', 'obras_aplicaveis')
 
 

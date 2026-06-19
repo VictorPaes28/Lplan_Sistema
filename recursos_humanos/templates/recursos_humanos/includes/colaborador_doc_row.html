@@ -1,3 +1,4 @@
+<div class="rh-doc-item{% if doc.tipo.tem_validade and doc.status != 'received' %} rh-doc-item--with-panel{% endif %}">
 <div class="rh-doc-row-clean{% if doc.tipo.obrigatorio and doc.status == 'missing' %} rh-doc-row--required-missing{% endif %}{% if doc.tipo.tem_validade and not doc.arquivo and doc.status != 'received' %} rh-doc-row-with-hint{% endif %}">
   <span class="rh-doc-row-icon rh-doc-row-icon--{% if doc.status == 'received' %}ok{% elif doc.status == 'pending' %}pending{% else %}missing{% endif %}" aria-hidden="true">
     {% if doc.status == 'received' %}<i class="fas fa-check-circle"></i>
@@ -15,33 +16,10 @@
     {% elif doc.vencimento %}
     <span class="rh-doc-row-hint">Vencimento: {{ doc.vencimento|date:"d/m/Y" }}</span>
     {% endif %}
-    {% if doc.tipo.tem_validade and not doc.arquivo %}
-    <p class="rh-doc-hint">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-      </svg>
-      <span>Este documento tem prazo de validade. Informe a data de emissão para calcular o vencimento automaticamente.</span>
-    </p>
-    {% endif %}
   </div>
   <div class="rh-doc-row-end">
-    {% if doc.tipo.tem_validade and doc.status != 'received' %}
-    <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form rh-doc-form-column">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">
-      <div class="rh-doc-emissao-field">
-        <label for="rh-doc-emissao-{{ doc.pk }}">Data de emissão</label>
-        <input type="date" name="data_emissao" id="rh-doc-emissao-{{ doc.pk }}" required>
-      </div>
-      <div class="rh-doc-actions-row">
-        <label class="rh-btn rh-btn-upload">
-          <i class="fas fa-paperclip" aria-hidden="true"></i> Arquivo
-          <input type="file" name="arquivo" class="rh-doc-file-input" required>
-        </label>
-        <button type="submit" class="rh-btn rh-btn-primary rh-btn-upload-submit">Enviar</button>
-      </div>
-    </form>
-    {% else %}
+    {% if not doc.tipo.tem_validade or doc.status == 'received' %}
+    {% if doc.status != 'received' %}
     <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form">
       {% csrf_token %}
       <input type="hidden" name="next" value="{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk %}">
@@ -51,11 +29,12 @@
       </label>
     </form>
     {% endif %}
+    {% endif %}
     {% if doc.arquivo %}
     <a href="{{ doc.arquivo.url }}" class="rh-btn rh-btn-upload rh-btn-view" target="_blank" rel="noopener">
       <i class="fas fa-eye" aria-hidden="true"></i> Ver
     </a>
-    {% else %}
+    {% elif doc.status == 'received' %}
     <span class="rh-btn rh-btn-upload rh-btn-view is-disabled" title="Nenhum arquivo">
       <i class="fas fa-eye" aria-hidden="true"></i> Ver
     </span>
@@ -64,4 +43,10 @@
       {% if doc.status == 'received' %}Recebido{% elif doc.status == 'pending' %}Pendente{% else %}Faltando{% endif %}
     </span>
   </div>
+</div>
+{% if doc.tipo.tem_validade and doc.status != 'received' %}
+{% url 'recursos_humanos:documento_upload' doc.pk as doc_upload_url %}
+{% url 'recursos_humanos:colaborador_detalhe' colaborador.pk as doc_next_url %}
+{% include "recursos_humanos/includes/rh_doc_upload_com_emissao.html" with doc_pk=doc.pk id_prefix="colab" upload_url=doc_upload_url next_url=doc_next_url %}
+{% endif %}
 </div>

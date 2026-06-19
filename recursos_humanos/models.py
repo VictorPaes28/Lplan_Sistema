@@ -65,7 +65,27 @@ class TipoDocumento(models.Model):
         POR_CARGO = 'por_cargo', 'Por Cargo específico'
         POR_OBRA = 'por_obra', 'Por Obra específica'
 
+    class Categoria(models.TextChoices):
+        PESSOAIS = 'pessoais', 'Documentos pessoais'
+        COMPROVANTES = 'comprovantes', 'Comprovantes'
+        SAUDE = 'saude', 'Saúde e segurança'
+        TREINAMENTOS = 'treinamentos', 'Treinamentos e NRs'
+        OUTROS = 'outros', 'Outros'
+
     nome = models.CharField('Nome', max_length=200)
+    categoria = models.CharField(
+        'Categoria',
+        max_length=20,
+        choices=Categoria.choices,
+        default=Categoria.OUTROS,
+        blank=True,
+    )
+    instrucoes_portal = models.CharField(
+        'Instruções para o candidato',
+        max_length=200,
+        blank=True,
+        help_text='Texto curto exibido no portal na hora do envio.',
+    )
     aplica_a = models.CharField(
         'Aplica-se a',
         max_length=20,
@@ -75,6 +95,11 @@ class TipoDocumento(models.Model):
     tem_validade = models.BooleanField('Tem validade', default=False)
     dias_validade = models.PositiveIntegerField('Dias de validade', null=True, blank=True)
     obrigatorio = models.BooleanField('Obrigatório', default=True)
+    ativo = models.BooleanField(
+        'Ativo',
+        default=True,
+        help_text='Inativos não entram em novas admissões, mas permanecem no histórico.',
+    )
     ordem = models.PositiveSmallIntegerField('Ordem', default=0)
     cargos_aplicaveis = models.ManyToManyField(
         CargoRH,
@@ -102,8 +127,8 @@ class TipoDocumento(models.Model):
 
 class Colaborador(models.Model):
     class Status(models.TextChoices):
-        EM_ADMISSAO = 'em_admissao', 'Em Admissão'
-        ATIVO = 'ativo', 'Ativo'
+        EM_ADMISSAO = 'em_admissao', 'Em admissão'
+        ATIVO = 'ativo', 'Em exercício'
         DESLIGADO = 'desligado', 'Desligado'
 
     nome = models.CharField('Nome completo', max_length=200)
@@ -142,6 +167,24 @@ class Colaborador(models.Model):
     )
     tipo_contrato = models.CharField('Tipo de contrato', max_length=40, blank=True, default='CLT')
     salario = models.CharField('Salário', max_length=40, blank=True)
+    deslocamento_origem = models.CharField(
+        'Cidade de origem (de onde vem)',
+        max_length=120,
+        blank=True,
+        help_text='Local de origem do colaborador para deslocamento e reembolso de passagem.',
+    )
+    deslocamento_destino = models.CharField(
+        'Cidade de destino (para onde vai)',
+        max_length=120,
+        blank=True,
+        help_text='Local de destino/alocação para deslocamento e reembolso de passagem.',
+    )
+    reembolsos = models.JSONField(
+        'Reembolsos previstos',
+        default=list,
+        blank=True,
+        help_text='Lista de reembolsos previstos: título, descrição e valor.',
+    )
     gestor_aprovador = models.CharField('Gestor aprovador', max_length=120, blank=True)
     gestor_aprovador_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -151,9 +194,33 @@ class Colaborador(models.Model):
         related_name='requisicoes_admissao_gestor',
         verbose_name='Gestor aprovador (usuário)',
     )
+    aprovadores_requisicao = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='requisicoes_admissao_aprovador',
+        verbose_name='Aprovadores da requisição',
+    )
     requisicao_aprovada_gestor = models.BooleanField(
         'Requisição aprovada pelo gestor',
         default=False,
+    )
+    requisicao_aprovada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_admissao_aprovadas',
+        verbose_name='Requisição aprovada por',
+    )
+    requisicao_aprovacao_assinatura = models.TextField(
+        'Assinatura da aprovação da requisição',
+        blank=True,
+        help_text='PNG base64 da assinatura do aprovador na etapa 1.',
+    )
+    requisicao_aprovada_em = models.DateTimeField(
+        'Requisição aprovada em',
+        null=True,
+        blank=True,
     )
     requisicao_reprovada = models.BooleanField(
         'Requisição reprovada pelo gestor',
@@ -186,6 +253,17 @@ class Colaborador(models.Model):
         'Expiração do token',
         null=True,
         blank=True,
+    )
+    portal_pin_hash = models.CharField(
+        'PIN do portal (hash)',
+        max_length=128,
+        blank=True,
+        help_text='Hash do PIN de acesso ao portal (enviado por e-mail junto com o link).',
+    )
+    dados_coleta_solicitada = models.BooleanField(
+        'Dados pessoais solicitados no portal',
+        default=False,
+        help_text='RH solicitou atualização dos dados pessoais no portal.',
     )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -230,11 +308,18 @@ class Colaborador(models.Model):
             return None
         return (prazo - timezone.localdate()).days
 
-    def gerar_token_portal(self, dias=30):
+    def gerar_token_portal(self, dias=None):
+        from recursos_humanos.services.portal_auth import gerar_pin_portal, hash_pin_portal
+        from recursos_humanos.services.portal_token import PORTAL_TOKEN_VALIDADE_DIAS
+
+        if dias is None:
+            dias = PORTAL_TOKEN_VALIDADE_DIAS
+        pin = gerar_pin_portal()
         self.token_portal = secrets.token_urlsafe(32)
         self.token_portal_expira = timezone.now() + timedelta(days=dias)
-        self.save(update_fields=['token_portal', 'token_portal_expira'])
-        return self.token_portal
+        self.portal_pin_hash = hash_pin_portal(pin)
+        self.save(update_fields=['token_portal', 'token_portal_expira', 'portal_pin_hash'])
+        return self.token_portal, pin
 
     def token_portal_valido(self):
         if not self.token_portal:
@@ -277,6 +362,11 @@ class DocumentoColaborador(models.Model):
         'Reenvio solicitado',
         default=False,
         help_text='RH solicitou novo envio; o arquivo atual permanece até o colaborador enviar outro.',
+    )
+    coleta_solicitada = models.BooleanField(
+        'Coleta solicitada no portal',
+        default=False,
+        help_text='RH solicitou envio deste documento na coleta (portal restrito).',
     )
     observacao = models.CharField('Observação', max_length=300, blank=True)
     arquivo = models.FileField('Arquivo', upload_to=rh_upload_path, blank=True, null=True)
@@ -474,3 +564,100 @@ class PrazoContrato(models.Model):
         if self.status == self.Status.CONVERTIDO:
             acoes = [a for a in acoes if a not in ('converter', 'efetivar')]
         return acoes
+
+
+class PapelFluxoAdmissao(models.Model):
+    """Responsáveis configuráveis por etapa do fluxo de admissão (múltiplos usuários por papel)."""
+
+    class Codigo(models.TextChoices):
+        REQUISICAO = 'requisicao', 'Aprovação da requisição'
+        CONFERENCIA_DOCS = 'conferencia_docs', 'Conferência de documentos'
+        VALIDACAO_FINAL = 'validacao_final', 'Validação final'
+        CONTRATO = 'contrato', 'Contrato e arquivamento'
+
+    codigo = models.CharField(
+        'Código',
+        max_length=30,
+        choices=Codigo.choices,
+        unique=True,
+    )
+    titulo = models.CharField('Título', max_length=120)
+    descricao = models.TextField('Descrição', blank=True)
+    etapa = models.PositiveSmallIntegerField('Etapa do fluxo', default=1)
+    ordem = models.PositiveSmallIntegerField('Ordem', default=0)
+    usuarios = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='papeis_fluxo_admissao',
+        verbose_name='Responsáveis',
+    )
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Papel do fluxo de admissão'
+        verbose_name_plural = 'Papéis do fluxo de admissão'
+        ordering = ['ordem', 'etapa']
+
+    def __str__(self):
+        return self.titulo
+
+    @classmethod
+    def garantir_papeis_padrao(cls):
+        padroes = [
+            {
+                'codigo': cls.Codigo.REQUISICAO,
+                'titulo': 'Requisição',
+                'descricao': (
+                    'Casos legados na etapa 1: aprovar ou reprovar requisição pendente. '
+                    'Requisições novas já iniciam a coleta automaticamente (etapa 2).'
+                ),
+                'etapa': 1,
+                'ordem': 1,
+            },
+            {
+                'codigo': cls.Codigo.CONFERENCIA_DOCS,
+                'titulo': 'Conferência de documentos',
+                'descricao': (
+                    'Etapa 2 — conferência operacional: validar cada documento, solicitar pendências '
+                    'e encaminhar para validação final quando estiver completo.'
+                ),
+                'etapa': 2,
+                'ordem': 2,
+            },
+            {
+                'codigo': cls.Codigo.VALIDACAO_FINAL,
+                'titulo': 'Validação final',
+                'descricao': (
+                    'Etapa 3 — aprovação formal do pacote documental completo ou devolução para correção.'
+                ),
+                'etapa': 3,
+                'ordem': 3,
+            },
+            {
+                'codigo': cls.Codigo.CONTRATO,
+                'titulo': 'Contrato e arquivamento',
+                'descricao': (
+                    'Etapa 4 — execução: gerar PDF, acompanhar ZapSign e arquivar contrato assinado.'
+                ),
+                'etapa': 4,
+                'ordem': 4,
+            },
+        ]
+        for item in padroes:
+            obj, _created = cls.objects.get_or_create(
+                codigo=item['codigo'],
+                defaults={
+                    'titulo': item['titulo'],
+                    'descricao': item['descricao'],
+                    'etapa': item['etapa'],
+                    'ordem': item['ordem'],
+                },
+            )
+            updates = {}
+            for field in ('titulo', 'descricao', 'etapa', 'ordem'):
+                if getattr(obj, field) != item[field]:
+                    updates[field] = item[field]
+            if updates:
+                for field, value in updates.items():
+                    setattr(obj, field, value)
+                obj.save(update_fields=[*updates.keys(), 'atualizado_em'])

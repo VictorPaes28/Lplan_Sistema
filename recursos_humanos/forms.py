@@ -4,9 +4,9 @@ from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
-from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, PrazoContrato, TipoDocumento
+from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, PapelFluxoAdmissao, PrazoContrato, TipoDocumento
 from .services.admissao import formatar_salario_br
-from .services.admissao_actions import obras_reais_queryset, usuarios_gestor_list
+from .services.admissao_actions import obras_reais_queryset
 
 TIPO_CONTRATO_CHOICES = [
     ('CLT', 'CLT'),
@@ -85,26 +85,60 @@ def normalizar_cpf(cpf_raw, *, exclude_pk=None):
 class NovaRequisicaoForm(forms.Form):
     nome = forms.CharField(max_length=200, label='Nome completo')
     cpf = forms.CharField(max_length=14, label='CPF')
-    email = forms.EmailField(label='E-mail')
+    email = forms.EmailField(label='E-mail', required=False)
     telefone = forms.CharField(max_length=20, label='Telefone')
+    rg = forms.CharField(max_length=20, required=False, label='RG')
+    data_nascimento = forms.DateField(
+        required=False,
+        label='Data de nascimento',
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
+    pis = forms.CharField(max_length=20, required=False, label='PIS')
+    endereco = forms.CharField(max_length=300, required=False, label='Endereço')
+    dados_bancarios = forms.CharField(max_length=200, required=False, label='Conta bancária')
+    escolaridade = forms.ChoiceField(
+        choices=ESCOLARIDADE_CHOICES,
+        required=False,
+        label='Escolaridade',
+    )
+    tamanho_camisa = forms.CharField(max_length=10, required=False, label='Tam. camisa')
+    tamanho_bota = forms.CharField(max_length=10, required=False, label='Tam. bota')
+    empresa = forms.CharField(max_length=200, required=False, label='Empresa responsável')
     cargo = forms.CharField(max_length=120, label='Cargo')
     cargo_rh = forms.ModelChoiceField(
         queryset=CargoRH.objects.none(),
-        required=False,
+        required=True,
         label='Cargo (RH)',
+        error_messages={'required': 'Selecione o cargo (RH).'},
     )
     obra = forms.ModelMultipleChoiceField(
         queryset=ObraLocal.objects.none(),
         label='Obras',
         widget=forms.CheckboxSelectMultiple(),
     )
+    aprovadores = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        label='Aprovadores da requisição',
+        widget=forms.CheckboxSelectMultiple(),
+        error_messages={'required': 'Selecione ao menos um aprovador.'},
+    )
     tipo_contrato = forms.ChoiceField(
         choices=TIPO_CONTRATO_CHOICES,
         initial='CLT',
     )
     salario = forms.CharField(max_length=40, label='Salário')
+    deslocamento_origem = forms.CharField(
+        max_length=120,
+        required=False,
+        label='Cidade de origem (de onde vem)',
+    )
+    deslocamento_destino = forms.CharField(
+        max_length=120,
+        required=False,
+        label='Cidade de destino (para onde vai)',
+    )
+    reembolsos_json = forms.CharField(required=False, widget=forms.HiddenInput())
     data_inicio = forms.DateField(label='Data prevista de início', widget=forms.DateInput(attrs={'type': 'date'}))
-    gestor_id = forms.IntegerField(label='Gestor responsável')
     motivo = forms.ChoiceField(
         choices=[
             ('Nova contratação', 'Nova contratação'),
@@ -129,13 +163,12 @@ class NovaRequisicaoForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields['obra'].queryset = obras_reais_queryset()
         self.fields['obra'].widget.attrs.setdefault('class', 'rh-checkbox-list')
+        self.fields['aprovadores'].queryset = User.objects.filter(
+            is_active=True,
+        ).order_by('first_name', 'last_name', 'username')
+        self.fields['aprovadores'].widget.attrs.setdefault('class', 'rh-checkbox-list')
         self.fields['cargo_rh'].queryset = CargoRH.objects.all()
-        gestor_choices = [('', 'Selecione o gestor')]
-        gestor_choices += [(u['id'], u['nome']) for u in usuarios_gestor_list()]
-        self.fields['gestor_id'].widget = forms.Select(
-            choices=gestor_choices,
-            attrs={'class': 'rh-select'},
-        )
+        self.fields['cargo_rh'].empty_label = 'Selecione o cargo (RH)'
         for name, field in self.fields.items():
             if isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.DateInput)):
                 field.widget.attrs.setdefault('class', 'rh-input')
@@ -143,6 +176,8 @@ class NovaRequisicaoForm(forms.Form):
                 field.widget.attrs.setdefault('class', 'rh-select')
         self.fields['observacoes'].widget.attrs.setdefault('class', 'rh-input rh-textarea')
         self.fields['prazo_duracao_dias'].widget.attrs.setdefault('class', 'rh-input')
+        self.fields['escolaridade'].widget.attrs.setdefault('class', 'rh-select')
+        self.fields['data_nascimento'].widget.attrs.setdefault('class', 'rh-input')
 
     def get_tipo_prazo(self):
         if not self.tem_prazo():
@@ -171,12 +206,8 @@ class NovaRequisicaoForm(forms.Form):
                 duracao = 90
 
             if duracao:
-                tipo_prazo = (
-                    PrazoContrato.Tipo.EXPERIENCIA
-                    if is_experiencia
-                    else PrazoContrato.Tipo.DETERMINADO
-                )
-                limite, msg_erro = LIMITES_LEGAIS[tipo_prazo]
+                chave_limite = 'experiencia' if is_experiencia else 'determinado'
+                limite, msg_erro = LIMITES_LEGAIS[chave_limite]
                 if duracao > limite:
                     self.add_error('prazo_duracao_dias', msg_erro)
             elif not is_experiencia:
@@ -192,7 +223,14 @@ class NovaRequisicaoForm(forms.Form):
         elif tipo_contrato and tipo_contrato != 'CLT' and not cleaned.get('prazo_duracao_dias'):
             cleaned['prazo_duracao_dias'] = DEFAULT_DURACAO_POR_TIPO_CONTRATO.get(tipo_contrato)
 
+        from recursos_humanos.services.reembolsos import parse_reembolsos_json
+
+        cleaned['reembolsos'] = parse_reembolsos_json(cleaned.pop('reembolsos_json', '') or '[]')
+
         return cleaned
+
+    def clean_email(self):
+        return (self.cleaned_data.get('email') or '').strip()
 
     def clean_cpf(self):
         return normalizar_cpf(
@@ -212,16 +250,76 @@ class NovaRequisicaoForm(forms.Form):
             raise ValidationError('Selecione ao menos uma obra.')
         return obras
 
-    def clean_gestor_id(self):
-        from django.contrib.auth.models import User
+class TipoDocumentoCatalogoForm(forms.ModelForm):
+    """Catálogo: escopo (todos/por cargo) vem do botão de abertura; vínculos na aba Por cargo."""
 
-        gestor_id = self.cleaned_data.get('gestor_id')
-        try:
-            user = User.objects.get(pk=gestor_id, is_active=True)
-        except User.DoesNotExist:
-            raise ValidationError('Selecione um gestor válido do sistema.')
-        self.cleaned_gestor_user = user
-        return gestor_id
+    class Meta:
+        model = TipoDocumento
+        fields = (
+            'nome', 'categoria', 'instrucoes_portal', 'aplica_a',
+            'tem_validade', 'dias_validade', 'obrigatorio', 'ativo',
+        )
+        widgets = {
+            'nome': forms.TextInput(attrs={'class': 'rh-input'}),
+            'categoria': forms.Select(attrs={'class': 'rh-select'}),
+            'instrucoes_portal': forms.TextInput(attrs={'class': 'rh-input'}),
+            'aplica_a': forms.HiddenInput(),
+            'tem_validade': forms.CheckboxInput(attrs={'class': 'rh-docconfig-tem-validade'}),
+            'obrigatorio': forms.CheckboxInput(attrs={'class': 'rh-docconfig-obrigatorio'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'rh-docconfig-ativo'}),
+            'dias_validade': forms.NumberInput(attrs={
+                'min': 1,
+                'class': 'rh-input rh-docconfig-dias-validade',
+            }),
+        }
+        labels = {
+            'instrucoes_portal': 'Instruções para o candidato',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['categoria'].choices = TipoDocumento.Categoria.choices
+        if not self.instance.pk:
+            self.fields['dias_validade'].initial = 365
+            self.fields['obrigatorio'].initial = True
+            self.fields['ativo'].initial = True
+            self.fields['aplica_a'].initial = TipoDocumento.AplicaA.TODOS
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('tem_validade') and not cleaned.get('dias_validade'):
+            self.add_error('dias_validade', 'Informe os dias de validade.')
+        elif not cleaned.get('tem_validade'):
+            cleaned['dias_validade'] = None
+        if self.instance.pk:
+            cleaned['aplica_a'] = self.instance.aplica_a
+        elif not self.instance.pk:
+            # Checkbox ausente no POST = desmarcado no Django; manter padrão do catálogo.
+            if 'ativo' not in self.data:
+                cleaned['ativo'] = True
+            if 'obrigatorio' not in self.data:
+                cleaned['obrigatorio'] = True
+            cat = cleaned.get('categoria') or TipoDocumento.Categoria.OUTROS
+            nome = (cleaned.get('nome') or '').strip()
+            if cat == TipoDocumento.Categoria.OUTROS and nome:
+                from recursos_humanos.services.admissao import _categoria_documento_por_nome
+
+                cleaned['categoria'] = _categoria_documento_por_nome(nome)
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not self.instance.pk:
+            from django.db.models import Max
+            max_ordem = TipoDocumento.objects.aggregate(m=Max('ordem'))['m'] or 0
+            instance.ordem = max_ordem + 1
+        if commit:
+            instance.save()
+            if instance.aplica_a != TipoDocumento.AplicaA.POR_CARGO:
+                instance.cargos_aplicaveis.clear()
+            if instance.aplica_a != TipoDocumento.AplicaA.POR_OBRA:
+                instance.obras_aplicaveis.clear()
+        return instance
 
 
 class TipoDocumentoForm(forms.ModelForm):
@@ -337,7 +435,8 @@ class ColaboradorBasicoForm(forms.ModelForm):
         fields = (
             'nome', 'cpf', 'email', 'telefone', 'rg', 'cargo', 'cargo_rh', 'empresa', 'endereco', 'dados_bancarios',
             'pis', 'escolaridade', 'tamanho_camisa', 'tamanho_bota', 'data_nascimento',
-            'tipo_contrato', 'salario', 'data_admissao', 'status', 'observacoes_requisicao', 'obras',
+            'tipo_contrato', 'salario', 'deslocamento_origem', 'deslocamento_destino',
+            'data_admissao', 'status', 'observacoes_requisicao', 'obras',
         )
         widgets = {
             'data_nascimento': forms.DateInput(attrs={'type': 'date', 'class': 'rh-input'}),
@@ -400,6 +499,9 @@ class ConfigurarAlertasForm(forms.Form):
         self.fields['responsaveis'].queryset = usuarios_staff_alertas()
 
 
+PORTAL_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+
+
 class DocumentoUploadForm(forms.Form):
     arquivo = forms.FileField()
     data_emissao = forms.DateField(
@@ -409,11 +511,23 @@ class DocumentoUploadForm(forms.Form):
         help_text='Necessário para documentos com validade',
     )
 
+    def __init__(self, *args, requer_emissao: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.requer_emissao = requer_emissao
+        if requer_emissao:
+            self.fields['data_emissao'].required = True
+
     def clean_arquivo(self):
         f = self.cleaned_data['arquivo']
-        if f.size > 10 * 1024 * 1024:
+        if f.size > PORTAL_UPLOAD_MAX_BYTES:
             raise ValidationError('Arquivo muito grande (máx. 10 MB).')
         return f
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.requer_emissao and not cleaned.get('data_emissao'):
+            self.add_error('data_emissao', 'Informe a data de emissão do documento.')
+        return cleaned
 
 
 class PortalCandidatoDadosForm(forms.ModelForm):
@@ -480,3 +594,29 @@ class PortalCandidatoDadosForm(forms.ModelForm):
         if data and data > timezone.localdate():
             raise ValidationError('Data de nascimento não pode ser no futuro.')
         return data
+
+
+class PapelFluxoAdmissaoForm(forms.ModelForm):
+    usuarios = forms.ModelMultipleChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by(
+            'first_name', 'last_name', 'username',
+        ),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'rh-checkbox-list rh-papel-user-list'}),
+        label='',
+    )
+
+    class Meta:
+        model = PapelFluxoAdmissao
+        fields = ('usuarios',)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['usuarios'].label_from_instance = self._rotulo_usuario
+
+    @staticmethod
+    def _rotulo_usuario(user):
+        nome = (user.get_full_name() or '').strip()
+        if nome:
+            return f'{nome} ({user.username})'
+        return user.username

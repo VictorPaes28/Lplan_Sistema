@@ -1,12 +1,5 @@
 {% extends "recursos_humanos/base_rh.html" %}
-
-{% block rh_breadcrumb %}
-<nav class="rh-breadcrumb" aria-label="Navegação">
-  <a href="{% url 'recursos_humanos:colaboradores' %}">DP / RH</a>
-  <span class="rh-breadcrumb-sep" aria-hidden="true">›</span>
-  <span class="rh-breadcrumb-current">Fluxo de Admissão</span>
-</nav>
-{% endblock %}
+{% load static %}
 
 {% block rh_content %}
 <div class="rh-page rh-page--admissao">
@@ -44,9 +37,9 @@
             {% if adm.admissao_concluida_flag %}
               Concluída
             {% elif adm.admissao_pendencia_flag %}
-              Docs pendentes
+              {% if adm.etapa_admissao < 5 %}Coleta pendente{% else %}Docs pendentes{% endif %}
             {% elif adm.etapa_admissao == 1 and not adm.requisicao_aprovada_gestor and not adm.requisicao_reprovada %}
-              Aguard. gestor
+              Requisição pendente
             {% else %}
               {% for num, label in etapas %}{% if num == adm.etapa_admissao %}{{ label }}{% endif %}{% endfor %}
             {% endif %}
@@ -79,49 +72,16 @@
           <p class="rh-muted">{{ selecionado.nome }} está ativo. Este registro permanece no fluxo para consulta do histórico.</p>
         </div>
       </div>
-      {% elif pendencia_documentos %}
-      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
-        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-        <div>
-          <strong>Documentação pendente</strong>
-          <p class="rh-muted">Há documentos faltando, vencidos, aguardando reenvio ou aprovação do RH. Acesse a etapa <strong>Coleta de Docs</strong> para tratar.</p>
-        </div>
-        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}&amp;ver_etapa=2" class="rh-btn rh-btn-outline">Ir para Coleta de Docs</a>
-      </div>
-      {% elif selecionado.etapa_admissao == 1 and not selecionado.requisicao_aprovada_gestor and not selecionado.requisicao_reprovada and admissao_ctx.etapa_1.pode_aprovar %}
-      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
-        <i class="fas fa-user-check" aria-hidden="true"></i>
-        <div>
-          <strong>Aprovação pendente</strong>
-          <p class="rh-muted">Esta requisição aguarda sua aprovação como gestor ou RH.</p>
-        </div>
-        <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="aprovar_requisicao">
-          <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar agora</button>
-        </form>
-      </div>
-      {% elif selecionado.etapa_admissao == 1 and not selecionado.requisicao_aprovada_gestor and not selecionado.requisicao_reprovada %}
-      <div class="rh-banner rh-banner-warning" style="margin-bottom:1rem;">
-        <i class="fas fa-clock" aria-hidden="true"></i>
-        <div>
-          <strong>Aguardando gestor {{ admissao_ctx.etapa_1.gestor }}</strong>
-          <p class="rh-muted">O gestor recebe notificação no sino com link para aprovar. RH também pode aprovar na etapa Requisição.</p>
-        </div>
-        {% if admissao_ctx.etapa_1.gestor_user_id %}
-        <a href="{% url 'recursos_humanos:gestor_aprovar_requisicao' selecionado.pk %}" class="rh-btn rh-btn-outline" target="_blank" rel="noopener">Abrir tela de aprovação</a>
-        {% endif %}
-      </div>
       {% endif %}
       <div class="rh-stepper" aria-label="Etapas da admissão">
         {% for step in etapas_stepper %}
         {% if step.acessivel %}
-        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if step.num != etapa_fluxo %}&amp;ver_etapa={{ step.num }}{% endif %}"
-           class="rh-stepper-item rh-stepper-item--link {% if step.concluida %}is-done{% elif step.atual %}is-current is-pending{% elif step.visualizando %}is-viewing{% elif selecionado.etapa_admissao == step.num %}is-current{% endif %}">
+        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if step.num != etapa_exibida %}&amp;ver_etapa={{ step.num }}{% endif %}"
+           class="rh-stepper-item rh-stepper-item--link {% if step.concluida %}is-done{% elif step.visualizando %}is-viewing is-current{% elif step.reaberta_docs %}is-pending{% elif step.etapa_registrada %}is-current{% endif %}">
           <div class="rh-stepper-node" aria-hidden="true">
             {% if step.concluida %}
             <i class="fas fa-check"></i>
-            {% elif step.atual %}
+            {% elif step.reaberta_docs %}
             <i class="fas fa-exclamation"></i>
             {% elif step.num == 1 %}
             <i class="fas fa-clipboard-list"></i>
@@ -156,28 +116,43 @@
       <div class="rh-admission-panel">
         {% include "recursos_humanos/includes/admissao_etapa_conteudo.html" %}
 
-        <section class="rh-admission-history">
-          <h3 class="rh-admission-history-title">Histórico</h3>
-          <ul class="rh-timeline rh-timeline--admission">
-            {% for ev in historico %}
-            <li class="rh-timeline-item {% if ev.concluido %}done{% else %}pending{% endif %}">
-              <span class="rh-timeline-dot"></span>
-              <div class="rh-timeline-body">
-                <strong>{{ ev.descricao }}</strong>
-                <span class="rh-timeline-meta">{{ ev.data_hora|date:"d/m/Y H:i" }} · {{ ev.autor|default:"—" }}</span>
-              </div>
-            </li>
-            {% empty %}
-            <li class="rh-muted">Sem eventos registrados.</li>
-            {% endfor %}
-          </ul>
-        </section>
+        <details class="rh-admission-history">
+          <summary class="rh-admission-history-toggle">
+            <span class="rh-admission-history-toggle__label">
+              <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+              Histórico
+            </span>
+            <span class="rh-admission-history-toggle__meta">
+              <span class="rh-admission-history-count">{{ historico|length }} evento{% if historico|length != 1 %}s{% endif %}</span>
+              <i class="fas fa-chevron-down rh-admission-history-chevron" aria-hidden="true"></i>
+            </span>
+          </summary>
+          <div class="rh-admission-history-body">
+            <ul class="rh-timeline rh-timeline--admission">
+              {% for ev in historico %}
+              <li class="rh-timeline-item {% if ev.concluido %}done{% else %}pending{% endif %}">
+                <span class="rh-timeline-dot"></span>
+                <div class="rh-timeline-body">
+                  <strong>{{ ev.descricao }}</strong>
+                  <span class="rh-timeline-meta">{{ ev.data_hora|date:"d/m/Y H:i" }} · {{ ev.autor|default:"—" }}</span>
+                </div>
+              </li>
+              {% empty %}
+              <li class="rh-muted">Sem eventos registrados.</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </details>
       </div>
     </div>
     {% endif %}
   </div>
   {% endif %}
 </div>
+{% if selecionado and etapa_exibida == 2 and not somente_leitura and admissao_ctx and admissao_ctx.usuario_rh_pode %}
+{% include "recursos_humanos/includes/admissao_doc_reject_modal.html" %}
+<script src="{% static 'recursos_humanos/js/rh-admissao-docs.js' %}?v=1" defer></script>
+{% endif %}
 {% if rh_requisicao_edicao %}
 {{ rh_requisicao_edicao|json_script:"rh-requisicao-edicao-data" }}
 {% endif %}

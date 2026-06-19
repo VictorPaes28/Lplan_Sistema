@@ -26,7 +26,7 @@
       {% with n=doc.tipo.nome|lower %}
       {% if 'aso' not in n and 'saúde' not in n and 'saude' not in n and 'nr-' not in n and 'comprovante' not in n and 'fgts' not in n and 'banc' not in n %}
       {% if 'rg' in n or 'cpf' in n or 'título' in n or 'titulo' in n or 'certidão' in n or 'certidao' in n or 'pis' in n or 'ctps' in n or 'filhos' in n or 'escolaridade' in n %}
-      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% include "recursos_humanos/includes/colaborador_doc_row.html" %}
       {% endif %}
       {% endif %}
       {% endwith %}
@@ -46,7 +46,7 @@
       {% for doc in documentos %}
       {% with n=doc.tipo.nome|lower %}
       {% if 'comprovante' in n or 'fgts' in n or 'banc' in n %}
-      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% include "recursos_humanos/includes/colaborador_doc_row.html" %}
       {% endif %}
       {% endwith %}
       {% endfor %}
@@ -65,7 +65,7 @@
       {% for doc in documentos %}
       {% with n=doc.tipo.nome|lower %}
       {% if 'aso' in n or 'saúde' in n or 'saude' in n %}
-      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% include "recursos_humanos/includes/colaborador_doc_row.html" %}
       {% endif %}
       {% endwith %}
       {% endfor %}
@@ -84,7 +84,7 @@
       {% for doc in documentos %}
       {% with n=doc.tipo.nome|lower %}
       {% if 'nr-' in n or 'nr ' in n %}
-      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% include "recursos_humanos/includes/colaborador_doc_row.html" %}
       {% endif %}
       {% endwith %}
       {% endfor %}
@@ -103,7 +103,7 @@
       {% for doc in documentos %}
       {% with n=doc.tipo.nome|lower %}
       {% if 'aso' not in n and 'saúde' not in n and 'saude' not in n and 'nr-' not in n and 'nr ' not in n and 'comprovante' not in n and 'fgts' not in n and 'banc' not in n and 'rg' not in n and 'cpf' not in n and 'título' not in n and 'titulo' not in n and 'certidão' not in n and 'certidao' not in n and 'pis' not in n and 'ctps' not in n and 'filhos' not in n and 'escolaridade' not in n %}
-      <div class="rh-doc-item">{% include "recursos_humanos/includes/colaborador_doc_row.html" %}</div>
+      {% include "recursos_humanos/includes/colaborador_doc_row.html" %}
       {% endif %}
       {% endwith %}
       {% endfor %}
@@ -111,3 +111,39 @@
   </div>
 </div>
 {% endwith %}
+
+<script>
+(function () {
+  document.querySelectorAll('.rh-doc-upload-panel').forEach(function (form) {
+    var fileInput = form.querySelector('input[type="file"]');
+    var dateInput = form.querySelector('input[type="date"]');
+    var filenameSpan = form.querySelector('.rh-doc-upload-panel__filename');
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', function () {
+      if (!filenameSpan) return;
+      if (this.files.length > 0) {
+        filenameSpan.textContent = this.files[0].name;
+        filenameSpan.hidden = false;
+      } else {
+        filenameSpan.textContent = '';
+        filenameSpan.hidden = true;
+      }
+    });
+
+    form.addEventListener('submit', function (e) {
+      var hasFile = fileInput.files && fileInput.files.length > 0;
+      var hasDate = dateInput && dateInput.value;
+      if (!hasDate) {
+        e.preventDefault();
+        alert('Informe a data de emissão do documento.');
+        return;
+      }
+      if (!hasFile) {
+        e.preventDefault();
+        alert('Selecione um arquivo antes de enviar.');
+      }
+    });
+  });
+})();
+</script>

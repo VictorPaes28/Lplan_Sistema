@@ -8,13 +8,14 @@
 
   <meta charset="utf-8">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
 
   <title>Envio de documentos — Lplan</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
 
-  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}">
+  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}?v=4">
 
 </head>
 
@@ -24,13 +25,22 @@
 
     <header class="portal-header">
 
-      <div class="portal-logo">Lplan</div>
+      <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="portal-logo-img">
 
       <h1 class="portal-greeting">Olá, {{ colaborador.nome }}!</h1>
 
-      <p class="portal-sub">{% if portal_modo_reenvio %}Reenvie os documentos solicitados pelo RH pelo link abaixo.{% else %}Complete seus dados e envie os documentos para finalizar sua admissão.{% endif %}</p>
+      <p class="portal-sub">{% if portal_modo_confirmacao %}Recebemos suas informações. Aguarde a conferência do RH — você será avisado se precisar enviar algo novo.{% elif portal_modo_restrito %}Envie os documentos pendentes e os itens solicitados pelo RH.{% else %}Primeiro acesso: complete seus dados e envie todos os documentos necessários para a admissão.{% endif %}</p>
 
     </header>
+
+    {% if portal_modo_confirmacao %}
+    <section class="portal-confirmacao-card" aria-live="polite">
+      <div class="portal-confirmacao-icon" aria-hidden="true"><i class="fas fa-check-circle"></i></div>
+      <h2 class="portal-confirmacao-title">Envio concluído por enquanto</h2>
+      <p class="portal-confirmacao-text">Não há mais itens liberados para envio neste link. O RH vai analisar o que você enviou e entrará em contato se precisar de algo adicional.</p>
+      <p class="portal-confirmacao-hint">Guarde este e-mail/WhatsApp: se o RH solicitar correções, você receberá um <strong>link novo</strong>.</p>
+    </section>
+    {% endif %}
 
 
 
@@ -49,6 +59,18 @@
     {% endif %}
 
 
+
+    {% if portal_pode_submeter %}
+    <form method="post" enctype="multipart/form-data" class="portal-submit-form" id="portal-submit-form" novalidate data-max-upload-bytes="{{ portal_max_upload_bytes }}">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="submeter_portal">
+    {% endif %}
+
+    <div class="portal-layout{% if portal_modo_confirmacao or not exibir_dados_pessoais %} portal-layout--single{% endif %}">
+
+      <aside class="portal-layout__sidebar">
+
+    {% if exibir_dados_pessoais and not portal_modo_confirmacao %}
 
     <section class="portal-dados-card">
 
@@ -74,17 +96,9 @@
 
       </div>
 
+      {% if portal_permite_editar_dados %}
 
-
-      <form method="post" class="portal-dados-form" novalidate>
-
-        {% csrf_token %}
-
-        <input type="hidden" name="acao" value="salvar_dados">
-
-
-
-        <div class="portal-dados-grid">
+      <div class="portal-dados-grid">
 
           <div class="portal-field">
 
@@ -168,19 +182,25 @@
 
         </div>
 
-
-
-        <button type="submit" class="portal-save-btn">
-
-          <i class="fas fa-save" aria-hidden="true"></i> Salvar meus dados
-
-        </button>
-
-      </form>
+      {% elif dados_completos %}
+      <div class="portal-dados-grid portal-dados-grid--readonly">
+        <div class="portal-field"><span class="portal-field-label">RG</span><span class="portal-field-value">{{ colaborador.rg|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Data de nascimento</span><span class="portal-field-value">{% if colaborador.data_nascimento %}{{ colaborador.data_nascimento|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+        <div class="portal-field"><span class="portal-field-label">PIS/PASEP</span><span class="portal-field-value">{{ colaborador.pis|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Escolaridade</span><span class="portal-field-value">{{ colaborador.escolaridade|default:"—" }}</span></div>
+        <div class="portal-field portal-field--full"><span class="portal-field-label">Endereço</span><span class="portal-field-value">{{ colaborador.endereco|default:"—" }}</span></div>
+        <div class="portal-field portal-field--full"><span class="portal-field-label">Conta bancária</span><span class="portal-field-value">{{ colaborador.dados_bancarios|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Camisa</span><span class="portal-field-value">{{ colaborador.tamanho_camisa|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Bota</span><span class="portal-field-value">{{ colaborador.tamanho_bota|default:"—" }}</span></div>
+      </div>
+      <p class="portal-dados-locked">Seus dados já foram registrados. O RH avisará se precisar de alguma correção.</p>
+      {% else %}
+      <p class="portal-dados-locked">A edição de dados pessoais não está liberada no momento. Aguarde orientação do RH.</p>
+      {% endif %}
 
     </section>
 
-
+    {% endif %}
 
     <div class="portal-progress-card">
 
@@ -200,17 +220,27 @@
 
     </div>
 
+      </aside>
 
+      <main class="portal-layout__main">
 
-    <h2 class="portal-section-title portal-section-title--docs">Documentos solicitados</h2>
+    <h2 class="portal-section-title portal-section-title--docs">{% if portal_modo_restrito %}Itens solicitados pelo RH{% else %}Documentos solicitados{% endif %}</h2>
 
-
+    {% if portal_modo_restrito %}
+    <p class="portal-doc-status portal-doc-status--info portal-docs-intro">
+      Documentos já recebidos pelo RH não aparecem aqui. Envie os itens pendentes listados abaixo.
+    </p>
+    {% elif not portal_upload_habilitado %}
+    <p class="portal-doc-status portal-docs-intro">
+      O envio de novos documentos está indisponível nesta etapa do processo.
+    </p>
+    {% endif %}
 
     <div class="portal-doc-list">
 
       {% for doc in documentos %}
 
-      <div class="portal-doc-item">
+      <div class="portal-doc-item{% if doc.portal_upload_erro %} portal-doc-item--upload-error{% endif %}{% if doc.portal_pode_enviar and doc.tipo.tem_validade %} portal-doc-item--with-emissao{% endif %}">
 
         {% if doc.reenvio_solicitado %}
 
@@ -219,6 +249,9 @@
         <div class="portal-doc-body">
 
           <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+          {% if doc.tipo.instrucoes_portal %}
+          <p class="portal-doc-hint">{{ doc.tipo.instrucoes_portal }}</p>
+          {% endif %}
 
           <p class="portal-doc-status">Reenvio solicitado — envie um novo arquivo{% if doc.tipo.obrigatorio %} · Obrigatório{% endif %}</p>
 
@@ -258,35 +291,12 @@
 
         {% endif %}
 
-        <form method="post" action="{% url 'recursos_humanos:portal_upload' token doc.pk %}" enctype="multipart/form-data" class="portal-upload-form">
-
-          {% csrf_token %}
-
-          <input type="file" name="arquivo" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
-
-          <div class="portal-doc-file-actions portal-is-hidden" data-role="selected">
-
-            <a href="#" class="portal-file-thumb-link" target="_blank" rel="noopener" data-role="thumb-link" title="Visualizar arquivo">
-
-              <span data-role="thumb"></span>
-
-            </a>
-
-            <button type="button" class="portal-file-remove" data-role="clear" aria-label="Remover arquivo" title="Remover">
-
-              <i class="fas fa-times" aria-hidden="true"></i>
-
-            </button>
-
-          </div>
-
-          <button type="button" class="portal-upload-btn" data-role="picker">
-
-            <i class="fas fa-upload" aria-hidden="true"></i> Enviar novo
-
-          </button>
-
-        </form>
+        {% if doc.portal_pode_enviar %}
+        {% include "recursos_humanos/includes/portal_doc_upload_block.html" %}
+        {% endif %}
+        {% if doc.portal_upload_erro %}
+        <p class="portal-doc-upload-error" role="alert">Arquivo acima de 10 MB. Escolha outro arquivo para este item.</p>
+        {% endif %}
 
         {% elif doc.status == 'received' %}
 
@@ -295,6 +305,9 @@
         <div class="portal-doc-body">
 
           <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+          {% if doc.tipo.instrucoes_portal %}
+          <p class="portal-doc-hint">{{ doc.tipo.instrucoes_portal }}</p>
+          {% endif %}
 
           <p class="portal-doc-status">Aprovado pelo RH</p>
 
@@ -330,18 +343,6 @@
 
           </a>
 
-          <form method="post" action="{% url 'recursos_humanos:portal_remover' token doc.pk %}" class="portal-file-remove-form" onsubmit="return confirm('Remover este arquivo?');">
-
-            {% csrf_token %}
-
-            <button type="submit" class="portal-file-remove" aria-label="Remover arquivo" title="Remover">
-
-              <i class="fas fa-times" aria-hidden="true"></i>
-
-            </button>
-
-          </form>
-
         </div>
 
         {% endif %}
@@ -353,6 +354,9 @@
         <div class="portal-doc-body">
 
           <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+          {% if doc.tipo.instrucoes_portal %}
+          <p class="portal-doc-hint">{{ doc.tipo.instrucoes_portal }}</p>
+          {% endif %}
 
           <p class="portal-doc-status">Aguardando aprovação{% if doc.tipo.obrigatorio %} · Obrigatório{% endif %}</p>
 
@@ -395,6 +399,9 @@
         <div class="portal-doc-body">
 
           <p class="portal-doc-name">{{ doc.tipo.nome }}</p>
+          {% if doc.tipo.instrucoes_portal %}
+          <p class="portal-doc-hint">{{ doc.tipo.instrucoes_portal }}</p>
+          {% endif %}
 
           <p class="portal-doc-status">
 
@@ -410,35 +417,12 @@
 
         </div>
 
-        <form method="post" action="{% url 'recursos_humanos:portal_upload' token doc.pk %}" enctype="multipart/form-data" class="portal-upload-form">
-
-          {% csrf_token %}
-
-          <input type="file" name="arquivo" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
-
-          <div class="portal-doc-file-actions portal-is-hidden" data-role="selected">
-
-            <a href="#" class="portal-file-thumb-link" target="_blank" rel="noopener" data-role="thumb-link" title="Visualizar arquivo">
-
-              <span data-role="thumb"></span>
-
-            </a>
-
-            <button type="button" class="portal-file-remove" data-role="clear" aria-label="Remover arquivo" title="Remover">
-
-              <i class="fas fa-times" aria-hidden="true"></i>
-
-            </button>
-
-          </div>
-
-          <button type="button" class="portal-upload-btn" data-role="picker">
-
-            <i class="fas fa-upload" aria-hidden="true"></i> Enviar
-
-          </button>
-
-        </form>
+        {% if doc.portal_pode_enviar %}
+        {% include "recursos_humanos/includes/portal_doc_upload_block.html" %}
+        {% endif %}
+        {% if doc.portal_upload_erro %}
+        <p class="portal-doc-upload-error" role="alert">Arquivo acima de 10 MB. Escolha outro arquivo para este item.</p>
+        {% endif %}
 
         {% endif %}
 
@@ -451,6 +435,20 @@
       {% endfor %}
 
     </div>
+
+      </main>
+
+    </div>
+
+    {% if portal_pode_submeter %}
+    <div class="portal-submit-bar">
+      <p class="portal-submit-hint">Revise seus dados, anexe os documentos solicitados e envie tudo de uma vez.</p>
+      <button type="submit" class="portal-submit-btn">
+        <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar tudo
+      </button>
+    </div>
+    </form>
+    {% endif %}
 
   </div>
 
@@ -505,13 +503,18 @@
       return iconWrap;
     }
 
-    document.querySelectorAll('.portal-upload-form').forEach(function (form) {
-      var input = form.querySelector('.portal-file-input');
-      var picker = form.querySelector('[data-role="picker"]');
-      var selected = form.querySelector('[data-role="selected"]');
-      var thumbLink = form.querySelector('[data-role="thumb-link"]');
-      var thumb = form.querySelector('[data-role="thumb"]');
-      var clearBtn = form.querySelector('[data-role="clear"]');
+    var submitForm = document.getElementById('portal-submit-form');
+    var maxBytes = submitForm
+      ? parseInt(submitForm.getAttribute('data-max-upload-bytes') || '10485760', 10)
+      : 10485760;
+
+    document.querySelectorAll('.portal-doc-upload').forEach(function (block) {
+      var input = block.querySelector('.portal-file-input');
+      var picker = block.querySelector('[data-role="picker"]');
+      var selected = block.querySelector('[data-role="selected"]');
+      var thumbLink = block.querySelector('[data-role="thumb-link"]');
+      var thumb = block.querySelector('[data-role="thumb"]');
+      var clearBtn = block.querySelector('[data-role="clear"]');
       var objectUrl = null;
 
       function revokeUrl() {
@@ -538,27 +541,154 @@
         thumbLink.href = objectUrl;
         thumbLink.title = 'Visualizar ' + file.name;
         selected.classList.remove('portal-is-hidden');
+        picker.classList.add('portal-is-hidden');
       }
 
       picker.addEventListener('click', function () {
-        if (input.files && input.files.length) {
-          form.submit();
-          return;
-        }
         input.click();
       });
 
       input.addEventListener('change', function () {
         var file = input.files && input.files[0];
+        var erro = block.querySelector('[data-role="size-error"]');
+        var item = block.closest('.portal-doc-item');
         if (!file) {
           showEmpty();
+          if (erro) {
+            erro.textContent = '';
+            erro.classList.add('portal-is-hidden');
+          }
+          if (item) {
+            item.classList.remove('portal-doc-item--upload-error');
+          }
           return;
+        }
+        if (submitForm && file.size > maxBytes) {
+          var maxMbLocal = (maxBytes / (1024 * 1024)).toFixed(0);
+          if (erro) {
+            erro.textContent = file.name + ' excede ' + maxMbLocal + ' MB. Escolha um arquivo menor.';
+            erro.classList.remove('portal-is-hidden');
+          }
+          if (item) {
+            item.classList.add('portal-doc-item--upload-error');
+          }
+          return;
+        }
+        if (erro) {
+          erro.textContent = '';
+          erro.classList.add('portal-is-hidden');
+        }
+        if (item) {
+          item.classList.remove('portal-doc-item--upload-error');
         }
         showSelected(file);
       });
 
       clearBtn.addEventListener('click', showEmpty);
     });
+
+    if (submitForm) {
+      var maxMb = (maxBytes / (1024 * 1024)).toFixed(0);
+
+      function limparErrosTamanho() {
+        submitForm.querySelectorAll('.portal-doc-item--upload-error').forEach(function (item) {
+          item.classList.remove('portal-doc-item--upload-error');
+        });
+        submitForm.querySelectorAll('[data-role="size-error"]').forEach(function (el) {
+          el.textContent = '';
+          el.classList.add('portal-is-hidden');
+        });
+      }
+
+      submitForm.addEventListener('submit', function (event) {
+        limparErrosTamanho();
+        submitForm.querySelectorAll('[data-role="emissao-error"]').forEach(function (el) {
+          el.textContent = '';
+          el.classList.add('portal-is-hidden');
+        });
+
+        var invalidos = [];
+        var emissaoInvalidos = [];
+        var temArquivoValido = false;
+
+        submitForm.querySelectorAll('.portal-doc-upload--com-emissao').forEach(function (block) {
+          var fileInput = block.querySelector('.portal-file-input');
+          var emissaoInput = block.querySelector('.portal-doc-emissao-input');
+          var file = fileInput && fileInput.files && fileInput.files[0];
+          if (!file) {
+            return;
+          }
+          if (!emissaoInput || emissaoInput.value) {
+            return;
+          }
+          var item = block.closest('.portal-doc-item');
+          var erro = block.querySelector('[data-role="emissao-error"]');
+          var nomeDoc = item && item.querySelector('.portal-doc-name');
+          emissaoInvalidos.push({
+            item: item,
+            erro: erro,
+            label: nomeDoc ? nomeDoc.textContent.trim() : 'Documento',
+          });
+        });
+
+        if (emissaoInvalidos.length) {
+          event.preventDefault();
+          emissaoInvalidos.forEach(function (entry) {
+            if (entry.item) {
+              entry.item.classList.add('portal-doc-item--upload-error');
+            }
+            if (entry.erro) {
+              entry.erro.textContent = 'Informe a data de emissão deste documento.';
+              entry.erro.classList.remove('portal-is-hidden');
+            }
+          });
+          emissaoInvalidos[0].item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        submitForm.querySelectorAll('.portal-file-input').forEach(function (input) {
+          var file = input.files && input.files[0];
+          if (!file) {
+            return;
+          }
+          if (file.size <= maxBytes) {
+            temArquivoValido = true;
+            return;
+          }
+          var item = input.closest('.portal-doc-item');
+          var erro = input.closest('.portal-doc-upload').querySelector('[data-role="size-error"]');
+          var nomeDoc = item && item.querySelector('.portal-doc-name');
+          invalidos.push({
+            input: input,
+            item: item,
+            erro: erro,
+            label: nomeDoc ? nomeDoc.textContent.trim() : 'Documento',
+            fileName: file.name,
+          });
+        });
+        if (!invalidos.length) {
+          return;
+        }
+        invalidos.forEach(function (entry) {
+          if (entry.input) {
+            entry.input.value = '';
+          }
+          if (entry.item) {
+            entry.item.classList.add('portal-doc-item--upload-error');
+          }
+          if (entry.erro) {
+            entry.erro.textContent = entry.fileName + ' excede ' + maxMb + ' MB. Escolha um arquivo menor.';
+            entry.erro.classList.remove('portal-is-hidden');
+          }
+        });
+        if (!temArquivoValido) {
+          event.preventDefault();
+          invalidos[0].item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        invalidos[0].item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
   })();
   </script>
 

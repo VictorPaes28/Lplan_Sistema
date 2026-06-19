@@ -1,0 +1,29 @@
+<div class="portal-doc-upload{% if doc.tipo.tem_validade %} portal-doc-upload--com-emissao{% endif %}" data-doc-id="{{ doc.pk }}">
+  {% if doc.tipo.tem_validade %}
+  <div class="portal-doc-emissao-field">
+    <label for="doc-emissao-{{ doc.pk }}">Data de emissão <span class="portal-required">*</span></label>
+    <input
+      type="date"
+      name="doc_emissao_{{ doc.pk }}"
+      id="doc-emissao-{{ doc.pk }}"
+      class="portal-input portal-doc-emissao-input"
+      {% if doc.portal_pode_enviar %}required{% endif %}
+    >
+    <p class="portal-doc-emissao-hint">Informe quando o documento foi emitido — o vencimento será calculado automaticamente.</p>
+  </div>
+  {% endif %}
+  <input type="file" name="doc_{{ doc.pk }}" id="doc-file-{{ doc.pk }}" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+  <div class="portal-doc-file-actions portal-is-hidden" data-role="selected">
+    <a href="#" class="portal-file-thumb-link" target="_blank" rel="noopener" data-role="thumb-link" title="Visualizar arquivo">
+      <span data-role="thumb"></span>
+    </a>
+    <button type="button" class="portal-file-remove" data-role="clear" aria-label="Remover arquivo" title="Remover">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </div>
+  <button type="button" class="portal-upload-btn" data-role="picker">
+    <i class="fas fa-paperclip" aria-hidden="true"></i> Anexar arquivo
+  </button>
+  <p class="portal-doc-upload-error portal-is-hidden" data-role="size-error" role="alert"></p>
+  <p class="portal-doc-upload-error portal-is-hidden" data-role="emissao-error" role="alert"></p>
+</div>

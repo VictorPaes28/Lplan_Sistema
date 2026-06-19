@@ -29,8 +29,8 @@ def _montar_corpo_email(alertas) -> str:
     ]
     for alerta in alertas:
         linhas.append(
-            f'- {alerta.colaborador_nome}: {alerta.tipo} — {alerta.detalhe} '
-            f'(prazo {alerta.prazo})'
+            f'- {alerta.titulo or alerta.detalhe} ({alerta.colaborador_nome}) — '
+            f'{alerta.prazo}'
         )
     linhas.extend(['', 'Acesse o módulo DP/RH > Prazos e Alertas para mais detalhes.'])
     return '\n'.join(linhas)

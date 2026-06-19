@@ -17,63 +17,73 @@
   </div>
   {% if ctx.requisicao_aprovada %}
   <p class="rh-etapa-intro">
-    Requisição aprovada pelo gestor <strong>{{ ctx.gestor }}</strong>.
+    Requisição aprovada por <strong>{{ ctx.aprovacao.por }}</strong>.
     <strong>{{ selecionado.nome }}</strong> foi selecionado(a) para o cargo de <strong>{{ selecionado.cargo }}</strong>.
+    A coleta de documentos está em andamento.
   </p>
+  {% if ctx.aprovacao.tem_assinatura %}
+  <div class="rh-aprovacao-assinatura">
+    <span class="rh-field-label">Assinatura do aprovador{% if ctx.aprovacao.em %} — {{ ctx.aprovacao.em|date:"d/m/Y H:i" }}{% endif %}</span>
+    <img src="{{ ctx.aprovacao.assinatura }}" alt="Assinatura de {{ ctx.aprovacao.por }}" class="rh-aprovacao-assinatura__img">
+  </div>
+  {% endif %}
   {% elif ctx.requisicao_reprovada %}
   <p class="rh-etapa-intro">
-    Requisição reprovada pelo gestor <strong>{{ ctx.gestor }}</strong>.
-    O responsável pela admissão precisa corrigir os dados e reenviar para nova aprovação.
+    Requisição reprovada. O responsável pela admissão precisa corrigir os dados e reenviar para aprovação.
   </p>
   <div class="rh-banner rh-banner-danger">
     <i class="fas fa-times-circle" aria-hidden="true"></i>
     <div>
-      <strong>Reprovada — {{ ctx.gestor }}</strong>
+      <strong>Reprovada</strong>
       <p class="rh-muted">{{ ctx.motivo_reprovacao }}</p>
     </div>
   </div>
   {% else %}
   <p class="rh-etapa-intro">
-    Requisição enviada e aguardando aprovação do gestor <strong>{{ ctx.gestor }}</strong>.
-    Após a aprovação, o link será enviado automaticamente para <strong>{{ ctx.email }}</strong>.
+    Requisição registrada por <strong>{{ ctx.responsavel }}</strong> aguardando aprovação de
+    <strong>{{ ctx.aprovadores }}</strong>.
+    Após aprovar, a coleta de documentos será iniciada para preenchimento pelo gestor no sistema.
   </p>
   <div class="rh-banner rh-banner-warning">
     <i class="fas fa-clock" aria-hidden="true"></i>
     <div>
-      <strong>Pendente — {{ ctx.gestor }}</strong>
-      <p class="rh-muted">O gestor responsável precisa aprovar esta requisição para iniciar a coleta de documentos.</p>
+      <strong>Pendente — aguardando aprovação</strong>
+      <p class="rh-muted">Somente os aprovadores designados podem aprovar ou reprovar esta requisição.</p>
     </div>
   </div>
   {% endif %}
   <div class="rh-info-grid">
-    <div class="rh-info-box"><span class="rh-field-label">Responsável pela admissão</span><span class="rh-field-value">{{ ctx.solicitante }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Responsável pela admissão</span><span class="rh-field-value">{{ ctx.responsavel }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Aprovadores</span><span class="rh-field-value">{{ ctx.aprovadores }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">E-mail</span><span class="rh-field-value">{{ ctx.email }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Telefone</span><span class="rh-field-value">{{ ctx.telefone }}</span></div>
-    <div class="rh-info-box"><span class="rh-field-label">Gestor aprovador</span><span class="rh-field-value">{{ ctx.gestor }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ selecionado.cargo }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Cargo (RH)</span><span class="rh-field-value">{{ ctx.cargo_rh }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Obras</span><span class="rh-field-value">{{ ctx.obras }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Início previsto</span><span class="rh-field-value">{% if ctx.data_requisicao %}{{ ctx.data_requisicao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ ctx.deslocamento_origem }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ ctx.deslocamento_destino }}</span></div>
   </div>
+  {% include "recursos_humanos/includes/admissao_candidato_extra_resumo.html" with dados_candidato_itens=ctx.dados_candidato_itens %}
+  {% include "recursos_humanos/includes/admissao_reembolsos_resumo.html" with reembolsos_ctx=ctx.reembolsos %}
   {% if ctx.observacoes %}
   <p class="rh-muted rh-etapa-obs">{{ ctx.observacoes }}</p>
   {% endif %}
-  {% if ctx.pode_corrigir %}
+  {% if ctx.pode_corrigir and not somente_leitura %}
   <div class="rh-action-row">
     <button type="button" class="rh-btn rh-btn-primary js-rh-admissao-editar-open">
       <i class="fas fa-pen" aria-hidden="true"></i> Corrigir e reenviar requisição
     </button>
   </div>
   {% elif ctx.pode_aprovar or ctx.pode_reprovar %}
+  {% if not somente_leitura %}
   <div class="rh-action-row">
     {% if ctx.pode_aprovar %}
-    <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
-      {% csrf_token %}
-      <input type="hidden" name="acao" value="aprovar_requisicao">
-      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-check"></i> Aprovar requisição</button>
-    </form>
+    <button type="button" class="rh-btn rh-btn-success" id="rh-aprovar-requisicao-open">
+      <i class="fas fa-check" aria-hidden="true"></i> Aprovar requisição
+    </button>
     {% endif %}
     {% if ctx.pode_reprovar %}
     <button type="button" class="rh-btn rh-btn-danger-outline" id="rh-reprovar-requisicao-open">
@@ -81,23 +91,21 @@
     </button>
     {% endif %}
   </div>
-  {% elif not ctx.requisicao_aprovada and not ctx.requisicao_reprovada %}
-  <div class="rh-action-row">
-    <p class="rh-muted">
-      Aguardando aprovação de <strong>{{ ctx.gestor }}</strong>.
-      {% if ctx.gestor_user_id %}
-      <a href="{% url 'recursos_humanos:gestor_aprovar_requisicao' selecionado.pk %}" target="_blank" rel="noopener">Abrir tela de aprovação do gestor</a>
-      {% endif %}
-    </p>
-  </div>
+  {% endif %}
+  {% if ctx.pode_aprovar and not somente_leitura %}
+  {% url 'recursos_humanos:admissao_acao' selecionado.pk as rh_aprovar_requisicao_url %}
+  {% include "recursos_humanos/includes/admissao_aprovar_assinatura_modal.html" with aprovar_form_url=rh_aprovar_requisicao_url %}
+  {% endif %}
+  {% elif not ctx.requisicao_aprovada and not ctx.requisicao_reprovada and not ctx.pode_aprovar %}
+  <p class="rh-muted">Aguardando aprovação dos responsáveis designados.</p>
   {% elif ctx.requisicao_reprovada %}
   <p class="rh-muted">Aguardando correção pelo responsável pela admissão.</p>
   {% elif ctx.requisicao_aprovada %}
   <div class="rh-banner rh-banner-success">
     <i class="fas fa-check-circle" aria-hidden="true"></i>
     <div>
-      <strong>Coleta de documentos em andamento</strong>
-      <p class="rh-muted">O candidato já pode enviar a documentação pelo portal.</p>
+      <strong>Conferência de documentos em andamento</strong>
+      <p class="rh-muted">O gestor pode preencher e conferir a documentação no sistema.</p>
     </div>
     <a href="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}" class="rh-btn rh-btn-outline">Ver documentos</a>
   </div>
@@ -135,23 +143,19 @@
     var openBtn = document.getElementById('rh-reprovar-requisicao-open');
     if (!modal || !openBtn) return;
     function openModal() {
-      modal.hidden = false;
-      modal.setAttribute('aria-hidden', 'false');
-      document.body.classList.add('rh-modal-open');
+      window.RhMotion.openRhModal(modal);
       var ta = document.getElementById('rh-reprovar-motivo');
       if (ta) { ta.value = ''; ta.focus(); }
     }
     function closeModal() {
-      modal.hidden = true;
-      modal.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('rh-modal-open');
+      window.RhMotion.closeRhModal(modal);
     }
     openBtn.addEventListener('click', openModal);
     modal.querySelectorAll('.js-rh-reprovar-requisicao-close').forEach(function (el) {
       el.addEventListener('click', closeModal);
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !modal.hidden) closeModal();
+      if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
     });
   })();
   </script>
@@ -161,32 +165,18 @@
   {% with resumo=admissao_ctx.doc_resumo %}
   <div class="rh-etapa-head">
     <div>
-      <span class="rh-etapa-kicker">ETAPA 2 › Coleta de Docs</span>
-      <h3 class="rh-etapa-title">Coleta de documentos de <strong>{{ selecionado.nome }}</strong></h3>
+      <span class="rh-etapa-kicker">ETAPA 2 › Conferência de docs</span>
+      <h3 class="rh-etapa-title">Conferência de documentos de <strong>{{ selecionado.nome }}</strong></h3>
     </div>
     <div class="rh-etapa-head-actions">
-      <span class="rh-doc-coleta-count {% if resumo.completo %}ok{% else %}bad{% endif %}">{{ resumo.recebidos }}/{{ resumo.total }} recebidos</span>
-      {% if not somente_leitura and not resumo.completo and selecionado.email %}
-      <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-lembrete-form"
-            onsubmit="return confirm('Enviar lembrete por e-mail para {{ selecionado.email }}?');">
-        {% csrf_token %}
-        <input type="hidden" name="acao" value="enviar_lembrete">
-        <button type="submit" class="rh-btn rh-btn-outline rh-btn-sm" title="Reenviar e-mail com link do portal">
-          <i class="fas fa-bell" aria-hidden="true"></i> Enviar lembrete
-        </button>
-      </form>
-      {% else %}
-      <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" disabled
-              title="{% if resumo.completo %}Todos os documentos já foram recebidos{% elif not selecionado.email %}Colaborador sem e-mail cadastrado{% else %}Somente leitura{% endif %}">
-        <i class="fas fa-bell" aria-hidden="true"></i> Enviar lembrete
-      </button>
-      {% endif %}
+      <span id="rh-adm-doc-resumo" class="rh-doc-coleta-count {% if resumo.completo %}ok{% else %}bad{% endif %}">{{ resumo.recebidos }}/{{ resumo.total }} recebidos</span>
     </div>
   </div>
+  {% include "recursos_humanos/includes/admissao_dados_portal_panel.html" %}
 
-  <div class="rh-doc-grupos">
+  <div class="rh-doc-grupos" data-encaminhar-action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
     {% for grupo in admissao_ctx.doc_grupos %}
-    <div class="rh-doc-grupo rh-doc-grupo--{{ grupo.tone }}">
+    <div class="rh-doc-grupo rh-doc-grupo--{{ grupo.tone }}" data-grupo-id="{{ grupo.id }}">
       <div class="rh-doc-grupo-header rh-doc-grupo-header--{{ grupo.header_state }}">
         <div class="rh-doc-grupo-title">
           <i class="fas {{ grupo.icon }} rh-doc-grupo-icon rh-tone-{{ grupo.tone }}" aria-hidden="true"></i>
@@ -201,7 +191,7 @@
       </div>
       <div class="rh-doc-grupo-body">
         {% for doc in grupo.docs %}
-        <div class="rh-doc-item">
+        <div class="rh-doc-item{% if doc.tem_validade and doc.status != 'ok' and not somente_leitura and admissao_ctx.usuario_rh_pode %} rh-doc-item--with-panel{% endif %}" data-doc-id="{{ doc.pk }}" data-doc-status="{{ doc.status }}">
           <div class="rh-doc-row-clean{% if doc.tem_validade and not doc.tem_arquivo and doc.status != 'ok' %} rh-doc-row-with-hint{% endif %}">
             <span class="rh-doc-row-icon rh-doc-row-icon--{{ doc.status }}" aria-hidden="true">
               {% if doc.status == 'ok' %}<i class="fas fa-check-circle"></i>
@@ -210,24 +200,13 @@
             </span>
             <div class="rh-doc-row-body">
               <span class="rh-doc-row-name {% if doc.status == 'missing' %}is-muted{% endif %}">{{ doc.nome }}</span>
+              {% if doc.instrucoes_portal %}
+              <span class="rh-doc-row-hint rh-doc-row-hint--instr">{{ doc.instrucoes_portal }}</span>
+              {% endif %}
               {% if doc.data_emissao %}
               <span class="rh-doc-row-hint">
                 Emitido: {{ doc.data_emissao|date:"d/m/Y" }}{% if doc.vencimento %} · Vence: {{ doc.vencimento|date:"d/m/Y" }}{% endif %}
               </span>
-              {% elif doc.aguardando_aprovacao and doc.tem_validade %}
-              <p class="rh-doc-hint">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                </svg>
-                <span>Informe a data de emissão abaixo para aprovar e calcular o vencimento.</span>
-              </p>
-              {% elif doc.tem_validade and not doc.tem_arquivo %}
-              <p class="rh-doc-hint">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                </svg>
-                <span>Este documento tem prazo de validade. Informe a data de emissão para calcular o vencimento automaticamente.</span>
-              </p>
               {% elif doc.observacao %}
               <span class="rh-doc-row-hint">{{ doc.observacao }}</span>
               {% endif %}
@@ -255,60 +234,26 @@
                 </span>
                 {% endif %}
               </a>
-              {% if not somente_leitura %}
+              {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
               <div class="rh-doc-action-group">
                 {% if doc.aguardando_aprovacao %}
-                <form method="post" action="{% url 'recursos_humanos:documento_aprovar' doc.pk %}" class="rh-doc-action-form rh-doc-approve-form">
+                <form method="post" action="{% url 'recursos_humanos:documento_aprovar' doc.pk %}" class="rh-doc-action-form rh-doc-approve-form js-rh-doc-ajax-approve">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
-                  {% if doc.tem_validade %}
-                  <input type="date" name="data_emissao" class="rh-input rh-doc-emissao-input" required title="Data de emissão" aria-label="Data de emissão de {{ doc.nome }}">
-                  {% endif %}
                   <button type="submit" class="rh-doc-action-btn rh-doc-action-btn--ok" title="Aprovar documento" aria-label="Aprovar {{ doc.nome }}">
                     <i class="fas fa-check" aria-hidden="true"></i>
                   </button>
                 </form>
                 {% endif %}
+                {% if doc.aguardando_aprovacao or doc.tem_arquivo %}
                 <button type="button" class="rh-doc-action-btn rh-doc-action-btn--reject" title="Rejeitar ou remover" aria-label="Rejeitar {{ doc.nome }}"
                   data-doc-reject="{{ doc.pk }}" data-doc-nome="{{ doc.nome }}">
                   <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
-                {% if doc.pode_solicitar_reenvio %}
-                <form method="post" action="{% url 'recursos_humanos:documento_solicitar_reenvio' selecionado.pk doc.pk %}" class="rh-doc-reenvio-form" onsubmit="return confirm('Solicitar reenvio deste documento ao colaborador?');">
-                  {% csrf_token %}
-                  <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
-                  <button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button>
-                </form>
                 {% endif %}
               </div>
               {% endif %}
-              {% elif doc.pode_solicitar_reenvio and not somente_leitura %}
-              <form method="post" action="{% url 'recursos_humanos:documento_solicitar_reenvio' selecionado.pk doc.pk %}" class="rh-doc-reenvio-form" onsubmit="return confirm('Solicitar reenvio deste documento ao colaborador?');">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
-                <button type="submit" class="rh-doc-reenvio-btn">Solicitar reenvio</button>
-              </form>
-              {% elif doc.status != 'ok' and not somente_leitura %}
-              {% if doc.tem_validade %}
-              <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form rh-doc-form-column">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
-                <div class="rh-doc-emissao-field">
-                  <label for="rh-doc-emissao-adm-{{ doc.pk }}">Data de emissão</label>
-                  <input type="date" name="data_emissao" id="rh-doc-emissao-adm-{{ doc.pk }}" required>
-                </div>
-                <div class="rh-doc-actions-row">
-                  <div class="rh-doc-file-picker">
-                    <input type="file" name="arquivo" id="rh-doc-file-adm-{{ doc.pk }}" class="rh-doc-file-input rh-doc-file-input--hidden" required>
-                    <label for="rh-doc-file-adm-{{ doc.pk }}" class="rh-btn rh-btn-upload">
-                      <i class="fas fa-paperclip" aria-hidden="true"></i> Arquivo
-                    </label>
-                  </div>
-                  <button type="submit" class="rh-btn rh-btn-primary rh-btn-upload-submit">Enviar</button>
-                  <span class="rh-doc-filename" id="filename-{{ doc.pk }}"></span>
-                </div>
-              </form>
-              {% else %}
+              {% elif doc.status != 'ok' and not somente_leitura and admissao_ctx.usuario_rh_pode and not doc.tem_validade %}
               <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
@@ -318,12 +263,20 @@
                 </label>
               </form>
               {% endif %}
-              {% endif %}
               <span class="rh-doc-pill rh-doc-pill--{% if doc.vencido %}missing{% elif doc.aguardando_aprovacao %}pending{% else %}{{ doc.status }}{% endif %}">
                 {% if doc.vencido %}Vencido{% elif doc.status == 'ok' %}Recebido{% elif doc.aguardando_aprovacao %}Aguardando aprovação{% elif doc.status == 'pending' %}Pendente{% else %}Faltando{% endif %}
               </span>
             </div>
           </div>
+          {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
+          {% if doc.tem_validade and doc.status != 'ok' and not doc.tem_arquivo %}
+          {% url 'recursos_humanos:documento_upload' doc.pk as doc_upload_url %}
+          {% include "recursos_humanos/includes/rh_doc_upload_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk upload_url=doc_upload_url %}
+          {% elif doc.aguardando_aprovacao and doc.tem_validade and not doc.data_emissao %}
+          {% url 'recursos_humanos:documento_aprovar' doc.pk as doc_approve_url %}
+          {% include "recursos_humanos/includes/rh_doc_aprovar_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk approve_url=doc_approve_url %}
+          {% endif %}
+          {% endif %}
         </div>
         {% endfor %}
       </div>
@@ -333,23 +286,23 @@
     {% endfor %}
   </div>
 
-  {% if not somente_leitura %}
+  {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
   <script>
   (function () {
-    document.querySelectorAll('.rh-doc-upload-form.rh-doc-form-column').forEach(function (form) {
+    document.querySelectorAll('.rh-doc-upload-panel').forEach(function (form) {
       var fileInput = form.querySelector('input[type="file"]');
       var dateInput = form.querySelector('input[type="date"]');
-      var filenameSpan = form.querySelector('.rh-doc-filename');
+      var filenameSpan = form.querySelector('.rh-doc-upload-panel__filename');
       if (!fileInput) return;
 
       fileInput.addEventListener('change', function () {
         if (!filenameSpan) return;
         if (this.files.length > 0) {
           filenameSpan.textContent = this.files[0].name;
-          filenameSpan.style.display = 'inline';
+          filenameSpan.hidden = false;
         } else {
           filenameSpan.textContent = '';
-          filenameSpan.style.display = 'none';
+          filenameSpan.hidden = true;
         }
       });
 
@@ -374,67 +327,29 @@
     });
   })();
   </script>
-  <div id="rh-doc-reject-modal" class="rh-doc-reject-modal" hidden>
-    <div class="rh-doc-reject-modal__backdrop" data-doc-reject-close></div>
-    <div class="rh-doc-reject-modal__panel" role="dialog" aria-modal="true" aria-labelledby="rh-doc-reject-title">
-      <h4 id="rh-doc-reject-title" class="rh-doc-reject-modal__title">Rejeitar documento</h4>
-      <p class="rh-doc-reject-modal__sub">A observação será exibida ao candidato no portal.</p>
-      <form method="post" id="rh-doc-reject-form" class="rh-doc-reject-modal__form">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}">
-        <label class="rh-form-field">
-          <span>Observação <span class="rh-required">*</span></span>
-          <textarea name="observacao" class="rh-input rh-textarea" rows="3" maxlength="300" required placeholder="Explique o que precisa ser corrigido ou reenviado..."></textarea>
-        </label>
-        <div class="rh-doc-reject-modal__actions">
-          <button type="button" class="rh-btn rh-btn-outline" data-doc-reject-close>Cancelar</button>
-          <button type="submit" class="rh-btn rh-btn-danger">Rejeitar e remover</button>
-        </div>
-      </form>
-    </div>
-  </div>
-  <script>
-  (function () {
-    var modal = document.getElementById('rh-doc-reject-modal');
-    var form = document.getElementById('rh-doc-reject-form');
-    if (!modal || !form) return;
-    var title = document.getElementById('rh-doc-reject-title');
-
-    function closeModal() {
-      modal.hidden = true;
-      form.querySelector('textarea[name="observacao"]').value = '';
-    }
-
-    document.querySelectorAll('[data-doc-reject]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var pk = btn.getAttribute('data-doc-reject');
-        var nome = btn.getAttribute('data-doc-nome') || 'documento';
-        form.action = '{% url "recursos_humanos:documento_rejeitar" 0 %}'.replace('/0/', '/' + pk + '/');
-        if (title) title.textContent = 'Rejeitar — ' + nome;
-        modal.hidden = false;
-        form.querySelector('textarea[name="observacao"]').focus();
-      });
-    });
-
-    modal.querySelectorAll('[data-doc-reject-close]').forEach(function (el) {
-      el.addEventListener('click', closeModal);
-    });
-  })();
-  </script>
   {% endif %}
 
-  {% if resumo.completo and not somente_leitura %}
-  <div class="rh-banner rh-banner-success">
+  {% if admissao_ctx.pode_encaminhar_validacao and not somente_leitura and admissao_ctx.usuario_rh_pode %}
+  <div id="rh-adm-encaminhar-banner" class="rh-banner rh-banner-success">
     <i class="fas fa-check-circle" aria-hidden="true"></i>
     <div>
-      <strong>Todos os documentos recebidos</strong>
-      <p class="rh-muted">Pronto para avançar para a etapa de Aprovação RH</p>
+      <strong>Todos os documentos conferidos</strong>
+      <p class="rh-muted">Pronto para encaminhar à validação final</p>
     </div>
     <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
       {% csrf_token %}
       <input type="hidden" name="acao" value="avancar">
-      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-arrow-right"></i> Encaminhar ao RH</button>
+      <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-arrow-right"></i> Encaminhar à validação final</button>
     </form>
+  </div>
+  {% elif admissao_ctx.etapa_atual >= 3 and resumo.completo and not somente_leitura %}
+  <div class="rh-banner rh-banner-success">
+    <i class="fas fa-check-circle" aria-hidden="true"></i>
+    <div>
+      <strong>Pendências documentais resolvidas</strong>
+      <p class="rh-muted">O processo já está na etapa {{ admissao_ctx.etapa_atual }}. Retorne à etapa atual para continuar.</p>
+    </div>
+    <a href="?id={{ selecionado.pk }}" class="rh-btn rh-btn-outline">Ir para etapa atual</a>
   </div>
   {% endif %}
   {% endwith %}
@@ -443,11 +358,11 @@
   {% with ctx=admissao_ctx.etapa_3 %}
   <div class="rh-etapa-head">
     <div>
-      <span class="rh-etapa-kicker">ETAPA 3 › Aprovação RH</span>
-      <h3 class="rh-etapa-title">Aprovação de <strong>{{ selecionado.nome }}</strong></h3>
+      <span class="rh-etapa-kicker">ETAPA 3 › Validação final</span>
+      <h3 class="rh-etapa-title">Validação final de <strong>{{ selecionado.nome }}</strong></h3>
     </div>
   </div>
-  <p class="rh-etapa-intro">Revisão final da documentação já conferida na coleta. Aqui o RH valida o conjunto e libera o contrato — ou devolve o processo inteiro para correções.</p>
+  <p class="rh-etapa-intro">Revisão final da documentação já conferida na etapa anterior. Valide o conjunto e libere o contrato — ou devolva o processo inteiro para correções.</p>
   <div class="rh-banner rh-banner-warning">
     <i class="fas fa-clock" aria-hidden="true"></i>
     <div>
@@ -487,8 +402,8 @@
     <p class="rh-muted">Nenhum documento configurado para este colaborador.</p>
     {% endfor %}
   </div>
-  <p class="rh-etapa-hint rh-muted"><i class="fas fa-info-circle" aria-hidden="true"></i> A aprovação documento a documento foi feita na <a href="?id={{ selecionado.pk }}&amp;ver_etapa=2">Coleta de Docs</a>. Clique no quadradinho para abrir o arquivo.</p>
-  {% if not somente_leitura %}
+  <p class="rh-etapa-hint rh-muted"><i class="fas fa-info-circle" aria-hidden="true"></i> A aprovação documento a documento foi feita na <a href="?id={{ selecionado.pk }}&amp;ver_etapa=2">Conferência de docs</a>. Clique no quadradinho para abrir o arquivo.</p>
+  {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
   <div class="rh-action-row">
     <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}">
       {% csrf_token %}
@@ -498,7 +413,7 @@
     <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-devolver-form" id="rh-devolver-form">
       {% csrf_token %}
       <input type="hidden" name="acao" value="devolver">
-      <div class="rh-devolver-panel rh-is-hidden" data-devolver-panel>
+      <div class="rh-devolver-panel rh-fade-panel" data-devolver-panel>
         <input type="text" name="motivo" class="rh-input" placeholder="Motivo da devolução" maxlength="300" data-devolver-motivo>
         <button type="submit" class="rh-btn rh-btn-danger-outline"><i class="fas fa-times"></i> Confirmar devolução</button>
         <button type="button" class="rh-btn rh-btn-outline" data-devolver-cancel>Cancelar</button>
@@ -516,7 +431,7 @@
     if (!panel || !openBtn || !motivo) return;
 
     function closePanel() {
-      panel.classList.add('rh-is-hidden');
+      panel.classList.remove('is-visible');
       openBtn.classList.remove('rh-is-hidden');
       motivo.value = '';
       motivo.removeAttribute('required');
@@ -524,7 +439,7 @@
 
     openBtn.addEventListener('click', function () {
       openBtn.classList.add('rh-is-hidden');
-      panel.classList.remove('rh-is-hidden');
+      panel.classList.add('is-visible');
       motivo.setAttribute('required', 'required');
       motivo.focus();
     });
@@ -532,7 +447,7 @@
     form.querySelector('[data-devolver-cancel]').addEventListener('click', closePanel);
 
     form.addEventListener('submit', function (e) {
-      if (panel.classList.contains('rh-is-hidden')) {
+      if (!panel.classList.contains('is-visible')) {
         e.preventDefault();
         return;
       }
@@ -550,8 +465,8 @@
   {% with ctx=admissao_ctx.etapa_4 %}
   <div class="rh-etapa-head">
     <div>
-      <span class="rh-etapa-kicker">ETAPA 4 › Ass. Contrato</span>
-      <h3 class="rh-etapa-title">Assinatura de contrato — <strong>{{ selecionado.nome }}</strong></h3>
+      <span class="rh-etapa-kicker">ETAPA 4 › Contrato (ZapSign)</span>
+      <h3 class="rh-etapa-title">Contrato — <strong>{{ selecionado.nome }}</strong></h3>
     </div>
   </div>
   <p class="rh-etapa-intro">Documentação aprovada. Gere o PDF, assine no ZapSign e arquive o documento assinado aqui.</p>
@@ -561,7 +476,10 @@
     <div class="rh-info-box"><span class="rh-field-label">Obras</span><span class="rh-field-value">{{ ctx.obra }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Data de início</span><span class="rh-field-value">{% if ctx.data_inicio %}{{ ctx.data_inicio|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ ctx.deslocamento_origem }}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ ctx.deslocamento_destino }}</span></div>
   </div>
+  {% include "recursos_humanos/includes/admissao_reembolsos_resumo.html" with reembolsos_ctx=ctx.reembolsos %}
 
   {% if ctx.prazo_ativo %}
   <div class="rh-banner rh-banner-warning" style="margin-top:1rem;">
@@ -596,12 +514,24 @@
     </div>
 
     <div class="rh-action-row" style="margin-top:1rem;">
+      {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
       <a href="{% url 'recursos_humanos:contrato_gerar' selecionado.pk %}" class="rh-btn rh-btn-primary"><i class="fas fa-file-pdf"></i> Gerar PDF para ZapSign</a>
       {% if ctx.contrato and ctx.contrato.pdf_contrato %}
       <a href="{% url 'recursos_humanos:contrato_download' selecionado.pk %}" class="rh-btn rh-btn-outline"><i class="fas fa-download"></i> Baixar rascunho</a>
+      {% if not ctx.contrato_enviado %}
+      <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="enviar_contrato">
+        <button type="submit" class="rh-btn rh-btn-outline"><i class="fas fa-paper-plane"></i> Marcar enviado ao ZapSign</button>
+      </form>
+      {% else %}
+      <span class="rh-muted" style="align-self:center;"><i class="fas fa-check" aria-hidden="true"></i> Enviado ao ZapSign</span>
+      {% endif %}
+      {% endif %}
       {% endif %}
     </div>
 
+    {% if not somente_leitura and admissao_ctx.usuario_rh_pode and ctx.contrato_enviado %}
     <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-form-block" style="margin-top:1.25rem;">
       {% csrf_token %}
       <label class="rh-field-label" for="pdf_assinado">Upload do PDF assinado (ZapSign)</label>
@@ -609,8 +539,11 @@
       <div class="rh-action-row" style="margin-top:0.75rem;">
         <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-upload"></i> Arquivar contrato assinado</button>
       </div>
-      <p class="rh-muted" style="margin-top:0.5rem;font-size:0.85rem;">Ao arquivar, o colaborador será ativado automaticamente.</p>
+      <p class="rh-muted" style="margin-top:0.5rem;font-size:0.85rem;">Após arquivar o PDF assinado, o colaborador será ativado automaticamente.</p>
     </form>
+    {% elif not somente_leitura and admissao_ctx.usuario_rh_pode and ctx.contrato and ctx.contrato.pdf_contrato and not ctx.contrato_enviado %}
+    <p class="rh-muted" style="margin-top:1rem;"><i class="fas fa-info-circle" aria-hidden="true"></i> Marque o contrato como enviado ao ZapSign antes de arquivar o PDF assinado.</p>
+    {% endif %}
   {% endif %}
   {% endwith %}
 
