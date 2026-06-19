@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ titulo_email }} — LPLAN RH</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #374151;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      background-color: #f3f4f6;
+    }
+    .email-container {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+    .email-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+    .email-header h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      color: #0f172a;
+    }
+    .email-header p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .email-body {
+      padding: 28px;
+    }
+    .email-body p {
+      margin: 0 0 16px;
+      font-size: 15px;
+      color: #374151;
+    }
+    .info-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 20px 0;
+    }
+    .info-box table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .info-box td {
+      padding: 6px 0;
+      vertical-align: top;
+    }
+    .info-box td:first-child {
+      width: 38%;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .alert-box {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 20px 0;
+    }
+    .alert-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #9a3412;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .alert-box p {
+      margin: 0;
+      color: #7c2d12;
+      font-size: 14px;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 12px 20px;
+      background: #0f766e;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .email-footer {
+      padding: 16px 28px 24px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <header class="email-header">
+      <h1>{{ titulo_email }}</h1>
+      <p>{{ subtitulo_email }}</p>
+    </header>
+    <div class="email-body">
+      <p>Olá,</p>
+      <p>
+        Contrato de <strong>{{ nome_colaborador }}</strong>
+        ({{ tipo_contrato }}) — vencimento em <strong>{{ data_vencimento }}</strong>.
+      </p>
+
+      <div class="info-box">
+        <table>
+          <tr>
+            <td>Colaborador</td>
+            <td>{{ nome_colaborador }}</td>
+          </tr>
+          <tr>
+            <td>Tipo de contrato</td>
+            <td>{{ tipo_contrato }}</td>
+          </tr>
+          <tr>
+            <td>Cargo</td>
+            <td>{{ cargo }}</td>
+          </tr>
+          <tr>
+            <td>Obra(s)</td>
+            <td>{{ obras }}</td>
+          </tr>
+          <tr>
+            <td>Início</td>
+            <td>{{ data_inicio }}</td>
+          </tr>
+          <tr>
+            <td>Vencimento</td>
+            <td><strong>{{ data_vencimento }}</strong></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="alert-box">
+        <strong>O que acontece se não agir</strong>
+        <p>{{ texto_decisao }}</p>
+      </div>
+
+      <p>
+        <a href="{{ url_colaborador }}" class="btn">Abrir colaborador no sistema</a>
+      </p>
+    </div>
+    <footer class="email-footer">
+      Mensagem automática do módulo RH/DP — não responda a este e-mail.
+    </footer>
+  </div>
+</body>
+</html>

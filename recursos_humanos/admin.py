@@ -7,6 +7,7 @@ from .models import (
     Colaborador,
     ContratoAdmissao,
     DocumentoColaborador,
+    NotificacaoEnviada,
     ObraLocal,
     PapelFluxoAdmissao,
     PrazoContrato,
@@ -70,6 +71,14 @@ class ContratoAdmissaoAdmin(admin.ModelAdmin):
     list_display = ['colaborador', 'status', 'criado_em', 'concluido_em']
     list_filter = ['status']
     readonly_fields = ['criado_em', 'concluido_em']
+
+
+@admin.register(NotificacaoEnviada)
+class NotificacaoEnviadaAdmin(admin.ModelAdmin):
+    list_display = ('prazo_contrato', 'tipo_alerta', 'marco', 'data_envio')
+    list_filter = ('tipo_alerta', 'data_envio')
+    search_fields = ('prazo_contrato__colaborador__nome',)
+    readonly_fields = ('prazo_contrato', 'tipo_alerta', 'marco', 'data_envio')
 
 
 @admin.register(PrazoContrato)

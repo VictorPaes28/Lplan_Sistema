@@ -566,6 +566,54 @@ class PrazoContrato(models.Model):
         return acoes
 
 
+class NotificacaoEnviada(models.Model):
+    """Registro de e-mails automáticos de vencimento de contrato (idempotência diária)."""
+
+    class TipoAlerta(models.TextChoices):
+        EXPERIENCIA_45 = 'experiencia_45', 'Experiência — 45 dias'
+        EXPERIENCIA_90 = 'experiencia_90', 'Experiência — 90 dias'
+        DETERMINADO_FIM = 'determinado_fim', 'Determinado — fim do prazo'
+        ESTAGIO_FIM = 'estagio_fim', 'Estágio — fim do período'
+        ESTAGIO_2ANOS = 'estagio_2anos', 'Estágio — limite 2 anos'
+        PJ_FIM = 'pj_fim', 'PJ — fim do contrato'
+        TEMPORARIO_FIM = 'temporario_fim', 'Temporário — fim do prazo'
+
+    class Marco(models.IntegerChoices):
+        DIAS_45 = 45, '45 dias'
+        DIAS_90 = 90, '90 dias'
+
+    prazo_contrato = models.ForeignKey(
+        PrazoContrato,
+        on_delete=models.CASCADE,
+        related_name='notificacoes_enviadas',
+    )
+    tipo_alerta = models.CharField(
+        'Tipo de alerta',
+        max_length=30,
+        choices=TipoAlerta.choices,
+    )
+    marco = models.PositiveSmallIntegerField(
+        'Marco (dias)',
+        choices=Marco.choices,
+        null=True,
+        blank=True,
+        help_text='Usado nos alertas de experiência (45/90).',
+    )
+    data_envio = models.DateField('Data do envio')
+
+    class Meta:
+        verbose_name = 'Notificação de contrato enviada'
+        verbose_name_plural = 'Notificações de contrato enviadas'
+        unique_together = [('prazo_contrato', 'tipo_alerta', 'data_envio')]
+        ordering = ['-data_envio', '-pk']
+
+    def __str__(self):
+        return (
+            f'{self.prazo_contrato.colaborador.nome} — '
+            f'{self.get_tipo_alerta_display()} ({self.data_envio:%d/%m/%Y})'
+        )
+
+
 class PapelFluxoAdmissao(models.Model):
     """Responsáveis configuráveis por etapa do fluxo de admissão (múltiplos usuários por papel)."""
 

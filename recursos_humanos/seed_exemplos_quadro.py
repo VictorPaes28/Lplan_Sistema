@@ -5,14 +5,11 @@ from datetime import date, datetime, timedelta
 
 from django.utils import timezone
 
+from recursos_humanos.seed_mvp_data import ensure_tipos_catalogo
+
 
 def _aware(dt):
     return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
-
-
-def _tipos_por_nome(apps):
-    TipoDocumento = apps.get_model('recursos_humanos', 'TipoDocumento')
-    return {t.nome: t for t in TipoDocumento.objects.all()}
 
 
 def _obra(apps, nome):
@@ -23,9 +20,12 @@ def _obra(apps, nome):
 
 def _add_docs(DocumentoColaborador, colab, tipos, specs):
     for tipo_nome, status, venc in specs:
+        tipo = tipos.get(tipo_nome)
+        if not tipo:
+            continue
         DocumentoColaborador.objects.create(
             colaborador=colab,
-            tipo=tipos[tipo_nome],
+            tipo=tipo,
             status=status,
             vencimento=venc,
         )
@@ -55,9 +55,7 @@ def seed_exemplos_quadro(apps, schema_editor):
     AdmissaoHistorico = apps.get_model('recursos_humanos', 'AdmissaoHistorico')
     PrazoContrato = apps.get_model('recursos_humanos', 'PrazoContrato')
 
-    tipos = _tipos_por_nome(apps)
-    if not tipos:
-        return
+    tipos = ensure_tipos_catalogo(apps)
 
     hoje = date(2026, 6, 17)
     obra_lapa = _obra(apps, 'Obra Lapa')
@@ -182,7 +180,7 @@ def seed_exemplos_quadro(apps, schema_editor):
             requisicao_aprovada_gestor=spec.get('requisicao_aprovada_gestor', True),
         )
         colab.obras.set(spec['obras'])
-        _add_docs(DocumentoColaborador, colab, tipos, spec['docs'])
+        _add_docs(DocumentoColaborador, colab, tipos, spec.get('docs', []))
 
         for ev in spec.get('historico', []):
             AdmissaoHistorico.objects.create(

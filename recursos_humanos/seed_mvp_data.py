@@ -3,10 +3,43 @@ from datetime import date, datetime
 
 from django.utils import timezone
 
+TIPOS_CFG = [
+    ('RG', 'todos', False, None, True, 1),
+    ('CPF', 'todos', False, None, True, 2),
+    ('Título de Eleitor', 'todos', False, None, True, 3),
+    ('Certidão de Nascimento/Casamento', 'todos', False, None, True, 4),
+    ('Comprovante Bancário', 'todos', False, None, True, 5),
+    ('Comprovante de Endereço', 'todos', True, 90, True, 6),
+    ('Certificado de Escolaridade', 'por_cargo', False, None, False, 7),
+    ('PIS', 'todos', False, None, True, 8),
+    ('CTPS (Carteira de Trabalho)', 'todos', False, None, True, 9),
+    ('Documentos dos Filhos', 'todos', False, None, False, 10),
+    ('ASO – Atestado de Saúde Ocupacional', 'todos', True, 365, True, 11),
+    ('NR-35 – Trabalho em Altura', 'por_cargo', True, 365, True, 12),
+    ('NR-10 – Segurança em Eletricidade', 'por_cargo', True, 730, False, 13),
+    ('FGTS – Extrato', 'todos', True, 30, False, 14),
+]
+
+
+def ensure_tipos_catalogo(apps):
+    TipoDocumento = apps.get_model('recursos_humanos', 'TipoDocumento')
+    tipos = {}
+    for nome, aplica, val, dias, obrig, ordem in TIPOS_CFG:
+        tipos[nome], _ = TipoDocumento.objects.get_or_create(
+            nome=nome,
+            defaults={
+                'aplica_a': aplica,
+                'tem_validade': val,
+                'dias_validade': dias,
+                'obrigatorio': obrig,
+                'ordem': ordem,
+            },
+        )
+    return tipos
+
 
 def seed_rh_demo(apps, schema_editor):
     ObraLocal = apps.get_model('recursos_humanos', 'ObraLocal')
-    TipoDocumento = apps.get_model('recursos_humanos', 'TipoDocumento')
     Colaborador = apps.get_model('recursos_humanos', 'Colaborador')
     DocumentoColaborador = apps.get_model('recursos_humanos', 'DocumentoColaborador')
     AdmissaoHistorico = apps.get_model('recursos_humanos', 'AdmissaoHistorico')
@@ -18,34 +51,7 @@ def seed_rh_demo(apps, schema_editor):
     for nome in ['Obra Paulista', 'Obra Morumbi', 'Obra Lapa', 'Obra ABC', 'Obra Tatuapé']:
         obras[nome], _ = ObraLocal.objects.get_or_create(nome=nome)
 
-    tipos_cfg = [
-        ('RG', 'todos', False, None, True, 1),
-        ('CPF', 'todos', False, None, True, 2),
-        ('Título de Eleitor', 'todos', False, None, True, 3),
-        ('Certidão de Nascimento/Casamento', 'todos', False, None, True, 4),
-        ('Comprovante Bancário', 'todos', False, None, True, 5),
-        ('Comprovante de Endereço', 'todos', True, 90, True, 6),
-        ('Certificado de Escolaridade', 'por_cargo', False, None, False, 7),
-        ('PIS', 'todos', False, None, True, 8),
-        ('CTPS (Carteira de Trabalho)', 'todos', False, None, True, 9),
-        ('Documentos dos Filhos', 'todos', False, None, False, 10),
-        ('ASO – Atestado de Saúde Ocupacional', 'todos', True, 365, True, 11),
-        ('NR-35 – Trabalho em Altura', 'por_cargo', True, 365, True, 12),
-        ('NR-10 – Segurança em Eletricidade', 'por_cargo', True, 730, False, 13),
-        ('FGTS – Extrato', 'todos', True, 30, False, 14),
-    ]
-    tipos = {}
-    for nome, aplica, val, dias, obrig, ordem in tipos_cfg:
-        tipos[nome], _ = TipoDocumento.objects.get_or_create(
-            nome=nome,
-            defaults={
-                'aplica_a': aplica,
-                'tem_validade': val,
-                'dias_validade': dias,
-                'obrigatorio': obrig,
-                'ordem': ordem,
-            },
-        )
+    tipos = ensure_tipos_catalogo(apps)
 
     def add_docs(colab, specs):
         for tipo_nome, status, venc in specs:

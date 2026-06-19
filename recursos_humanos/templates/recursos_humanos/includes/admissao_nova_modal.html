@@ -248,6 +248,7 @@
                 <label for="id_prazo_duracao_dias" id="duracao-label">Duração do contrato (dias)</label>
                 <input type="number" name="prazo_duracao_dias" id="id_prazo_duracao_dias" class="rh-input" min="1" placeholder="Indeterminado">
                 <span class="rh-field-hint" id="duracao-limite-hint"></span>
+                <p class="rh-field-hint" id="contrato-informativo-texto" hidden></p>
               </div>
             </div>
             <div id="clt-experiencia-wrap" class="rh-form-field rh-wizard-field-full" hidden>
@@ -1052,13 +1053,58 @@
     }
   }
 
-  var hints = {
-    'CLT_experiencia': 'Máximo legal: 90 dias (CLT art. 445).',
-    'CLT_indeterminado': '',
-    'Temporário': '',
-    'Estágio': 'Máximo legal: 730 dias / 2 anos (Lei 11.788/2008).',
-    'Pessoa Jurídica': '',
+  var TEXTOS_INFORMATIVO_CONTRATO = {
+    CLT_experiencia:
+      'Período de experiência: máximo 90 dias corridos, renovável uma única vez. ' +
+      'Se ultrapassar 90 dias, o contrato vira automaticamente CLT por prazo indeterminado.',
+    CLT_determinado:
+      'Contrato por prazo determinado: máximo 2 anos. Se ultrapassar 2 anos sem rescisão, ' +
+      'vira automaticamente CLT por prazo indeterminado.',
+    CLT_indeterminado:
+      'Contrato por prazo indeterminado: não é necessário definir data de término.',
+    'Estágio':
+      'Estágio: máximo 2 anos na mesma empresa (Lei 11.788/2008). Se ultrapassar, gera vínculo ' +
+      'empregatício com todos os direitos CLT retroativos.',
+    'Pessoa Jurídica':
+      'Contrato PJ: prazo conforme acordado. Rescisão antecipada sem justa causa gera ' +
+      'indenização dos dias restantes (art. 603 do Código Civil).',
+    'Temporário':
+      'Trabalho temporário: máximo 180 dias, prorrogável por mais 90 dias (Lei 6.019/1974).',
   };
+
+  function atualizarInformativoContrato() {
+    var textoEl = document.getElementById('contrato-informativo-texto');
+    var tipoEl = document.getElementById('id_tipo_contrato');
+    var input = document.getElementById('id_prazo_duracao_dias');
+    var chkExp = document.getElementById('id_clt_periodo_experiencia');
+    if (!textoEl || !tipoEl) return;
+
+    var tipo = tipoEl.value;
+    var dias = input && input.value ? parseInt(input.value, 10) : 0;
+    var temPrazo = dias > 0 && !isNaN(dias);
+    var chave = null;
+
+    if (tipo === 'CLT') {
+      if (chkExp && chkExp.checked) {
+        chave = 'CLT_experiencia';
+      } else if (temPrazo) {
+        chave = 'CLT_determinado';
+      } else {
+        chave = 'CLT_indeterminado';
+      }
+    } else {
+      chave = tipo;
+    }
+
+    var texto = TEXTOS_INFORMATIVO_CONTRATO[chave] || '';
+    if (texto) {
+      textoEl.textContent = texto;
+      textoEl.hidden = false;
+    } else {
+      textoEl.textContent = '';
+      textoEl.hidden = true;
+    }
+  }
 
   function atualizarDuracao() {
     var tipoEl = document.getElementById('id_tipo_contrato');
@@ -1082,12 +1128,12 @@
         if (!input.value) input.value = 90;
         input.placeholder = '';
         if (label) label.textContent = 'Duração do período de experiência (dias)';
-        if (hint) hint.textContent = hints['CLT_experiencia'];
+        if (hint) hint.textContent = '';
         input.required = true;
       } else {
         input.placeholder = 'Indeterminado (deixe vazio)';
         if (label) label.textContent = 'Duração do contrato (dias)';
-        if (hint) hint.textContent = hints['CLT_indeterminado'];
+        if (hint) hint.textContent = '';
         input.required = false;
       }
     } else {
@@ -1096,9 +1142,10 @@
       if (!input.value) input.value = defaults[tipo] || 180;
       input.placeholder = '';
       if (label) label.textContent = 'Duração do contrato (dias)';
-      if (hint) hint.textContent = hints[tipo] || '';
+      if (hint) hint.textContent = '';
       input.required = true;
     }
+    atualizarInformativoContrato();
   }
 
   function validarPrazoCltStep3() {
@@ -1132,7 +1179,13 @@
   if (chkExpEl) {
     chkExpEl.addEventListener('change', atualizarDuracao);
   }
+  var prazoDiasEl = document.getElementById('id_prazo_duracao_dias');
+  if (prazoDiasEl) {
+    prazoDiasEl.addEventListener('input', atualizarInformativoContrato);
+    prazoDiasEl.addEventListener('change', atualizarInformativoContrato);
+  }
   atualizarDuracao();
+  atualizarInformativoContrato();
 
   function validateStep(step) {
     var panel = modal.querySelector('[data-panel="' + step + '"]');
