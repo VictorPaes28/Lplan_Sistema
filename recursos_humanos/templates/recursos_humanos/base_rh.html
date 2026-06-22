@@ -4,7 +4,7 @@
 {% block back_url %}{% url 'select-system' %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=96">
+<link rel="stylesheet" href="{% static 'recursos_humanos/css/rh.css' %}?v=100">
 {% endblock %}
 
 {% block title %}DP / RH — LPLAN{% endblock %}
@@ -14,6 +14,7 @@
 
 {% block content %}
 <script src="{% static 'recursos_humanos/js/rh-motion.js' %}?v=2"></script>
+<script src="{% static 'recursos_humanos/js/rh-doc-upload-panel.js' %}?v=2" defer></script>
 <div class="rh-fullbleed">
   <div class="tabs-bar">
     <a href="{% url 'recursos_humanos:colaboradores' %}" class="tab {% if request.resolver_match.url_name == 'colaboradores' or request.resolver_match.url_name == 'colaboradores_list' or request.resolver_match.url_name == 'colaborador_detalhe' %}active{% endif %}">

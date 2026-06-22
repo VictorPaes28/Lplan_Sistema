@@ -19,6 +19,9 @@ from .forms import (
     DocumentoStatusForm,
     DocumentoUploadForm,
     ESCOLARIDADE_CHOICES,
+    mensagem_erros_upload,
+    PORTAL_UPLOAD_MAX_MB,
+    PORTAL_UPLOAD_MAX_BYTES,
     NovaRequisicaoForm,
     PortalCandidatoDadosForm,
     ReprovarRequisicaoForm,
@@ -806,7 +809,18 @@ def gestor_aprovar_requisicao_view(request, pk):
 def admissao_view(request):
     _sincronizar_notificacoes_rh()
     sincronizar_obras_gestao()
-    admissoes_qs = _admissao_queryset(request.user)
+    from recursos_humanos.services.admissao_fluxo_filtros import (
+        aplicar_filtro_fluxo_admissao,
+        contar_filtros_fluxo_admissao,
+        montar_ui_grupos_filtro_fluxo,
+        resolver_filtro_fluxo_admissao,
+        rotulo_filtro_fluxo_ativo,
+    )
+
+    base_qs = _admissao_queryset(request.user)
+    filtro_fluxo = resolver_filtro_fluxo_admissao(request.GET.get('filtro'), base_qs, request.user)
+    filtros_contagem = contar_filtros_fluxo_admissao(base_qs, request.user)
+    admissoes_qs = aplicar_filtro_fluxo_admissao(base_qs, filtro_fluxo, request.user)
     selecionado_id = request.GET.get('id')
     selecionado = admissoes_qs.filter(pk=selecionado_id).first() if selecionado_id else None
     if selecionado is None:
@@ -911,6 +925,15 @@ def admissao_view(request):
         'pendencia_documentos': pendencia_documentos,
         'etapa_fluxo': etapa_fluxo,
         'admissoes_status': admissoes_status,
+        'filtro_fluxo': filtro_fluxo,
+        'filtro_fluxo_rotulo': rotulo_filtro_fluxo_ativo(filtro_fluxo, etapas_labels),
+        'filtros_grupos': montar_ui_grupos_filtro_fluxo(
+            filtros_contagem,
+            filtro_fluxo,
+            etapas_labels,
+        ),
+        'filtros_contagem': filtros_contagem,
+        'total_fluxo': filtros_contagem.get('todas', 0),
         **_rh_nav_context(request),
     }
     if selecionado and selecionado.etapa_admissao >= 2:
@@ -1158,35 +1181,51 @@ def documento_upload_view(request, pk):
         pk=pk,
     )
     next_url = request.POST.get('next') or url_colaboradores_com_modal(doc.colaborador_id)
-    form = DocumentoUploadForm(request.POST, request.FILES)
-    if form.is_valid():
-        from recursos_humanos.services.admissao_actions import _exigir_papel_conferencia_docs
+    if not request.FILES.get('arquivo'):
+        return _responder_documento_acao(
+            request,
+            next_url,
+            False,
+            'Selecione um arquivo para enviar.',
+        )
+    form = DocumentoUploadForm(
+        request.POST,
+        request.FILES,
+        requer_emissao=doc.tipo.tem_validade,
+    )
+    if not form.is_valid():
+        return _responder_documento_acao(
+            request,
+            next_url,
+            False,
+            mensagem_erros_upload(form),
+        )
 
-        ok_papel, msg_papel = _exigir_papel_conferencia_docs(request.user, doc.colaborador)
-        if not ok_papel:
-            messages.error(request, msg_papel)
-            return HttpResponseRedirect(next_url)
+    from recursos_humanos.services.admissao_actions import _exigir_papel_conferencia_docs
 
-        arquivo = form.cleaned_data['arquivo']
-        data_emissao = form.cleaned_data.get('data_emissao')
+    ok_papel, msg_papel = _exigir_papel_conferencia_docs(request.user, doc.colaborador)
+    if not ok_papel:
+        return _responder_documento_acao(request, next_url, False, msg_papel)
 
-        if doc.tipo.tem_validade and not data_emissao:
-            messages.error(
-                request,
-                f'Informe a data de emissão do documento "{doc.tipo.nome}" '
-                f'— necessária para calcular o vencimento.',
-            )
-            return HttpResponseRedirect(next_url)
+    arquivo = form.cleaned_data['arquivo']
+    data_emissao = form.cleaned_data.get('data_emissao')
 
-        upload_documento_arquivo(doc, arquivo, request.user, data_emissao)
+    if doc.tipo.tem_validade and not data_emissao:
+        return _responder_documento_acao(
+            request,
+            next_url,
+            False,
+            f'Informe a data de emissão do documento "{doc.tipo.nome}" '
+            f'— necessária para calcular o vencimento.',
+        )
 
-        msg = f'Arquivo "{arquivo.name}" enviado com sucesso.'
-        if data_emissao and doc.vencimento:
-            msg += f' Vencimento calculado: {doc.vencimento.strftime("%d/%m/%Y")}.'
-        messages.success(request, msg)
-    else:
-        messages.error(request, 'Selecione um arquivo válido (máx. 10 MB).')
-    return HttpResponseRedirect(next_url)
+    upload_documento_arquivo(doc, arquivo, request.user, data_emissao)
+    doc.refresh_from_db()
+
+    msg = f'Arquivo "{arquivo.name}" enviado com sucesso.'
+    if data_emissao and doc.vencimento:
+        msg += f' Vencimento calculado: {doc.vencimento.strftime("%d/%m/%Y")}.'
+    return _responder_documento_acao(request, next_url, True, msg, doc)
 
 
 @login_required
@@ -1701,17 +1740,21 @@ def _portal_sessao_upload_erros_key(token: str) -> str:
     return f'rh_portal_upload_erros_{token}'
 
 
-def _portal_guardar_upload_erros_sessao(request, token: str, docs_erro_upload: set[int]) -> None:
+def _portal_guardar_upload_erros_sessao(request, token: str, docs_erro_upload: dict[int, str]) -> None:
     if docs_erro_upload:
-        request.session[_portal_sessao_upload_erros_key(token)] = list(docs_erro_upload)
+        request.session[_portal_sessao_upload_erros_key(token)] = {
+            str(pk): msg for pk, msg in docs_erro_upload.items()
+        }
 
 
-def _portal_pop_upload_erros_sessao(request, token: str) -> set[int]:
+def _portal_pop_upload_erros_sessao(request, token: str) -> dict[int, str]:
     key = _portal_sessao_upload_erros_key(token)
     raw = request.session.pop(key, None)
     if not raw:
-        return set()
-    return {int(pk) for pk in raw}
+        return {}
+    if isinstance(raw, list):
+        return {int(pk): 'Não foi possível enviar este arquivo. Verifique o tamanho e a data de emissão.' for pk in raw}
+    return {int(pk): str(msg) for pk, msg in raw.items()}
 
 
 def _portal_documentos_enriquecidos(colaborador, token, *, docs_erro_upload=None):
@@ -1720,12 +1763,12 @@ def _portal_documentos_enriquecidos(colaborador, token, *, docs_erro_upload=None
         documentos_para_exibicao_portal,
     )
 
-    erros = docs_erro_upload or set()
+    erros = docs_erro_upload or {}
     documentos = documentos_para_exibicao_portal(colaborador)
     for doc in documentos:
         doc.portal_arquivo = _meta_arquivo_portal(doc, token)
         doc.portal_pode_enviar = documento_permite_envio_portal(doc, colaborador)
-        doc.portal_upload_erro = doc.pk in erros
+        doc.portal_upload_erro = erros.get(doc.pk, '')
     return documentos
 
 
@@ -1870,7 +1913,7 @@ def portal_candidato_view(request, token):
                     enviados.append(doc.tipo.nome)
                 else:
                     upload_erros.append(doc.tipo.nome)
-                    docs_erro_upload.add(doc.pk)
+                    docs_erro_upload[doc.pk] = mensagem_erros_upload(upload_form)
 
         colaborador.refresh_from_db()
         documentos = _portal_documentos_enriquecidos(
@@ -1919,14 +1962,13 @@ def portal_candidato_view(request, token):
                 messages.error(
                     request,
                     f'Corrija estes itens: {", ".join(upload_erros)}. '
-                    f'Verifique arquivo (máx. 10 MB) e data de emissão quando solicitada. '
+                    f'Verifique arquivo (máx. {PORTAL_UPLOAD_MAX_MB} MB) e data de emissão quando solicitada. '
                     f'Os demais enviados nesta tentativa já foram recebidos.',
                 )
             if enviados:
                 _portal_guardar_upload_erros_sessao(request, token, docs_erro_upload)
                 return redirect('recursos_humanos:portal', token=token)
 
-    from recursos_humanos.forms import PORTAL_UPLOAD_MAX_BYTES
 
     total = len(documentos)
     recebidos = sum(1 for d in documentos if d.status == DocumentoColaborador.Status.RECEBIDO)
@@ -1951,6 +1993,7 @@ def portal_candidato_view(request, token):
             'portal_upload_habilitado': portal_upload_habilitado,
             'portal_pode_submeter': portal_pode_submeter,
             'portal_max_upload_bytes': PORTAL_UPLOAD_MAX_BYTES,
+            'portal_max_upload_mb': PORTAL_UPLOAD_MAX_MB,
         },
     )
 
@@ -2005,9 +2048,7 @@ def portal_upload_view(request, token, doc_pk):
             )
             messages.success(request, f'"{doc.tipo.nome}" enviado! Aguarde a conferência do RH.')
         else:
-            err = 'Arquivo inválido. Máx. 10 MB.'
-            if doc.tipo.tem_validade and form.errors.get('data_emissao'):
-                err = 'Informe a data de emissão e um arquivo válido (máx. 10 MB).'
+            err = mensagem_erros_upload(form)
             messages.error(request, err)
 
     return redirect('recursos_humanos:portal', token=token)

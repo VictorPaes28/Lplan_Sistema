@@ -254,12 +254,12 @@
               </div>
               {% endif %}
               {% elif doc.status != 'ok' and not somente_leitura and admissao_ctx.usuario_rh_pode and not doc.tem_validade %}
-              <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form">
+              <form method="post" enctype="multipart/form-data" action="{% url 'recursos_humanos:documento_upload' doc.pk %}" class="rh-doc-upload-form js-rh-doc-ajax-upload">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ selecionado.pk }}&amp;ver_etapa=2">
                 <label class="rh-btn rh-btn-upload">
                   <i class="fas fa-upload" aria-hidden="true"></i> Upload
-                  <input type="file" name="arquivo" class="rh-doc-file-input" required onchange="this.form.submit()">
+                  <input type="file" name="arquivo" class="rh-doc-file-input" required>
                 </label>
               </form>
               {% endif %}
@@ -285,49 +285,6 @@
     <p class="rh-empty">Nenhum documento configurado para este colaborador.</p>
     {% endfor %}
   </div>
-
-  {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
-  <script>
-  (function () {
-    document.querySelectorAll('.rh-doc-upload-panel').forEach(function (form) {
-      var fileInput = form.querySelector('input[type="file"]');
-      var dateInput = form.querySelector('input[type="date"]');
-      var filenameSpan = form.querySelector('.rh-doc-upload-panel__filename');
-      if (!fileInput) return;
-
-      fileInput.addEventListener('change', function () {
-        if (!filenameSpan) return;
-        if (this.files.length > 0) {
-          filenameSpan.textContent = this.files[0].name;
-          filenameSpan.hidden = false;
-        } else {
-          filenameSpan.textContent = '';
-          filenameSpan.hidden = true;
-        }
-      });
-
-      form.addEventListener('submit', function (e) {
-        var hasFile = fileInput.files && fileInput.files.length > 0;
-        var hasDate = dateInput && dateInput.value;
-        if (!hasFile && !hasDate) {
-          e.preventDefault();
-          alert('Informe a data de emissão e selecione o arquivo antes de enviar.');
-          return;
-        }
-        if (!hasDate) {
-          e.preventDefault();
-          alert('Informe a data de emissão do documento.');
-          return;
-        }
-        if (!hasFile) {
-          e.preventDefault();
-          alert('Selecione um arquivo antes de enviar.');
-        }
-      });
-    });
-  })();
-  </script>
-  {% endif %}
 
   {% if admissao_ctx.pode_encaminhar_validacao and not somente_leitura and admissao_ctx.usuario_rh_pode %}
   <div id="rh-adm-encaminhar-banner" class="rh-banner rh-banner-success">
@@ -582,7 +539,7 @@
         </div>
 
         {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
-        <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-doc-upload-panel" style="margin-top:0.85rem;">
+        <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-doc-upload-panel rh-doc-upload-panel--legacy" style="margin-top:0.85rem;">
           {% csrf_token %}
           <div class="rh-doc-upload-panel__inner">
             <div class="rh-doc-upload-panel__step">

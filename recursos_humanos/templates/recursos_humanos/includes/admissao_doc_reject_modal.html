@@ -50,11 +50,16 @@
     }
   }
 
-  document.querySelectorAll('[data-doc-reject]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      openModal(btn.getAttribute('data-doc-reject'), btn.getAttribute('data-doc-nome'));
-    });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-doc-reject]');
+    if (!btn || !panelContains(btn)) return;
+    openModal(btn.getAttribute('data-doc-reject'), btn.getAttribute('data-doc-nome'));
   });
+
+  function panelContains(el) {
+    var admissionPanel = document.querySelector('.rh-admission-panel');
+    return admissionPanel && admissionPanel.contains(el);
+  }
 
   modal.querySelectorAll('.js-rh-doc-reject-close').forEach(function (el) {
     el.addEventListener('click', closeModal);

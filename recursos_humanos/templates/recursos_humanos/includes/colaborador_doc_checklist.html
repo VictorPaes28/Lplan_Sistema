@@ -146,39 +146,3 @@
   </div>
 </div>
 {% endwith %}
-
-<script>
-(function () {
-  document.querySelectorAll('.rh-doc-upload-panel').forEach(function (form) {
-    var fileInput = form.querySelector('input[type="file"]');
-    var dateInput = form.querySelector('input[type="date"]');
-    var filenameSpan = form.querySelector('.rh-doc-upload-panel__filename');
-    if (!fileInput) return;
-
-    fileInput.addEventListener('change', function () {
-      if (!filenameSpan) return;
-      if (this.files.length > 0) {
-        filenameSpan.textContent = this.files[0].name;
-        filenameSpan.hidden = false;
-      } else {
-        filenameSpan.textContent = '';
-        filenameSpan.hidden = true;
-      }
-    });
-
-    form.addEventListener('submit', function (e) {
-      var hasFile = fileInput.files && fileInput.files.length > 0;
-      var hasDate = dateInput && dateInput.value;
-      if (!hasDate) {
-        e.preventDefault();
-        alert('Informe a data de emissão do documento.');
-        return;
-      }
-      if (!hasFile) {
-        e.preventDefault();
-        alert('Selecione um arquivo antes de enviar.');
-      }
-    });
-  });
-})();
-</script>

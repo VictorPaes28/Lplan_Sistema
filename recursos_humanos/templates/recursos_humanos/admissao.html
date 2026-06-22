@@ -13,7 +13,7 @@
     </button>
   </div>
 
-  {% if adm_page_obj.paginator.count == 0 %}
+  {% if total_fluxo == 0 %}
   <div class="rh-card rh-pad rh-empty-state">
     <p>Nenhuma admissão registrada.</p>
     <button type="button" class="rh-btn rh-btn-primary js-rh-admissao-nova-open">Criar nova admissão</button>
@@ -21,8 +21,74 @@
   {% else %}
   <div class="rh-admission-layout">
     <aside class="rh-admission-sidebar" aria-label="Admissões">
+      <div class="rh-adm-filter-panel">
+        <header class="rh-adm-filter-panel__head">
+          <span class="rh-adm-filter-panel__title">
+            <i class="fas fa-filter" aria-hidden="true"></i>
+            Filtrar lista
+          </span>
+          <a href="?filtro=todas"
+             class="rh-adm-filter-panel__todas{% if filtro_fluxo == 'todas' %} is-active{% endif %}"
+             title="Exibir todas as admissões">
+            Todas <span class="rh-adm-filter-panel__todas-count">{{ total_fluxo }}</span>
+          </a>
+        </header>
+
+        {% if filtro_fluxo != 'todas' %}
+        <p class="rh-adm-filter-panel__ativo">
+          Exibindo: <strong>{{ filtro_fluxo_rotulo }}</strong>
+          <span class="rh-adm-filter-panel__ativo-count">{{ adm_page_obj.paginator.count }}</span>
+        </p>
+        {% endif %}
+
+        {% for grupo in filtros_grupos %}
+        <section class="rh-adm-filter-group" aria-label="{{ grupo.titulo }}">
+          <h3 class="rh-adm-filter-group__title">{{ grupo.titulo }}</h3>
+
+          {% if grupo.layout == 'lista' %}
+          <ul class="rh-adm-filter-list">
+            {% for item in grupo.itens %}
+            <li>
+              <a href="?filtro={{ item.chave }}"
+                 class="rh-adm-filter-row{% if item.ativo %} is-active{% endif %}{% if item.destaque %} is-destaque{% endif %}{% if item.vazio %} is-vazio{% endif %}{% if item.tom %} rh-adm-filter-row--{{ item.tom }}{% endif %}"
+                 title="{{ item.titulo }}"
+                 {% if item.ativo %}aria-current="true"{% endif %}>
+                {% if item.icone %}<i class="fas {{ item.icone }} rh-adm-filter-row__icon" aria-hidden="true"></i>{% endif %}
+                <span class="rh-adm-filter-row__label">{{ item.rotulo }}</span>
+                <span class="rh-adm-filter-row__count">{{ item.count }}</span>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% elif grupo.layout == 'etapas' %}
+          <div class="rh-adm-filter-etapas" role="list">
+            {% for item in grupo.itens %}
+            <a href="?filtro={{ item.chave }}"
+               class="rh-adm-filter-etapa{% if item.ativo %} is-active{% endif %}{% if item.vazio %} is-vazio{% endif %}"
+               role="listitem"
+               title="{{ item.titulo }}"
+               {% if item.ativo %}aria-current="true"{% endif %}>
+              <span class="rh-adm-filter-etapa__num">{{ item.rotulo }}</span>
+              {% if item.subtitulo %}<span class="rh-adm-filter-etapa__label">{{ item.subtitulo }}</span>{% endif %}
+              {% if item.count %}<span class="rh-adm-filter-etapa__count">{{ item.count }}</span>{% endif %}
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </section>
+        {% endfor %}
+      </div>
+
+      <div class="rh-adm-filter-list-wrap">
+      {% if adm_page_obj.paginator.count == 0 %}
+      <div class="rh-admission-filter-empty">
+        <i class="fas fa-filter" aria-hidden="true"></i>
+        <p>Nenhuma admissão neste filtro.</p>
+        <a href="?filtro=todas" class="rh-link">Ver todas</a>
+      </div>
+      {% else %}
       {% for adm in admissoes %}
-      <a href="?id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado.pk == adm.pk %}is-active{% endif %}{% if adm.admissao_concluida_flag %} is-concluida{% elif adm.admissao_pendencia_flag %} is-pendencia{% endif %}">
+      <a href="?filtro={{ filtro_fluxo }}&amp;id={{ adm.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}" class="rh-admission-card {% if selecionado and selecionado.pk == adm.pk %}is-active{% endif %}{% if adm.admissao_concluida_flag %} is-concluida{% elif adm.admissao_pendencia_flag %} is-pendencia{% endif %}">
         <strong class="rh-admission-card-name">{{ adm.nome }}</strong>
         <span class="rh-admission-card-meta">
           {{ adm.cargo }}{% if adm.obras.all %} · {% for obra in adm.obras.all %}{{ obra.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
@@ -51,15 +117,17 @@
       <div class="rh-pagination-wrapper rh-pagination-wrapper--sidebar">
         <div class="rh-pagination">
           {% if adm_page_obj.has_previous %}
-          <a href="?page={{ adm_page_obj.previous_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Anterior</a>
+          <a href="?filtro={{ filtro_fluxo }}&amp;page={{ adm_page_obj.previous_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Anterior</a>
           {% endif %}
           <span class="rh-pagination-info">{{ adm_page_obj.number }}/{{ adm_page_obj.paginator.num_pages }}</span>
           {% if adm_page_obj.has_next %}
-          <a href="?page={{ adm_page_obj.next_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Próxima</a>
+          <a href="?filtro={{ filtro_fluxo }}&amp;page={{ adm_page_obj.next_page_number }}{% if selecionado %}&amp;id={{ selecionado.pk }}{% endif %}" class="rh-pagination-btn rh-pagination-btn-sm">Próxima</a>
           {% endif %}
         </div>
       </div>
       {% endif %}
+      {% endif %}
+      </div>
     </aside>
 
     {% if selecionado %}
@@ -76,7 +144,7 @@
       <div class="rh-stepper" aria-label="Etapas da admissão">
         {% for step in etapas_stepper %}
         {% if step.acessivel %}
-        <a href="?id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if step.num != etapa_exibida %}&amp;ver_etapa={{ step.num }}{% endif %}"
+        <a href="?filtro={{ filtro_fluxo }}&amp;id={{ selecionado.pk }}{% if adm_page_obj.number > 1 %}&amp;page={{ adm_page_obj.number }}{% endif %}{% if step.num != etapa_exibida %}&amp;ver_etapa={{ step.num }}{% endif %}"
            class="rh-stepper-item rh-stepper-item--link {% if step.concluida %}is-done{% elif step.visualizando %}is-viewing is-current{% elif step.reaberta_docs %}is-pending{% elif step.etapa_registrada %}is-current{% endif %}">
           <div class="rh-stepper-node" aria-hidden="true">
             {% if step.concluida %}
@@ -145,13 +213,19 @@
         </details>
       </div>
     </div>
+    {% elif adm_page_obj.paginator.count > 0 %}
+    <div class="rh-admission-main rh-admission-main--empty">
+      <div class="rh-card rh-pad rh-empty-state">
+        <p>Selecione uma admissão na lista ao lado.</p>
+      </div>
+    </div>
     {% endif %}
   </div>
   {% endif %}
 </div>
 {% if selecionado and etapa_exibida == 2 and not somente_leitura and admissao_ctx and admissao_ctx.usuario_rh_pode %}
 {% include "recursos_humanos/includes/admissao_doc_reject_modal.html" %}
-<script src="{% static 'recursos_humanos/js/rh-admissao-docs.js' %}?v=1" defer></script>
+<script src="{% static 'recursos_humanos/js/rh-admissao-docs.js' %}?v=5" defer></script>
 {% endif %}
 {% if rh_requisicao_edicao %}
 {{ rh_requisicao_edicao|json_script:"rh-requisicao-edicao-data" }}

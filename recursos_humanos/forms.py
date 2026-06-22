@@ -501,7 +501,19 @@ class ConfigurarAlertasForm(forms.Form):
         self.fields['responsaveis'].queryset = usuarios_staff_alertas()
 
 
-PORTAL_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+PORTAL_UPLOAD_MAX_MB = 50
+PORTAL_UPLOAD_MAX_BYTES = PORTAL_UPLOAD_MAX_MB * 1024 * 1024
+
+
+def mensagem_erros_upload(form: 'DocumentoUploadForm') -> str:
+    """Primeira mensagem útil do formulário de upload (evita culpar o tamanho à toa)."""
+    if form.errors.get('arquivo'):
+        return str(form.errors['arquivo'][0])
+    if form.errors.get('data_emissao'):
+        return str(form.errors['data_emissao'][0])
+    if form.non_field_errors():
+        return str(form.non_field_errors()[0])
+    return 'Verifique o arquivo selecionado e a data de emissão, se solicitada.'
 
 
 class DocumentoUploadForm(forms.Form):
@@ -522,7 +534,7 @@ class DocumentoUploadForm(forms.Form):
     def clean_arquivo(self):
         f = self.cleaned_data['arquivo']
         if f.size > PORTAL_UPLOAD_MAX_BYTES:
-            raise ValidationError('Arquivo muito grande (máx. 10 MB).')
+            raise ValidationError(f'Arquivo muito grande (máx. {PORTAL_UPLOAD_MAX_MB} MB).')
         return f
 
     def clean(self):

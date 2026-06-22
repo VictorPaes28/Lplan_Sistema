@@ -295,7 +295,7 @@
         {% include "recursos_humanos/includes/portal_doc_upload_block.html" %}
         {% endif %}
         {% if doc.portal_upload_erro %}
-        <p class="portal-doc-upload-error" role="alert">Arquivo acima de 10 MB. Escolha outro arquivo para este item.</p>
+        <p class="portal-doc-upload-error" role="alert">{{ doc.portal_upload_erro }}</p>
         {% endif %}
 
         {% elif doc.status == 'received' %}
@@ -421,7 +421,7 @@
         {% include "recursos_humanos/includes/portal_doc_upload_block.html" %}
         {% endif %}
         {% if doc.portal_upload_erro %}
-        <p class="portal-doc-upload-error" role="alert">Arquivo acima de 10 MB. Escolha outro arquivo para este item.</p>
+        <p class="portal-doc-upload-error" role="alert">{{ doc.portal_upload_erro }}</p>
         {% endif %}
 
         {% endif %}
@@ -505,8 +505,11 @@
 
     var submitForm = document.getElementById('portal-submit-form');
     var maxBytes = submitForm
-      ? parseInt(submitForm.getAttribute('data-max-upload-bytes') || '10485760', 10)
-      : 10485760;
+      ? Number(submitForm.getAttribute('data-max-upload-bytes')) || {{ portal_max_upload_bytes|default:52428800 }}
+      : {{ portal_max_upload_bytes|default:52428800 }};
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
+      maxBytes = 52428800;
+    }
 
     document.querySelectorAll('.portal-doc-upload').forEach(function (block) {
       var input = block.querySelector('.portal-file-input');

@@ -385,6 +385,88 @@ class AdmissaoViewTests(TestCase):
         self.assertNotContains(resp, 'ETAPA 2 › Conferência de docs')
 
 
+class AdmissaoFluxoFiltrosTests(TestCase):
+    def setUp(self):
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        self.rh = User.objects.create_user('rh_filtro', password='test')
+        self.rh.groups.add(grupo)
+        self.gestor = User.objects.create_user('gestor_filtro', password='test')
+        self.gestor.groups.add(grupo)
+        self.criador = User.objects.create_user('criador_filtro', password='test')
+        self.criador.groups.add(grupo)
+
+        self.pendente_gestor = Colaborador.objects.create(
+            nome='Pendente Gestor',
+            cpf='101.101.101-10',
+            cargo='Pedreiro',
+            status=Colaborador.Status.EM_ADMISSAO,
+            etapa_admissao=1,
+            gestor_aprovador_user=self.gestor,
+            gestor_aprovador='Gestor Filtro',
+        )
+        self.pendente_gestor.aprovadores_requisicao.add(self.gestor)
+
+        self.etapa2 = Colaborador.objects.create(
+            nome='Etapa Dois',
+            cpf='202.202.202-20',
+            cargo='Servente',
+            status=Colaborador.Status.EM_ADMISSAO,
+            etapa_admissao=2,
+            requisicao_aprovada_gestor=True,
+            requisicao_criada_por=self.criador,
+        )
+        tipo = TipoDocumento.objects.create(nome='RG Filtro', ordem=1)
+        DocumentoColaborador.objects.create(
+            colaborador=self.etapa2,
+            tipo=tipo,
+            status=DocumentoColaborador.Status.PENDENTE,
+        )
+
+        self.reprovada = Colaborador.objects.create(
+            nome='Reprovada',
+            cpf='303.303.303-30',
+            cargo='Auxiliar',
+            status=Colaborador.Status.EM_ADMISSAO,
+            etapa_admissao=1,
+            requisicao_reprovada=True,
+            requisicao_motivo_reprovacao='Ajustar salário',
+        )
+
+    def test_filtro_minha_aprovacao_gestor(self):
+        self.client.force_login(self.gestor)
+        url = reverse('recursos_humanos:admissao')
+        resp = self.client.get(url, {'filtro': 'minha_aprovacao'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Pendente Gestor')
+        self.assertNotContains(resp, 'Etapa Dois')
+        self.assertContains(resp, 'Minha aprovação')
+
+    def test_filtro_em_andamento(self):
+        self.client.force_login(self.rh)
+        resp = self.client.get(reverse('recursos_humanos:admissao'), {'filtro': 'em_andamento'})
+        self.assertContains(resp, 'Pendente Gestor')
+        self.assertContains(resp, 'Etapa Dois')
+        self.assertContains(resp, 'Reprovada')
+
+    def test_filtro_reprovadas(self):
+        self.client.force_login(self.rh)
+        resp = self.client.get(reverse('recursos_humanos:admissao'), {'filtro': 'reprovadas'})
+        self.assertContains(resp, 'Reprovada')
+        self.assertNotContains(resp, 'Pendente Gestor')
+
+    def test_filtro_minhas(self):
+        self.client.force_login(self.criador)
+        resp = self.client.get(reverse('recursos_humanos:admissao'), {'filtro': 'minhas'})
+        self.assertContains(resp, 'Etapa Dois')
+        self.assertNotContains(resp, 'Pendente Gestor')
+
+    def test_padrao_gestor_com_aprovacao_pendente(self):
+        self.client.force_login(self.gestor)
+        resp = self.client.get(reverse('recursos_humanos:admissao'))
+        self.assertContains(resp, 'Pendente Gestor')
+        self.assertNotContains(resp, 'Etapa Dois')
+
+
 class AdmissaoWriteTests(TestCase):
     def setUp(self):
         grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
@@ -2427,6 +2509,43 @@ class FluxoLacunasCorrigidasTests(TestCase):
         self.assertIn('doc', data)
         self.assertEqual(data['doc']['doc_id'], doc.pk)
         self.assertEqual(data['doc']['status'], 'ok')
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, DocumentoColaborador.Status.RECEBIDO)
+
+    def test_documento_upload_ajax_retorna_json(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        colab = Colaborador.objects.create(
+            nome='Ajax Upload',
+            cpf='231.231.231-31',
+            cargo='Pedreiro',
+            status=Colaborador.Status.EM_ADMISSAO,
+            etapa_admissao=2,
+            requisicao_aprovada_gestor=True,
+        )
+        doc = DocumentoColaborador.objects.create(
+            colaborador=colab,
+            tipo=self.tipo,
+            status=DocumentoColaborador.Status.FALTANDO,
+        )
+        self.client.force_login(self.rh)
+        url = reverse('recursos_humanos:documento_upload', args=[doc.pk])
+        resp = self.client.post(
+            url,
+            {
+                'next': f'{reverse("recursos_humanos:admissao")}?id={colab.pk}&ver_etapa=2',
+                'data_emissao': timezone.localdate().isoformat(),
+                'arquivo': SimpleUploadedFile('aso.pdf', b'pdf', content_type='application/pdf'),
+            },
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertIn('doc', data)
+        self.assertEqual(data['doc']['doc_id'], doc.pk)
+        self.assertEqual(data['doc']['status'], 'ok')
+        self.assertTrue(data['doc']['tem_arquivo'])
         doc.refresh_from_db()
         self.assertEqual(doc.status, DocumentoColaborador.Status.RECEBIDO)
 

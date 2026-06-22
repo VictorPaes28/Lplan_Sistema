@@ -16,6 +16,13 @@
     return input ? input.value : '';
   }
 
+  function escapeAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
   function showToast(message, type) {
     var el = document.createElement('div');
     el.className = 'rh-adm-doc-toast rh-adm-doc-toast--' + (type || 'success');
@@ -41,6 +48,13 @@
       btn.innerHTML = btn.dataset.rhOriginalHtml;
       delete btn.dataset.rhOriginalHtml;
     }
+  }
+
+  function setFormUploading(form, uploading) {
+    var item = form.closest('.rh-doc-item');
+    if (item) item.classList.toggle('rh-doc-item--uploading', uploading);
+    var submitBtn = form.querySelector('button[type="submit"]');
+    setButtonLoading(submitBtn, uploading);
   }
 
   function updateResumo(resumo) {
@@ -120,11 +134,70 @@
     }
   }
 
-  function applyDocApproved(doc) {
+  function buildThumbHtml(doc) {
+    if (!doc.tem_arquivo || !doc.arquivo_url) return '';
+    var title = 'Visualizar ' + (doc.arquivo_nome || 'arquivo');
+    var inner;
+    if (doc.arquivo_is_image) {
+      inner = '<img src="' + escapeAttr(doc.arquivo_url) + '" alt="' + escapeAttr(doc.arquivo_nome) + '" class="rh-doc-file-thumb">';
+    } else if (doc.arquivo_is_pdf) {
+      inner = '<span class="rh-doc-file-thumb rh-doc-file-thumb--pdf"><iframe src="' + escapeAttr(doc.arquivo_url) + '" title="' + escapeAttr(doc.arquivo_nome) + '" tabindex="-1"></iframe></span>';
+    } else {
+      inner = '<span class="rh-doc-file-thumb rh-doc-file-thumb--icon"><i class="fas ' + escapeAttr(doc.arquivo_icon || 'fa-file') + '" aria-hidden="true"></i></span>';
+    }
+    return '<a href="' + escapeAttr(doc.arquivo_url) + '" class="rh-doc-file-thumb-link" target="_blank" rel="noopener" title="' + escapeAttr(title) + '">' + inner + '</a>';
+  }
+
+  function getDocNextUrl(item) {
+    var hidden = item && item.querySelector('input[name="next"]');
+    return hidden ? hidden.value : '';
+  }
+
+  function buildActionGroupHtml(doc, nextUrl) {
+    if (!doc.tem_arquivo) return '';
+    var html = '<div class="rh-doc-action-group">';
+    if (doc.aguardando_aprovacao && doc.approve_url) {
+      html +=
+        '<form method="post" action="' + escapeAttr(doc.approve_url) + '" class="rh-doc-action-form rh-doc-approve-form js-rh-doc-ajax-approve">' +
+        '<input type="hidden" name="csrfmiddlewaretoken" value="' + escapeAttr(getCsrf()) + '">' +
+        '<input type="hidden" name="next" value="' + escapeAttr(nextUrl) + '">' +
+        '<button type="submit" class="rh-doc-action-btn rh-doc-action-btn--ok" title="Aprovar documento" aria-label="Aprovar ' + escapeAttr(doc.doc_nome || 'documento') + '">' +
+        '<i class="fas fa-check" aria-hidden="true"></i></button></form>';
+    }
+    if (doc.aguardando_aprovacao || doc.tem_arquivo) {
+      html +=
+        '<button type="button" class="rh-doc-action-btn rh-doc-action-btn--reject" title="Rejeitar ou remover" aria-label="Rejeitar ' + escapeAttr(doc.doc_nome || 'documento') + '" ' +
+        'data-doc-reject="' + doc.doc_id + '" data-doc-nome="' + escapeAttr(doc.doc_nome || '') + '">' +
+        '<i class="fas fa-times" aria-hidden="true"></i></button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function upsertRowEndAssets(item, doc, nextUrl) {
+    var rowEnd = item.querySelector('.rh-doc-row-end');
+    if (!rowEnd) return;
+    var resolvedNext = nextUrl || getDocNextUrl(item);
+    rowEnd.querySelectorAll('.rh-doc-file-thumb-link, .rh-doc-action-group, .rh-doc-upload-form').forEach(function (el) {
+      el.remove();
+    });
+    var pill = rowEnd.querySelector('.rh-doc-pill');
+    if (doc.tem_arquivo) {
+      var wrap = document.createElement('div');
+      wrap.innerHTML = buildThumbHtml(doc) + buildActionGroupHtml(doc, resolvedNext);
+      while (wrap.firstChild) {
+        if (pill) rowEnd.insertBefore(wrap.firstChild, pill);
+        else rowEnd.appendChild(wrap.firstChild);
+      }
+    }
+  }
+
+  function applyDocReceived(doc) {
     var item = findDocItem(doc.doc_id);
     if (!item) return;
+    var nextUrl = getDocNextUrl(item);
     item.dataset.docStatus = 'ok';
-    item.classList.remove('rh-doc-item--with-panel', 'rh-doc-item--upload-error');
+    item.classList.remove('rh-doc-item--with-panel', 'rh-doc-item--upload-error', 'rh-doc-item--uploading');
 
     var icon = item.querySelector('.rh-doc-row-icon');
     if (icon) {
@@ -135,7 +208,7 @@
     var name = item.querySelector('.rh-doc-row-name');
     if (name) name.classList.remove('is-muted');
 
-    item.querySelectorAll('.rh-doc-action-group, .rh-doc-approve-panel, .rh-doc-upload-panel').forEach(function (el) {
+    item.querySelectorAll('.rh-doc-approve-panel, .rh-doc-upload-panel, .rh-doc-upload-form').forEach(function (el) {
       el.remove();
     });
 
@@ -145,16 +218,47 @@
       pill.textContent = doc.status_label || 'Recebido';
     }
 
+    upsertRowEndAssets(item, doc, nextUrl);
     updateDateHints(item.querySelector('.rh-doc-row-body'), doc);
     item.classList.add('rh-doc-item--just-approved');
     window.setTimeout(function () { item.classList.remove('rh-doc-item--just-approved'); }, 900);
+  }
+
+  function applyDocPendingApproval(doc) {
+    var item = findDocItem(doc.doc_id);
+    if (!item) return;
+    var nextUrl = getDocNextUrl(item);
+    item.dataset.docStatus = 'pending';
+    item.classList.remove('rh-doc-item--uploading');
+
+    var icon = item.querySelector('.rh-doc-row-icon');
+    if (icon) {
+      icon.className = 'rh-doc-row-icon rh-doc-row-icon--pending';
+      icon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+    }
+
+    var name = item.querySelector('.rh-doc-row-name');
+    if (name) name.classList.remove('is-muted');
+
+    item.querySelectorAll('.rh-doc-upload-panel, .rh-doc-upload-form, .rh-doc-approve-panel').forEach(function (el) {
+      el.remove();
+    });
+
+    var pill = item.querySelector('.rh-doc-pill');
+    if (pill) {
+      pill.className = 'rh-doc-pill rh-doc-pill--pending';
+      pill.textContent = doc.status_label || 'Aguardando aprovação';
+    }
+
+    upsertRowEndAssets(item, doc, nextUrl);
+    updateDateHints(item.querySelector('.rh-doc-row-body'), doc);
   }
 
   function applyDocRejected(doc) {
     var item = findDocItem(doc.doc_id);
     if (!item) return;
     item.dataset.docStatus = 'missing';
-    item.classList.remove('rh-doc-item--with-panel');
+    item.classList.remove('rh-doc-item--with-panel', 'rh-doc-item--uploading');
 
     var icon = item.querySelector('.rh-doc-row-icon');
     if (icon) {
@@ -177,7 +281,7 @@
       }
     }
 
-    item.querySelectorAll('.rh-doc-approve-panel, .rh-doc-upload-panel').forEach(function (el) {
+    item.querySelectorAll('.rh-doc-approve-panel, .rh-doc-upload-panel, .rh-doc-upload-form').forEach(function (el) {
       el.remove();
     });
 
@@ -189,19 +293,36 @@
     updateResumo(doc.resumo);
     updateGrupos(doc.grupos);
     if (doc.status === 'ok') {
-      applyDocApproved(doc);
+      applyDocReceived(doc);
       upsertEncaminharBanner(doc);
+    } else if (doc.status === 'pending' && doc.aguardando_aprovacao) {
+      applyDocPendingApproval(doc);
     } else if (doc.status === 'missing') {
       applyDocRejected(doc);
     }
   }
 
-  function postFormAjax(form, submitBtn) {
+  function buildUploadFormData(form) {
+    var fd = new FormData(form);
+    if (form.classList.contains('js-rh-doc-ajax-upload')) {
+      var fileInput = form.querySelector('input[type="file"]');
+      if (fileInput && fileInput.files && fileInput.files[0]) {
+        fd.set('arquivo', fileInput.files[0], fileInput.files[0].name);
+      }
+    }
+    return fd;
+  }
+
+  function postFormAjax(form, submitBtn, onStart, onEnd) {
     var action = form.getAttribute('action');
     if (!action) return Promise.reject();
 
-    setButtonLoading(submitBtn, true);
-    var fd = new FormData(form);
+    var fd = form.classList.contains('js-rh-doc-ajax-upload')
+      ? buildUploadFormData(form)
+      : new FormData(form);
+
+    if (onStart) onStart();
+    else setButtonLoading(submitBtn, true);
 
     return fetch(action, {
       method: 'POST',
@@ -217,15 +338,68 @@
         });
       })
       .finally(function () {
-        setButtonLoading(submitBtn, false);
+        if (onEnd) onEnd();
+        else setButtonLoading(submitBtn, false);
       });
   }
 
-  panel.querySelectorAll('.js-rh-doc-ajax-approve').forEach(function (form) {
-    form.addEventListener('submit', function (e) {
+  function validateUploadForm(form) {
+    var fileInput = form.querySelector('input[type="file"]');
+    var dateInput = form.querySelector('input[type="date"]');
+    if (form.classList.contains('rh-doc-upload-panel')) {
+      if (!dateInput || !dateInput.value) {
+        showToast('Informe a data de emissão do documento.', 'error');
+        return false;
+      }
+      if (!fileInput || !fileInput.files.length) {
+        showToast('Selecione um arquivo antes de enviar.', 'error');
+        return false;
+      }
+    } else if (!fileInput || !fileInput.files.length) {
+      showToast('Selecione um arquivo antes de enviar.', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  function submitUploadForm(form) {
+    if (!validateUploadForm(form)) return;
+    var submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.rh-btn-upload');
+    postFormAjax(form, submitBtn, function () { setFormUploading(form, true); }, function () { setFormUploading(form, false); })
+      .then(function (res) {
+        if (res.ok && res.data.ok) {
+          showToast(res.data.message, 'success');
+          applyDocPayload(res.data.doc);
+          return;
+        }
+        showToast((res.data && res.data.message) || 'Não foi possível enviar o arquivo.', 'error');
+      })
+      .catch(function () {
+        showToast('Erro de conexão. Tente novamente.', 'error');
+      });
+  }
+
+  panel.addEventListener('change', function (e) {
+    var input = e.target;
+    if (!input.matches('.js-rh-doc-ajax-upload input[type="file"]')) return;
+    var form = input.closest('.js-rh-doc-ajax-upload');
+    if (!form || form.classList.contains('rh-doc-upload-panel')) return;
+    submitUploadForm(form);
+  });
+
+  panel.addEventListener('rh-doc-panel-autosubmit', function (e) {
+    var form = e.target.closest('.js-rh-doc-ajax-upload.rh-doc-upload-panel');
+    if (!form || !panel.contains(form)) return;
+    e.preventDefault();
+    submitUploadForm(form);
+  });
+
+  panel.addEventListener('submit', function (e) {
+    var approveForm = e.target.closest('.js-rh-doc-ajax-approve');
+    if (approveForm) {
       e.preventDefault();
-      var btn = form.querySelector('button[type="submit"]');
-      postFormAjax(form, btn)
+      var approveBtn = approveForm.querySelector('button[type="submit"]');
+      postFormAjax(approveForm, approveBtn)
         .then(function (res) {
           if (res.ok && res.data.ok) {
             showToast(res.data.message, 'success');
@@ -237,7 +411,15 @@
         .catch(function () {
           showToast('Erro de conexão. Tente novamente.', 'error');
         });
-    });
+      return;
+    }
+
+    var uploadForm = e.target.closest('.js-rh-doc-ajax-upload');
+    if (uploadForm) {
+      e.preventDefault();
+      if (uploadForm.classList.contains('rh-doc-upload-panel')) return;
+      submitUploadForm(uploadForm);
+    }
   });
 
   var rejectForm = document.getElementById('rh-doc-reject-form');

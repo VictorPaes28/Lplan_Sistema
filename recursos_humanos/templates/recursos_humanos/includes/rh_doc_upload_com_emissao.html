@@ -1,36 +1,32 @@
-<form method="post" enctype="multipart/form-data" action="{{ upload_url }}" class="rh-doc-upload-form rh-doc-upload-panel">
+<form method="post" enctype="multipart/form-data" action="{{ upload_url }}" class="rh-doc-upload-form rh-doc-upload-panel js-rh-doc-ajax-upload">
   {% csrf_token %}
   {% if id_prefix == "adm" %}
   <input type="hidden" name="next" value="{% url 'recursos_humanos:admissao' %}?id={{ admissao_id }}&ver_etapa=2">
   {% else %}
   <input type="hidden" name="next" value="{{ next_url }}">
   {% endif %}
-  <div class="rh-doc-upload-panel__inner">
-    <div class="rh-doc-upload-panel__step">
-      <span class="rh-doc-upload-panel__step-num" aria-hidden="true">1</span>
-      <div class="rh-doc-upload-panel__field">
-        <label for="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}">Data de emissão</label>
-        <input type="date" name="data_emissao" id="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}" class="rh-input rh-doc-upload-panel__date" required>
-        <span class="rh-doc-upload-panel__hint">Informe quando o documento foi emitido — o vencimento será calculado automaticamente.</span>
-      </div>
+  <div class="rh-doc-upload-panel__form">
+    <div class="rh-doc-upload-panel__field">
+      <label for="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}">Data de emissão</label>
+      <input type="date" name="data_emissao" id="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}" class="rh-input rh-doc-upload-panel__date" required>
     </div>
-    <div class="rh-doc-upload-panel__step">
-      <span class="rh-doc-upload-panel__step-num" aria-hidden="true">2</span>
-      <div class="rh-doc-upload-panel__field">
-        <span class="rh-doc-upload-panel__sublabel" id="rh-doc-file-label-{{ id_prefix }}-{{ doc_pk }}">Anexar arquivo</span>
-        <div class="rh-doc-upload-panel__actions">
-          <div class="rh-doc-file-picker">
-            <input type="file" name="arquivo" id="rh-doc-file-{{ id_prefix }}-{{ doc_pk }}" class="rh-doc-file-input rh-doc-file-input--hidden" required aria-labelledby="rh-doc-file-label-{{ id_prefix }}-{{ doc_pk }}">
-            <label for="rh-doc-file-{{ id_prefix }}-{{ doc_pk }}" class="rh-btn rh-btn-upload rh-btn-upload--pick">
-              <i class="fas fa-paperclip" aria-hidden="true"></i> Escolher arquivo
-            </label>
-          </div>
-          <button type="submit" class="rh-btn rh-btn-primary rh-btn-upload-submit">
-            <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar
+    <div class="rh-doc-upload-panel__field rh-doc-upload-panel__field--file">
+      <span class="rh-doc-upload-panel__field-label" id="rh-doc-file-label-{{ id_prefix }}-{{ doc_pk }}">Arquivo</span>
+      <div class="rh-doc-upload-panel__filezone">
+        <input type="file" name="arquivo" id="rh-doc-file-{{ id_prefix }}-{{ doc_pk }}" class="rh-doc-file-input rh-doc-file-input--hidden" required aria-labelledby="rh-doc-file-label-{{ id_prefix }}-{{ doc_pk }}">
+        <label for="rh-doc-file-{{ id_prefix }}-{{ doc_pk }}" class="rh-btn rh-btn-upload" data-role="picker">
+          <i class="fas fa-upload" aria-hidden="true"></i> Upload
+        </label>
+        <div class="rh-doc-upload-panel__chip" data-role="selected" hidden>
+          <i class="fas fa-file" data-role="chip-icon" aria-hidden="true"></i>
+          <span class="rh-doc-upload-panel__chip-name" data-role="chip-name"></span>
+          <span class="rh-doc-upload-panel__chip-size" data-role="chip-size"></span>
+          <button type="button" class="rh-doc-upload-panel__chip-clear" data-role="clear" aria-label="Remover arquivo selecionado">
+            <i class="fas fa-times" aria-hidden="true"></i>
           </button>
         </div>
-        <span class="rh-doc-filename rh-doc-upload-panel__filename" data-filename-for="rh-doc-file-{{ id_prefix }}-{{ doc_pk }}" hidden></span>
       </div>
     </div>
   </div>
+  <p class="rh-doc-upload-panel__hint">Informe a data de emissão e anexe o arquivo — o vencimento será calculado automaticamente.</p>
 </form>

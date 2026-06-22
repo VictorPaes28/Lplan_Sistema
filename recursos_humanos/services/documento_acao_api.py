@@ -1,8 +1,14 @@
 """Payload JSON para ações de documento sem recarregar a página."""
 from __future__ import annotations
 
+from django.urls import reverse
+
 from recursos_humanos.models import DocumentoColaborador
-from recursos_humanos.services.admissao import montar_grupos_documentos, resumo_documentos
+from recursos_humanos.services.admissao import (
+    _meta_arquivo_doc,
+    montar_grupos_documentos,
+    resumo_documentos,
+)
 
 
 def _status_ui_doc(doc: DocumentoColaborador) -> str:
@@ -53,15 +59,23 @@ def serializar_documento_pos_acao(doc: DocumentoColaborador, user=None) -> dict:
     admissao_ctx = montar_contexto_admissao(colaborador, historico, user=user)
     pode_encaminhar = admissao_ctx.get('pode_encaminhar_validacao', False)
 
+    aguardando_aprovacao = bool(
+        doc.arquivo and doc.status == DocumentoColaborador.Status.PENDENTE
+    )
+    meta = _meta_arquivo_doc(doc)
     payload = {
         'doc_id': doc.pk,
+        'doc_nome': doc.tipo.nome,
         'status': _status_ui_doc(doc),
         'status_label': _status_label_doc(doc),
         'observacao': (doc.observacao or '').strip(),
         'tem_arquivo': bool(doc.arquivo),
-        'aguardando_aprovacao': bool(
-            doc.arquivo and doc.status == DocumentoColaborador.Status.PENDENTE
-        ),
+        'aguardando_aprovacao': aguardando_aprovacao,
+        'arquivo_url': meta.get('url', ''),
+        'arquivo_nome': meta.get('nome', ''),
+        'arquivo_is_image': meta.get('is_image', False),
+        'arquivo_is_pdf': meta.get('is_pdf', False),
+        'arquivo_icon': meta.get('icon', 'fa-file'),
         'data_emissao': doc.data_emissao.strftime('%d/%m/%Y') if doc.data_emissao else None,
         'vencimento': doc.vencimento.strftime('%d/%m/%Y') if doc.vencimento else None,
         'resumo': resumo,
@@ -69,6 +83,8 @@ def serializar_documento_pos_acao(doc: DocumentoColaborador, user=None) -> dict:
         'pode_encaminhar_validacao': pode_encaminhar,
         'colaborador_id': colaborador.pk,
     }
+    if aguardando_aprovacao:
+        payload['approve_url'] = reverse('recursos_humanos:documento_aprovar', args=[doc.pk])
     return payload
 
 
