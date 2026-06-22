@@ -1,8 +1,11 @@
 // SupplyMap - JavaScript principal
 // Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa
-var __LPLAN_JS_VER__ = '13';
+var __LPLAN_JS_VER__ = '19';
 
 var _csrfReadyPromise = null;
+var FIELD_SPINNER_DELAY_MS = 250;
+var _fieldSpinnerTimers = new WeakMap();
+var _fieldSavedTimers = new WeakMap();
 
 document.addEventListener('DOMContentLoaded', function() {
     console.warn('[LPLAN] SupplyMap v' + __LPLAN_JS_VER__ + ' carregado. Se não aparecer "v11" em produção, o JS está em cache ou collectstatic não foi executado.');
@@ -32,7 +35,9 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'initCategoriaToggle', fn: initCategoriaToggle },
         { name: 'initCriarItem', fn: initCriarItem },
         { name: 'initDeleteItem', fn: initDeleteItem },
-        { name: 'initDuplicateItem', fn: initDuplicateItem }
+        { name: 'initDuplicateItem', fn: initDuplicateItem },
+        { name: 'initMapaTableLoading', fn: initMapaTableLoading },
+        { name: 'initMapaNavigationLoading', fn: initMapaNavigationLoading }
     ];
     inits.forEach(function(init) {
         try {
@@ -56,6 +61,8 @@ function initInlineEdit() {
         const input = e.target.closest('.input-inline[data-update-url]');
         if (input) {
             input.setAttribute('data-initial-value', input.value || '');
+            input.classList.remove('field-error');
+            clearFieldErrorMessage(input);
         }
     });
 
@@ -119,15 +126,162 @@ function ensureCsrfToken() {
     return getCsrfTokenAsync().then(function(t) { return t || getCsrfToken(); });
 }
 
+function getFieldCell(inputEl) {
+    if (!inputEl) return null;
+    var td = inputEl.closest('td');
+    if (td && !td.classList.contains('field-cell-wrap')) {
+        td.classList.add('field-cell-wrap');
+    }
+    return td;
+}
+
+function clearFieldErrorMessage(inputEl) {
+    if (!inputEl) return;
+    var td = inputEl.closest('td');
+    if (td) {
+        var err = td.querySelector('.mapa-field-error');
+        if (err) err.remove();
+    }
+    inputEl.removeAttribute('aria-invalid');
+    inputEl.removeAttribute('aria-describedby');
+}
+
+function clearFieldTimers(inputEl) {
+    var spinnerTimer = _fieldSpinnerTimers.get(inputEl);
+    if (spinnerTimer) {
+        clearTimeout(spinnerTimer);
+        _fieldSpinnerTimers.delete(inputEl);
+    }
+    var savedTimer = _fieldSavedTimers.get(inputEl);
+    if (savedTimer) {
+        clearTimeout(savedTimer);
+        _fieldSavedTimers.delete(inputEl);
+    }
+}
+
 function setFieldSaving(inputEl, saving) {
     if (!inputEl) return;
+    var td = getFieldCell(inputEl);
     if (saving) {
+        inputEl.classList.remove('field-saved', 'field-error');
+        clearFieldErrorMessage(inputEl);
+        if (td) td.classList.remove('field-cell-saved');
+        clearFieldTimers(inputEl);
         inputEl.classList.add('field-saving');
-        inputEl.setAttribute('aria-busy', 'true');
+        if (td) td.classList.add('field-cell-saving');
+        var t = setTimeout(function() {
+            if (inputEl.classList.contains('field-saving') && td) {
+                td.classList.add('field-cell-spinner');
+            }
+        }, FIELD_SPINNER_DELAY_MS);
+        _fieldSpinnerTimers.set(inputEl, t);
     } else {
         inputEl.classList.remove('field-saving');
-        inputEl.removeAttribute('aria-busy');
+        if (td) {
+            td.classList.remove('field-cell-saving', 'field-cell-spinner');
+        }
+        clearFieldTimers(inputEl);
     }
+}
+
+function setFieldSaved(inputEl) {
+    if (!inputEl) return;
+    inputEl.classList.remove('field-saving', 'field-error');
+    clearFieldErrorMessage(inputEl);
+    var td = getFieldCell(inputEl);
+    if (td) {
+        td.classList.remove('field-cell-saving', 'field-cell-spinner');
+    }
+    clearFieldTimers(inputEl);
+    inputEl.classList.add('field-saved');
+    if (td) td.classList.add('field-cell-saved');
+    var t = setTimeout(function() {
+        inputEl.classList.remove('field-saved');
+        if (td) td.classList.remove('field-cell-saved');
+    }, 1800);
+    _fieldSavedTimers.set(inputEl, t);
+}
+
+function setFieldError(inputEl, message) {
+    if (!inputEl) return;
+    setFieldSaving(inputEl, false);
+    inputEl.classList.remove('field-saved');
+    var td = getFieldCell(inputEl);
+    if (td) td.classList.remove('field-cell-saved');
+    inputEl.classList.add('field-error');
+    if (!td) return;
+    var errId = 'mapa-err-' + (inputEl.getAttribute('data-item-id') || 'x') + '-' + (inputEl.getAttribute('data-field') || 'f');
+    var err = td.querySelector('.mapa-field-error');
+    if (!err) {
+        err = document.createElement('div');
+        err.className = 'mapa-field-error';
+        err.id = errId;
+        td.appendChild(err);
+    }
+    err.textContent = message || 'Não foi possível salvar.';
+    inputEl.setAttribute('aria-invalid', 'true');
+    inputEl.setAttribute('aria-describedby', errId);
+    announceMapaStatus(message || 'Erro ao salvar campo.');
+}
+
+function announceMapaStatus(msg) {
+    var el = document.getElementById('mapa-table-status');
+    if (!el || !msg) return;
+    el.textContent = '';
+    setTimeout(function() { el.textContent = msg; }, 20);
+}
+
+function showMapaTableLoading(message) {
+    var shell = document.getElementById('mapa-table-shell');
+    if (!shell) return;
+    shell.classList.add('mapa-table-navigating');
+    shell.setAttribute('aria-busy', 'true');
+    var prog = document.getElementById('mapa-filter-progress');
+    if (prog) {
+        prog.hidden = false;
+        prog.removeAttribute('aria-hidden');
+    }
+    if (message) announceMapaStatus(message);
+}
+
+function revealMapaTable() {
+    var shell = document.getElementById('mapa-table-shell');
+    if (!shell) return;
+    shell.classList.remove('mapa-table-loading-init', 'mapa-table-navigating');
+    shell.setAttribute('aria-busy', 'false');
+    var prog = document.getElementById('mapa-filter-progress');
+    if (prog) {
+        prog.hidden = true;
+        prog.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function initMapaTableLoading() {
+    if (!document.querySelector('.page-mapa-suprimentos')) return;
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            revealMapaTable();
+            var count = document.querySelectorAll('.tabela-mapa tbody tr.linha-item-mapa').length;
+            if (count) {
+                announceMapaStatus('Mapa carregado com ' + count + ' itens.');
+            }
+        });
+    });
+}
+
+function initMapaNavigationLoading() {
+    if (!document.querySelector('.page-mapa-suprimentos')) return;
+    var form = document.getElementById('filtro-form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            showMapaTableLoading('Atualizando mapa…');
+        });
+    }
+    document.querySelectorAll('.mapa-paginacao a.page-link').forEach(function(a) {
+        a.addEventListener('click', function() {
+            showMapaTableLoading('Carregando página…');
+        });
+    });
 }
 
 function markInputSaved(inputEl, value) {
@@ -190,6 +344,17 @@ function badgeClassForStatus(statusCss) {
     return map[statusCss] || 'badge-branco';
 }
 
+function formatStatusEtapaCurto(statusEtapa) {
+    var s = String(statusEtapa || '').toUpperCase();
+    if (!s) return '—';
+    if (s.indexOf('LEVANTAMENTO') >= 0) return 'Levant.';
+    if (s.indexOf('PARCIAL') >= 0) return 'Parcial';
+    if (s.indexOf('ENTREGUE') >= 0) return 'Entregue';
+    if (s.indexOf('AGUARDANDO ENTREGA') >= 0) return 'Aguard.';
+    if (s.length > 14) return s.slice(0, 12).replace(/\s+$/, '') + '…';
+    return statusEtapa;
+}
+
 function applyRowPatch(itemId, patch) {
     if (!patch) return;
     var row = document.querySelector('tr[data-item-id="' + itemId + '"]');
@@ -201,56 +366,61 @@ function applyRowPatch(itemId, patch) {
         markInputSaved(codInp, patch.insumo_codigo);
     }
 
-    if (patch.quantidade_planejada !== undefined) {
+    if (patch.quantidade_planejada !== undefined || patch.quantidade_alocada !== undefined) {
         var progressCell = row.querySelector('.celula-progresso');
         var saldoCell = row.querySelector('td.input-readonly');
         var unidade = patch.unidade || '';
+        var planejadoRaw = patch.planejado_raw || patch.quantidade_planejada_raw || '';
+        var planejadoNum = parseFloat(String(planejadoRaw).replace(',', '.')) || 0;
         if (progressCell) {
             if (patch.progress_title) {
                 progressCell.setAttribute('title', patch.progress_title);
                 progressCell.setAttribute('data-bs-original-title', patch.progress_title);
             }
-            var bg = progressCell.querySelector('.progresso-bg');
-            if (bg && patch.percentual_pct !== undefined) {
-                bg.style.width = patch.percentual_pct + '%';
-            }
-            if (bg && patch.progress_bg) {
-                bg.style.background = patch.progress_bg;
-            }
-            var texto = progressCell.querySelector('.progresso-texto');
-            if (texto) {
-                var saldoRaw = patch.saldo_raw || '0';
-                var alocadoRaw = patch.alocado_raw || '0';
-                var planejadoRaw = patch.planejado_raw || patch.quantidade_planejada_raw || '';
-                var saldoNum = parseFloat(String(saldoRaw).replace(',', '.')) || 0;
-                var btnIcon = saldoNum > 0 ? 'bi-plus-lg' : 'bi-sliders';
-                var btnTitle = saldoNum > 0
-                    ? ('Alocar até ' + escapeHtml(patch.saldo_a_alocar || saldoRaw) + ' ' + escapeHtml(unidade))
-                    : 'Ver ou ajustar alocações';
-                var btnHtml = '<button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" ' +
-                    'data-item-id="' + itemId + '" ' +
-                    'data-saldo="' + escapeHtml(saldoRaw) + '" ' +
-                    'data-planejado="' + escapeHtml(planejadoRaw) + '" ' +
-                    'data-unidade="' + escapeHtml(patch.unidade || '') + '" ' +
-                    'data-alocado="' + escapeHtml(alocadoRaw) + '" ' +
-                    'title="' + btnTitle + '">' +
-                    '<i class="bi ' + btnIcon + '"></i></button>';
-                texto.innerHTML =
-                    '<strong>' + escapeHtml(patch.quantidade_alocada || '0,00') + '</strong>/' +
-                    '<span class="text-muted">' + escapeHtml(patch.quantidade_planejada || '0,00') + '</span>' +
-                    '<span class="text-muted small ms-1">' + escapeHtml(unidade) + '</span>' +
-                    btnHtml;
-            }
+            var saldoRaw = patch.saldo_raw || '0';
+            var alocadoRaw = patch.alocado_raw || '0';
+            var saldoNum = parseFloat(String(saldoRaw).replace(',', '.')) || 0;
+            var btnIcon = saldoNum > 0 ? 'bi-plus-lg' : 'bi-sliders';
+            var btnTitle = saldoNum > 0
+                ? ('Alocar até ' + escapeHtml(patch.saldo_a_alocar || saldoRaw) + ' ' + escapeHtml(unidade))
+                : 'Ver ou ajustar alocações';
+            var planejadoHtml = planejadoNum > 0
+                ? '<span class="exec-planejado">' + escapeHtml(patch.quantidade_planejada || '0,00') + '</span>'
+                : '<span class="exec-planejado exec-planejado--vazio" title="Informe a qtd. planejada">—</span>';
+            progressCell.innerHTML =
+                '<div class="exec-cell">' +
+                '<span class="exec-numeros">' +
+                '<strong class="exec-alocado">' + escapeHtml(patch.quantidade_alocada || '0,00') + '</strong>' +
+                '<span class="exec-sep">/</span>' + planejadoHtml +
+                '<span class="exec-unidade">' + escapeHtml(unidade) + '</span>' +
+                '</span>' +
+                '<button type="button" class="btn-alocar-ghost btn-alocar btn-alocar-inline" ' +
+                'data-item-id="' + itemId + '" ' +
+                'data-saldo="' + escapeHtml(saldoRaw) + '" ' +
+                'data-planejado="' + escapeHtml(planejadoRaw) + '" ' +
+                'data-unidade="' + escapeHtml(patch.unidade || '') + '" ' +
+                'data-alocado="' + escapeHtml(alocadoRaw) + '" ' +
+                'title="' + btnTitle + '">' +
+                '<i class="bi ' + btnIcon + '"></i></button>' +
+                '</div>';
         }
         if (saldoCell) {
             if (patch.saldo_negativo) {
+                var saldoTitle = planejadoNum <= 0
+                    ? 'Há alocação sem quantidade planejada.'
+                    : 'Alocado maior que o planejado neste local.';
+                var saldoValor = planejadoNum <= 0
+                    ? '—'
+                    : escapeHtml(patch.saldo_local_diferenca || '0.00');
                 saldoCell.innerHTML =
-                    '<span class="badge bg-warning" title="Atenção: alocado maior que o planejado para este local.">' +
-                    escapeHtml(patch.saldo_local_diferenca || '0.00') + ' ' + escapeHtml(unidade) +
-                    ' <i class="bi bi-exclamation-triangle"></i></span>';
+                    '<span class="saldo-aviso" title="' + saldoTitle + '">' +
+                    '<i class="bi bi-exclamation-circle"></i></span> ' +
+                    '<span class="saldo-valor saldo-valor--alert">' + saldoValor + '</span> ' +
+                    '<span class="saldo-und">' + escapeHtml(unidade) + '</span>';
             } else {
                 saldoCell.innerHTML =
-                    '<strong>' + escapeHtml(patch.saldo_a_alocar || '0,00') + '</strong> ' + escapeHtml(unidade);
+                    '<span class="saldo-valor">' + escapeHtml(patch.saldo_a_alocar || '0,00') + '</span> ' +
+                    '<span class="saldo-und">' + escapeHtml(unidade) + '</span>';
             }
         }
     }
@@ -265,7 +435,8 @@ function applyRowPatch(itemId, patch) {
             MAPA_BADGE_CLASSES.forEach(function(c) { badge.classList.remove(c); });
             badge.classList.add(badgeClassForStatus(patch.status_css || ''));
             var iconHtml = statusIconHtml(patch.status_etapa, patch.is_atrasado);
-            badge.innerHTML = iconHtml + (iconHtml ? ' ' : '') + escapeHtml(patch.status_etapa);
+            var label = formatStatusEtapaCurto(patch.status_etapa);
+            badge.innerHTML = iconHtml + (iconHtml ? ' ' : '') + escapeHtml(label);
         }
     }
     if (patch.is_atrasado) {
@@ -274,20 +445,6 @@ function applyRowPatch(itemId, patch) {
     } else {
         row.removeAttribute('data-atrasado');
         row.classList.remove('linha-atrasada');
-    }
-    var statusContent = row.querySelector('.status-content');
-    if (statusContent && patch.is_atrasado !== undefined) {
-        var atrasadoBadge = statusContent.querySelector('.badge.bg-danger');
-        if (patch.is_atrasado && !atrasadoBadge) {
-            var span = document.createElement('span');
-            span.className = 'badge bg-danger';
-            span.setAttribute('data-bs-toggle', 'tooltip');
-            span.setAttribute('title', 'Atrasado — prazo vencido');
-            span.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
-            statusContent.appendChild(span);
-        } else if (!patch.is_atrasado && atrasadoBadge) {
-            atrasadoBadge.remove();
-        }
     }
 }
 
@@ -327,7 +484,7 @@ function updateItemField(itemId, field, value, url, inputEl) {
         .then(function(data) {
             if (data.success) {
                 markInputSaved(inputEl, value);
-                showSaveFeedback(itemId);
+                setFieldSaved(inputEl);
                 showQuietSaveToast();
                 if (data.status_css) {
                     updateRowStatus(itemId, data.status_css);
@@ -345,12 +502,16 @@ function updateItemField(itemId, field, value, url, inputEl) {
                 }
                 syncObraQueryParam(data.obra_id);
             } else {
-                showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
+                var errMsg = data.error || 'Erro desconhecido';
+                inputEl.value = inputEl.getAttribute('data-initial-value') || '';
+                setFieldError(inputEl, errMsg);
             }
         })
         .catch(function(error) {
             _logCsrf('POST catch:', error && error.message ? error.message : error);
-            showMessage((error && error.message) ? error.message : 'Erro ao salvar. Recarregue e tente novamente.', 'error');
+            var errMsg = (error && error.message) ? error.message : 'Erro ao salvar. Tente novamente.';
+            inputEl.value = inputEl.getAttribute('data-initial-value') || '';
+            setFieldError(inputEl, errMsg);
         })
         .finally(function() {
             setFieldSaving(inputEl, false);
@@ -402,31 +563,49 @@ function loadModalContent(modalId, itemId) {
         console.warn('[LPLAN] Modal não encontrado: id=', modalId);
         return;
     }
+    var modalBody = modal.querySelector('#modalDetalheBody') || modal.querySelector('.modal-body');
+    var contentEl = modal.querySelector('#modalDetalheContent');
+    if (modalBody) {
+        modalBody.setAttribute('aria-busy', 'true');
+    }
+    if (contentEl) {
+        contentEl.innerHTML = '';
+    }
+
+    var bsModal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? new bootstrap.Modal(modal) : null;
+    if (bsModal) bsModal.show();
+    else console.warn('[LPLAN] Bootstrap.Modal não disponível');
+
     var base = (typeof window.__LPLAN_API_BASE__ === 'string') ? window.__LPLAN_API_BASE__ : '';
     const url = base + '/api/internal/item/' + itemId + '/detalhe/';
-    console.warn('[LPLAN] Detalhes: GET', url);
     fetch(url, { method: 'GET', credentials: 'include' })
         .then(function(response) {
             if (!response.ok) {
-                console.warn('[LPLAN] Detalhes falhou:', response.status, response.statusText, url);
                 throw new Error('Erro ' + response.status);
             }
             return response.json();
         })
         .then(function(data) {
-            const modalBody = modal.querySelector('.modal-body');
-            if (modalBody) {
-                modalBody.innerHTML = (data && data.html) ? data.html : '';
+            if (contentEl) {
+                contentEl.innerHTML = (data && data.html)
+                    ? data.html
+                    : '<p class="text-muted mb-0">Sem detalhes disponíveis.</p>';
             }
             initAlocacaoForm(itemId);
+            announceMapaStatus('Detalhes carregados.');
         })
         .catch(function(error) {
             console.error('[LPLAN] Detalhes catch:', error && error.message ? error.message : error);
-            showMessage('Erro ao carregar detalhes', 'error');
+            if (contentEl) {
+                contentEl.innerHTML = '<p class="text-danger mb-0">Não foi possível carregar os detalhes. Tente novamente.</p>';
+            }
+            announceMapaStatus('Erro ao carregar detalhes.');
+        })
+        .finally(function() {
+            if (modalBody) {
+                modalBody.setAttribute('aria-busy', 'false');
+            }
         });
-    
-    var bsModal = typeof bootstrap !== 'undefined' && bootstrap.Modal ? new bootstrap.Modal(modal) : null;
-    if (bsModal) bsModal.show(); else console.warn('[LPLAN] Bootstrap.Modal não disponível');
 }
 
 // Form de alocação
@@ -511,6 +690,7 @@ function initFiltroChips() {
             params.delete(param);
             params.delete('page');
             var qs = params.toString();
+            showMapaTableLoading('Removendo filtro…');
             window.location.href = window.location.pathname + (qs ? '?' + qs : '');
         } catch (err) {
             console.error('[LPLAN] Erro ao remover filtro:', err);

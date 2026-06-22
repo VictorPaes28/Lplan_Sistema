@@ -4,11 +4,9 @@
 {% load suprimentos_filters %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/mapa_engenharia_ui.css' %}?v=2">
 <style>
 .mapa-contexto-import {
-    font-size: 0.85rem;
-}
-.mapa-alerta-codigo {
     font-size: 0.85rem;
 }
 </style>
@@ -17,7 +15,7 @@
 {% block title %}Mapa Engenharia - LPLAN{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-2">
+<div class="container-fluid mt-2 page-mapa-suprimentos">
 <!-- ============================================
      MAPA DE SUPRIMENTOS - Tabela Responsiva
      ============================================ -->
@@ -25,14 +23,6 @@
     <div class="alert alert-secondary border mb-2 py-2" role="alert">
         <i class="bi bi-eye me-1"></i>{{ lplan_obra_inativa_msg }}
     </div>
-    {% endif %}
-
-    {% if alertas_mapa %}
-    {% for msg in alertas_mapa %}
-    <div class="alert alert-warning border mapa-alerta-codigo py-2 mb-2" role="alert">
-        <i class="bi bi-exclamation-triangle me-1"></i>{{ msg }}
-    </div>
-    {% endfor %}
     {% endif %}
 
 <section class="mapa-control-panel">
@@ -344,7 +334,34 @@
 </div>
 {% endif %}
 <div class="desktop-view" id="mapa-desktop-view">
-<div class="table-responsive">
+<div class="mapa-table-shell mapa-table-loading-init" id="mapa-table-shell" aria-busy="true">
+    <div class="mapa-filter-progress" id="mapa-filter-progress" hidden aria-hidden="true">
+        <div class="mapa-filter-progress-bar" role="progressbar" aria-label="Atualizando mapa"></div>
+    </div>
+    <div class="visually-hidden" id="mapa-table-status" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="mapa-table-skeleton" id="mapa-table-skeleton" aria-hidden="true">
+        <div class="mapa-skeleton-head"></div>
+        <div class="mapa-skeleton-head mapa-skeleton-head--sub"></div>
+        {% for i in "0123456789" %}
+        <div class="mapa-skeleton-row">
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--cat"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--sm"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--desc"></span>
+            <span class="mapa-skeleton-cell"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--sm"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--sm"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--xs"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--xs"></span>
+            <span class="mapa-skeleton-cell"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--xs"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--pill"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--sm"></span>
+            <span class="mapa-skeleton-cell"></span>
+            <span class="mapa-skeleton-cell mapa-skeleton-cell--xs"></span>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="table-responsive mapa-table-content">
     <table class="tabela-mapa">
         <thead>
             <tr class="mapa-zonas-row">
@@ -357,7 +374,7 @@
             <tr class="mapa-cols-row">
                 <th class="col-sticky-left zona-plan">Categoria</th>
                 <th class="zona-plan">Código</th>
-                <th class="zona-plan col-text-left">Descrição</th>
+                <th class="zona-plan">Descrição</th>
                 <th class="zona-plan">Local</th>
                 <th class="col-opt col-resp zona-plan">Responsável</th>
                 <th class="col-opt col-prazo zona-plan">Prazo</th>
@@ -367,7 +384,7 @@
                 <th class="zona-exec">Saldo local</th>
                 <th class="col-sticky-right zona-status zona-sep-status">Status</th>
                 <th class="zona-info zona-sep-info">Prioridade</th>
-                <th class="col-opt col-obs zona-info col-text-left">Observação</th>
+                <th class="col-opt col-obs zona-info">Observação</th>
                 <th class="zona-acoes zona-sep-acoes">Ações</th>
             </tr>
         </thead>
@@ -389,7 +406,7 @@
                 data-status-etapa="{{ item.status_etapa }}"
                 {% if item.is_atrasado %}data-atrasado="true"{% endif %}>
                 <!-- 1. CATEGORIA (Select - lista fechada LPLAN) -->
-                <td class="col-sticky-left zona-plan">
+                <td class="col-sticky-left zona-plan col-align-text">
                     <select class="input-inline form-select form-select-sm" 
                             data-item-id="{{ item.id }}" 
                             data-field="categoria"
@@ -403,21 +420,18 @@
                     </select>
                 </td>
                 <!-- 2. CÓDIGO INSUMO - Input Editável (sempre editável) -->
-                <td class="zona-plan">
+                <td class="zona-plan col-align-center">
                     {% with cod=item.insumo.codigo_sienge|default:"" %}
                         {% if cod|slice:":7" == "SM-LEV-" or not cod %}
-                            {# Em levantamento: campo vazio para engenheiro inserir código #}
                             <input type="text" 
                                    class="input-inline form-control form-control-sm"
                                    value=""
                                    data-item-id="{{ item.id }}"
                                    data-field="insumo_codigo"
                                    data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
-                                   placeholder="Digite o código"
-                                   title="Código do insumo (opcional)"
-                                   style="min-width: 100px; font-style: italic;">
+                                   placeholder="Código"
+                                   title="Código do insumo (opcional)">
                         {% else %}
-                            {# Já tem código: mostrar e permitir edição (sempre editável) #}
                             <input type="text" 
                                    class="input-inline form-control form-control-sm"
                                    value="{{ cod }}"
@@ -425,15 +439,14 @@
                                    data-field="insumo_codigo"
                                    data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
                                    placeholder="Código"
-                                   title="Código do insumo"
-                                   style="min-width: 100px;">
+                                   title="Código do insumo">
                         {% endif %}
                     {% endwith %}
                 </td>
                 <!-- 3. DESCRIÇÃO - Input Editável -->
-                <td class="zona-plan col-text-left">
+                <td class="zona-plan col-align-text col-destaque-desc">
                     <input type="text" 
-                           class="input-inline form-control form-control-sm ghost-input"
+                           class="input-inline form-control form-control-sm"
                            value="{{ item.descricao_override|default:item.insumo.descricao }}"
                            data-item-id="{{ item.id }}"
                            data-field="descricao_override"
@@ -442,8 +455,8 @@
                            title="Descrição original: {{ item.insumo.descricao }}">
                 </td>
                 <!-- 4. LOCAL - Select padronizado -->
-                <td class="zona-plan">
-                    <select class="input-inline form-select form-select-sm" 
+                <td class="zona-plan col-align-text">
+                    <select class="input-inline form-select form-select-sm"
                             data-item-id="{{ item.id }}" 
                             data-field="local_aplicacao" 
                             data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
@@ -456,7 +469,7 @@
                     </select>
                 </td>
                 <!-- 5. RESPONSÁVEL -->
-                <td class="col-opt col-resp zona-plan">
+                <td class="col-opt col-resp zona-plan col-align-center">
                     <input type="text" class="input-inline form-control form-control-sm" 
                            value="{{ item.responsavel|default:'' }}"
                            data-item-id="{{ item.id }}" 
@@ -464,7 +477,7 @@
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
                 <!-- 6. PRAZO -->
-                <td class="col-opt col-prazo zona-plan">
+                <td class="col-opt col-prazo zona-plan col-align-center">
                     <input type="date" class="input-inline form-control form-control-sm" 
                            value="{{ item.prazo_necessidade|date:'Y-m-d'|default:'' }}"
                            data-item-id="{{ item.id }}" 
@@ -472,7 +485,7 @@
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
                 <!-- 7. QUANTIDADE PLANEJADA -->
-                <td class="zona-plan">
+                <td class="zona-plan col-align-center">
                     <input type="number"
                            class="input-inline form-control form-control-sm"
                            value="{{ item.quantidade_planejada|unlocalize }}"
@@ -484,7 +497,7 @@
                            title="Quantidade planejada para este item">
                 </td>
                 <!-- 8. UND - Editável (Select) -->
-                <td class="col-opt col-und zona-plan">
+                <td class="col-opt col-und zona-plan col-align-center">
                     <select class="input-inline form-select form-select-sm text-center select-unidade" 
                             data-item-id="{{ item.id }}"
                             data-field="insumo_unidade"
@@ -504,14 +517,21 @@
                     </select>
                 </td>
                 <!-- 9. Alocado / planejado -->
-                <td class="celula-progresso zona-exec zona-sep-exec" 
+                <td class="celula-progresso zona-exec zona-sep-exec col-align-center col-destaque-exec"
                     data-bs-toggle="tooltip" 
-                    title="Alocado: {{ item.quantidade_alocada_local|floatformat:2 }} | Planejado: {{ item.quantidade_planejada|floatformat:2 }} {{ item.insumo.unidade|format_unidade }} — use + para alocar">
-                    <div class="progresso-bg" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%; background: {% if item.percentual_alocado >= 1 %}rgba(34,197,94,0.2){% elif item.percentual_alocado > 0 %}rgba(245,158,11,0.2){% else %}rgba(156,163,175,0.1){% endif %};"></div>
-                    <span class="progresso-texto">
-                        <strong>{{ item.quantidade_alocada_local|format_quantidade }}</strong>/<span class="text-muted">{{ item.quantidade_planejada|format_quantidade }}</span>
-                        <span class="text-muted small ms-1">{{ item.insumo.unidade|format_unidade }}</span>
-                        <button type="button" class="btn btn-xs btn-outline-primary btn-alocar ms-1" 
+                    title="Alocado: {{ item.quantidade_alocada_local|floatformat:2 }}{% if item.quantidade_planejada > 0 %} | Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% else %} | Sem qtd. planejada{% endif %} {{ item.insumo.unidade|format_unidade }} — use + para alocar">
+                    <div class="exec-cell">
+                        <span class="exec-numeros">
+                            <strong class="exec-alocado">{{ item.quantidade_alocada_local|format_quantidade }}</strong>
+                            <span class="exec-sep">/</span>
+                            {% if item.quantidade_planejada > 0 %}
+                            <span class="exec-planejado">{{ item.quantidade_planejada|format_quantidade }}</span>
+                            {% else %}
+                            <span class="exec-planejado exec-planejado--vazio" title="Informe a qtd. planejada">—</span>
+                            {% endif %}
+                            <span class="exec-unidade">{{ item.insumo.unidade|format_unidade }}</span>
+                        </span>
+                        <button type="button" class="btn-alocar-ghost btn-alocar btn-alocar-inline" 
                                 data-item-id="{{ item.id }}"
                                 data-saldo="{{ item.saldo_a_alocar_local }}"
                                 data-planejado="{{ item.quantidade_planejada }}"
@@ -520,20 +540,26 @@
                                 title="{% if item.saldo_a_alocar_local > 0 %}Alocar até {{ item.saldo_a_alocar_local }} {{ item.insumo.unidade|format_unidade }}{% else %}Ver ou ajustar alocações{% endif %}">
                             {% if item.saldo_a_alocar_local > 0 %}<i class="bi bi-plus-lg"></i>{% else %}<i class="bi bi-sliders"></i>{% endif %}
                         </button>
-                    </span>
+                    </div>
                 </td>
                 <!-- 10. SALDO LOCAL -->
-                <td class="input-readonly zona-exec" 
+                <td class="input-readonly zona-exec col-align-center"
                     data-bs-toggle="tooltip" 
                     title="Saldo do local: planejado − alocado">
                     {% if item.saldo_negativo %}
-                        <span class="badge bg-warning" data-bs-toggle="tooltip" 
-                              title="Atenção: alocado maior que o planejado para este local.">
-                            {{ item.saldo_local_diferenca|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}
-                            <i class="bi bi-exclamation-triangle"></i>
+                        <span class="saldo-aviso" data-bs-toggle="tooltip"
+                              title="{% if item.quantidade_planejada <= 0 %}Há alocação sem quantidade planejada.{% else %}Alocado maior que o planejado neste local.{% endif %}">
+                            <i class="bi bi-exclamation-circle"></i>
                         </span>
+                        {% if item.quantidade_planejada <= 0 %}
+                        <span class="saldo-valor saldo-valor--alert">—</span>
+                        {% else %}
+                        <span class="saldo-valor saldo-valor--alert">{{ item.saldo_local_diferenca|floatformat:2 }}</span>
+                        {% endif %}
+                        <span class="saldo-und">{{ item.insumo.unidade|format_unidade }}</span>
                     {% else %}
-                        <strong>{{ item.saldo_a_alocar_local|floatformat:2 }}</strong> {{ item.insumo.unidade|format_unidade }}
+                        <span class="saldo-valor">{{ item.saldo_a_alocar_local|floatformat:2 }}</span>
+                        <span class="saldo-und">{{ item.insumo.unidade|format_unidade }}</span>
                     {% endif %}
                 </td>
                 <!-- 11. STATUS -->
@@ -560,19 +586,12 @@
                             {% elif not mapa_suprimentos_manual and 'SOLICITACAO' in item.status_etapa %}
                                 <i class="bi bi-cart-plus"></i>
                             {% endif %}
-                            {{ item.status_etapa }}
+                            {{ item.status_etapa|status_etapa_curto }}
                         </span>
-                        {% if item.is_atrasado %}
-                                <span class="badge bg-danger" 
-                                  data-bs-toggle="tooltip" 
-                                  title="Atrasado — prazo {{ item.prazo_necessidade|date:'d/m/Y'|default:'vencido' }}">
-                                <i class="bi bi-exclamation-triangle"></i>
-                            </span>
-                        {% endif %}
                     </div>
                 </td>
                 <!-- 17. PRIORIDADE (cores AZUL/ROXO - diferente do STATUS) -->
-                <td class="td-prioridade zona-info zona-sep-info">
+                <td class="td-prioridade zona-info zona-sep-info col-align-center">
                     <select class="input-inline form-select form-select-sm select-prioridade prioridade-{{ item.prioridade|lower }}" 
                             data-item-id="{{ item.id }}" 
                             data-field="prioridade"
@@ -584,7 +603,7 @@
                     </select>
                 </td>
                 <!-- 18. OBSERVAÇÃO -->
-                <td class="col-opt col-obs zona-info col-text-left">
+                <td class="col-opt col-obs zona-info col-align-text">
                     <input type="text" class="input-inline form-control form-control-sm" 
                            value="{{ item.observacao_eng|default:'' }}"
                            data-item-id="{{ item.id }}" 
@@ -592,15 +611,16 @@
                            data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
                 </td>
                 <!-- Ações -->
-                <td class="zona-acoes zona-sep-acoes">
-                    <div class="d-flex gap-1 justify-content-center">
-                    <button class="btn btn-sm btn-info" 
-                            data-modal-target="modalDetalhe"
-                            data-item-id="{{ item.id }}">
-                        Detalhes
-                    </button>
+                <td class="zona-acoes zona-sep-acoes col-align-center">
+                    <div class="mapa-acoes-inline">
+                        <button class="btn"
+                                data-modal-target="modalDetalhe"
+                                data-item-id="{{ item.id }}"
+                                title="Detalhes">
+                            <i class="bi bi-eye"></i>
+                        </button>
                         <button type="button"
-                                class="btn btn-sm btn-outline-secondary"
+                                class="btn"
                                 data-action="duplicate-item"
                                 data-item-id="{{ item.id }}"
                                 data-duplicate-url="{% url 'suprimentos:item_duplicar' item.id %}"
@@ -608,7 +628,7 @@
                             <i class="bi bi-copy"></i>
                         </button>
                         <button type="button"
-                                class="btn btn-sm btn-outline-danger"
+                                class="btn btn-outline-danger"
                                 data-action="delete-item"
                                 data-item-id="{{ item.id }}"
                                 data-delete-url="{% url 'suprimentos:item_excluir' item.id %}"
@@ -630,6 +650,7 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 
 {% if page_obj.paginator.num_pages > 1 %}
@@ -1033,8 +1054,20 @@
                 <h5 class="modal-title">Detalhes do Item</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <p>Carregando...</p>
+            <div class="modal-body" id="modalDetalheBody" aria-busy="false">
+                <div class="mapa-modal-skeleton" id="modalDetalheSkeleton" aria-hidden="true">
+                    <div class="mapa-modal-skeleton-title"></div>
+                    <div class="mapa-modal-skeleton-line"></div>
+                    <div class="mapa-modal-skeleton-line"></div>
+                    <div class="mapa-modal-skeleton-line mapa-modal-skeleton-line--short"></div>
+                    <div class="mapa-modal-skeleton-grid">
+                        <div class="mapa-modal-skeleton-block"></div>
+                        <div class="mapa-modal-skeleton-block"></div>
+                        <div class="mapa-modal-skeleton-block"></div>
+                        <div class="mapa-modal-skeleton-block"></div>
+                    </div>
+                </div>
+                <div class="mapa-modal-content" id="modalDetalheContent"></div>
             </div>
         </div>
     </div>

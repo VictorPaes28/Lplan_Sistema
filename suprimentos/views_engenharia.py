@@ -41,8 +41,6 @@ from core.obras_readonly import (
     mapa_obra_requires_readonly,
 )
 from suprimentos.services.mapa_engenharia_diagnostico import (
-    alertas_codigo_descricao_duplicada,
-    alertas_codigo_descricao_duplicada_obra,
     anexar_diagnostico_sienge_itens,
     build_ultima_importacao_info,
 )
@@ -508,7 +506,8 @@ def _build_confiabilidade_suprimentos(itens_list):
         for item in itens_list
         if (
             (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local > item.quantidade_solicitada_sienge)
-            or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local > item.quantidade_planejada)
+            or (item.quantidade_planejada > 0 and item.quantidade_alocada_local > item.quantidade_planejada)
+            or (item.quantidade_planejada <= 0 and item.quantidade_alocada_local > 0)
         )
     )
 
@@ -821,11 +820,6 @@ def mapa_engenharia(request):
         ),
         'mapa_suprimentos_manual': mapa_suprimentos_manual(),
         'ultima_importacao': None if mapa_suprimentos_manual() else (build_ultima_importacao_info(obra_id) if obra_id else None),
-        'alertas_mapa': (
-            alertas_codigo_descricao_duplicada_obra(obra_id)
-            if obra_id and manual
-            else (alertas_codigo_descricao_duplicada(itens_lista_completa) if obra_id else [])
-        ),
         'page_obj': page_obj,
         'mapa_query': request.GET.copy(),
     }

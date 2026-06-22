@@ -934,6 +934,16 @@ def item_atualizar_campo(request):
                             'success': False,
                             'error': 'Não é possível zerar o planejado: há alocações neste item. Remova-as primeiro.',
                         }, status=400)
+                if mapa_suprimentos_manual() and qtd > 0:
+                    alocado = item.quantidade_alocada_local
+                    if qtd < alocado:
+                        return JsonResponse({
+                            'success': False,
+                            'error': (
+                                f'Quantidade planejada ({qtd}) não pode ser menor que o já alocado '
+                                f'({alocado}). Remova alocações ou informe um valor maior.'
+                            ),
+                        }, status=400)
                 item.quantidade_planejada = qtd
                 valor_novo = str(qtd)
             except (ValueError, TypeError):
@@ -1216,7 +1226,7 @@ def item_alocar(request, item_id):
         
         with transaction.atomic():
             if mapa_suprimentos_manual():
-                ItemMapa.objects.select_for_update().get(pk=item.pk)
+                item = ItemMapa.objects.select_for_update().get(pk=item.pk)
                 disponivel = item.saldo_a_alocar_local
                 if disponivel <= 0:
                     return json_error(

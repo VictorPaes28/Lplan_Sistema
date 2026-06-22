@@ -882,8 +882,12 @@ class ItemMapa(models.Model):
 
     @property
     def saldo_negativo(self):
-        """Verifica se alocado > planejado."""
-        return self.quantidade_alocada_local > self.quantidade_planejada and self.quantidade_planejada > 0
+        """Verifica se alocado > planejado ou há alocação sem planejamento."""
+        alocado = self.quantidade_alocada_local or Decimal('0')
+        planejado = self.quantidade_planejada or Decimal('0')
+        if alocado <= 0:
+            return False
+        return planejado <= 0 or alocado > planejado
 
     @cached_property
     def status_css(self):

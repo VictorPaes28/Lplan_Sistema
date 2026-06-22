@@ -93,3 +93,22 @@ def format_unidade(value):
     
     return value
 
+@register.filter(name='status_etapa_curto')
+def status_etapa_curto(value):
+    """Rótulo curto para pills de status na tabela."""
+    if not value:
+        return '—'
+    s = str(value).strip().upper()
+    mapping = {
+        'LEVANTAMENTO': 'Levant.',
+        'PARCIAL': 'Parcial',
+        'ENTREGUE': 'Entregue',
+        'AGUARDANDO ENTREGA': 'Aguard.',
+    }
+    for key, label in mapping.items():
+        if key in s:
+            return label
+    if len(s) > 14:
+        return s[:12].rstrip() + '…'
+    return value
+

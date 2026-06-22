@@ -131,6 +131,42 @@ class TestMapaManual(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertFalse(r.json().get('success'))
 
+    def test_planejado_menor_que_alocado_bloqueado(self):
+        AlocacaoRecebimento.objects.create(
+            obra=self.obra,
+            insumo=self.insumo,
+            local_aplicacao=self.local,
+            item_mapa=self.item,
+            quantidade_alocada=Decimal('6'),
+            criado_por=self.user,
+        )
+        url = reverse('suprimentos:item_atualizar_campo')
+        r = self.client.post(
+            url,
+            data=json.dumps({
+                'item_id': self.item.id,
+                'field': 'quantidade_planejada',
+                'value': '4',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.json().get('success'))
+
+    def test_saldo_negativo_sem_planejado(self):
+        AlocacaoRecebimento.objects.create(
+            obra=self.obra,
+            insumo=self.insumo,
+            local_aplicacao=self.local,
+            item_mapa=self.item,
+            quantidade_alocada=Decimal('3'),
+            criado_por=self.user,
+        )
+        self.item.quantidade_planejada = Decimal('0')
+        self.item.save()
+        item = ItemMapa.objects.get(pk=self.item.pk)
+        self.assertTrue(item.saldo_negativo)
+
     def test_filtro_status_levantamento(self):
         url = reverse('engenharia:mapa') + f'?obra={self.obra.id}&status=LEVANTAMENTO'
         r = self.client.get(url)
