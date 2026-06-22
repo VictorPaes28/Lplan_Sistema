@@ -52,10 +52,15 @@ def _destinatarios_rh() -> list[str]:
     return emails
 
 
-def _url_colaborador(colaborador_id: int) -> str:
+def _url_colaborador(colaborador_id: int, prazo_id: int | None = None) -> str:
+    from urllib.parse import urlencode
+
     base = getattr(settings, 'SITE_URL', '').rstrip('/')
     path = reverse('recursos_humanos:colaboradores_list')
-    return f'{base}{path}?abrir_colaborador={colaborador_id}'
+    params = {'abrir_colaborador': colaborador_id}
+    if prazo_id:
+        params['abrir_prazo_decisao'] = prazo_id
+    return f'{base}{path}?{urlencode(params)}'
 
 
 def _tipo_contrato_label(colaborador: Colaborador, prazo: PrazoContrato) -> str:
@@ -69,17 +74,27 @@ def _dias_ate(data: date, hoje: date) -> int:
 
 
 def _alertas_experiencia(prazo: PrazoContrato, hoje: date) -> list[AlertaContrato]:
+    from recursos_humanos.services.prazo_contrato import (
+        MARCO_EXPERIENCIA_1,
+        MARCO_EXPERIENCIA_2,
+        obter_data_admissao_oficial,
+    )
+
+    colaborador = prazo.colaborador
+    data_base = obter_data_admissao_oficial(colaborador)
+    if not data_base:
+        return []
     alertas = []
     for dias_marco, tipo in (
-        (45, NotificacaoEnviada.TipoAlerta.EXPERIENCIA_45),
-        (90, NotificacaoEnviada.TipoAlerta.EXPERIENCIA_90),
+        (MARCO_EXPERIENCIA_1, NotificacaoEnviada.TipoAlerta.EXPERIENCIA_45),
+        (MARCO_EXPERIENCIA_2, NotificacaoEnviada.TipoAlerta.EXPERIENCIA_90),
     ):
-        data_marco = prazo.data_inicio + timedelta(days=dias_marco)
-        if prazo.data_fim and data_marco > prazo.data_fim:
+        data_marco = data_base + timedelta(days=dias_marco)
+        if prazo.data_fim and data_marco > prazo.data_fim and prazo.renovacao_numero == 0:
             continue
         if _dias_ate(data_marco, hoje) != DIAS_ANTECEDENCIA_EXPERIENCIA:
             continue
-        if dias_marco == 45:
+        if dias_marco == MARCO_EXPERIENCIA_1:
             texto = (
                 'Faltam 3 dias para o fim do primeiro período de experiência. '
                 'Decidir: prorrogar (até 90 dias), efetivar antecipadamente ou dispensar.'
@@ -214,7 +229,7 @@ def _montar_contexto(prazo: PrazoContrato, alerta: AlertaContrato) -> dict:
         'titulo_email': alerta.titulo_email,
         'subtitulo_email': alerta.subtitulo_email,
         'texto_decisao': alerta.texto_decisao,
-        'url_colaborador': _url_colaborador(colab.pk),
+        'url_colaborador': _url_colaborador(colab.pk, prazo.pk),
     }
 
 

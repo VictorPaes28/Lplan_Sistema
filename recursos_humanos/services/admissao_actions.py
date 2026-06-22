@@ -1299,8 +1299,17 @@ def concluir_admissao(colaborador: Colaborador, user) -> tuple[bool, str]:
         contrato = None
     if not contrato or contrato.status != ContratoAdmissao.Status.CONCLUIDO:
         return False, 'Arquive o contrato assinado antes de concluir a admissão.'
-    if not contrato_marcado_enviado_zapsign(colaborador):
-        return False, 'Marque o contrato como enviado ao ZapSign antes de arquivar o PDF assinado.'
+    if not contrato.data_admissao_oficial:
+        return False, 'Informe a data de admissão oficial na etapa do contrato antes de concluir.'
+    from recursos_humanos.services.prazo_contrato import aplicar_data_admissao_oficial
+
+    ok_data, msg_data = aplicar_data_admissao_oficial(
+        colaborador,
+        contrato.data_admissao_oficial,
+        user,
+    )
+    if not ok_data:
+        return False, msg_data
     return avancar_etapa_admissao(colaborador, user)
 
 

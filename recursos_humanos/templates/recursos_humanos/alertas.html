@@ -7,9 +7,32 @@
       <h1 class="rh-title">Prazos e Alertas</h1>
       <p class="rh-subtitle">Pendências do RH — cada item diz o problema e para onde o clique leva.</p>
     </div>
-    <button type="button" class="rh-btn rh-btn-outline" id="rh-alertas-config-btn">
-      <i class="fas fa-cog" aria-hidden="true"></i> Configurar
-    </button>
+    <div class="rh-page-header-actions">
+      <details class="rh-export-menu" id="rh-export-prazos-menu">
+        <summary class="rh-btn rh-btn-outline">
+          <i class="fas fa-download" aria-hidden="true"></i> Exportar relatórios
+        </summary>
+        <div class="rh-export-menu__panel" role="menu">
+          <p class="rh-export-menu__hint rh-export-menu__hint--section">Período de experiência CLT</p>
+          <a href="{% url 'recursos_humanos:alertas_export_prazos' %}?formato=xlsx" class="rh-export-menu__item" role="menuitem">
+            <i class="fas fa-file-excel" aria-hidden="true"></i> Período de experiência — Excel
+          </a>
+          <a href="{% url 'recursos_humanos:alertas_export_prazos' %}?formato=pdf" class="rh-export-menu__item" role="menuitem">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i> Período de experiência — PDF
+          </a>
+          <p class="rh-export-menu__hint rh-export-menu__hint--section">Todos os prazos ativos</p>
+          <a href="{% url 'recursos_humanos:alertas_export_prazos' %}?formato=xlsx&amp;escopo=todos" class="rh-export-menu__item" role="menuitem">
+            <i class="fas fa-file-excel" aria-hidden="true"></i> Consolidado — Excel
+          </a>
+          <a href="{% url 'recursos_humanos:alertas_export_prazos' %}?formato=pdf&amp;escopo=todos" class="rh-export-menu__item" role="menuitem">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i> Consolidado — PDF
+          </a>
+        </div>
+      </details>
+      <button type="button" class="rh-btn rh-btn-outline" id="rh-alertas-config-btn">
+        <i class="fas fa-cog" aria-hidden="true"></i> Configurar
+      </button>
+    </div>
   </div>
 
   <div class="rh-alertas-toolbar">
@@ -20,6 +43,11 @@
       <button type="button" class="rh-alertas-filter" data-filter="urgente" role="tab" aria-selected="false">
         Urgentes <span class="rh-alertas-filter__count rh-alertas-filter__count--red">{{ resumo.urgentes }}</span>
       </button>
+      <button type="button" class="rh-alertas-filter rh-alertas-filter--prazo-teste-clt" data-filter="prazo_teste_clt" role="tab" aria-selected="false" title="Período de experiência CLT — marcos D45 e D90">
+        <i class="fas fa-user-clock" aria-hidden="true"></i>
+        Período de experiência
+        <span class="rh-alertas-filter__count rh-alertas-filter__count--clt">{{ resumo.prazo_teste_clt }}</span>
+      </button>
       <button type="button" class="rh-alertas-filter" data-filter="doc" role="tab" aria-selected="false">
         Documentos <span class="rh-alertas-filter__count">{{ resumo.documentos }}</span>
       </button>
@@ -28,6 +56,37 @@
       </button>
     </div>
   </div>
+
+  {% if agenda_decisoes %}
+  <section class="rh-agenda-decisoes" aria-label="Decisões desta semana">
+    <header class="rh-agenda-decisoes__head">
+      <h2 class="rh-agenda-decisoes__title">
+        <i class="fas fa-calendar-week" aria-hidden="true"></i>
+        Decisões desta semana
+      </h2>
+      <span class="rh-agenda-decisoes__count">{{ agenda_decisoes|length }}</span>
+    </header>
+    <ul class="rh-agenda-decisoes__list">
+      {% for item in agenda_decisoes %}
+      <li class="rh-agenda-decisoes__item rh-agenda-decisoes__item--{{ item.urgencia }}">
+        <div class="rh-agenda-decisoes__main">
+          <strong>{{ item.colaborador_nome }}</strong>
+          <span class="rh-agenda-decisoes__tipo">{{ item.tipo }} · {{ item.marco_label }}</span>
+        </div>
+        <div class="rh-agenda-decisoes__meta">
+          {% if item.progresso != "—" %}<span class="rh-agenda-decisoes__progresso">{{ item.progresso }}</span>{% endif %}
+          <span class="rh-agenda-decisoes__data">{{ item.data_marco }}</span>
+          <span class="rh-agenda-decisoes__dias{% if 'atraso' in item.dias_label %} rh-agenda-decisoes__dias--atraso{% endif %}">{{ item.dias_label }}</span>
+        </div>
+        <a href="{{ item.url_decidir }}" class="rh-btn rh-btn-outline rh-btn-sm">
+          Decidir
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <div class="rh-search-wrap rh-alertas-search rh-alertas-search--full">
     <i class="fas fa-search rh-search-icon" aria-hidden="true"></i>
     <input
@@ -69,7 +128,10 @@
       {% endfor %}
     </div>
     <p class="rh-empty rh-alertas-empty-filter" id="rh-alertas-empty-filter" hidden>
-      Nenhum alerta neste filtro.
+      <span data-empty-msg="default">Nenhum alerta neste filtro.</span>
+      <span data-empty-msg="prazo_teste_clt" hidden>
+        Nenhum colaborador CLT com período de experiência pendente de decisão no momento.
+      </span>
     </p>
   </div>
 </div>
@@ -196,7 +258,8 @@
     var matchFiltro = filtroAtivo === 'all'
       || (filtroAtivo === 'urgente' && urgencia === 'red')
       || (filtroAtivo === 'doc' && categoria === 'doc')
-      || (filtroAtivo === 'fluxo' && categoria === 'fluxo');
+      || (filtroAtivo === 'fluxo' && categoria === 'fluxo')
+      || (filtroAtivo === 'prazo_teste_clt' && categoria === 'prazo_teste_clt');
     return matchBusca && matchFiltro;
   }
 
@@ -213,6 +276,10 @@
     });
     if (emptyFilter) {
       emptyFilter.hidden = visiveis > 0 || cards.length === 0;
+      emptyFilter.querySelectorAll('[data-empty-msg]').forEach(function (el) {
+        var key = el.getAttribute('data-empty-msg');
+        el.hidden = key !== (filtroAtivo === 'prazo_teste_clt' ? 'prazo_teste_clt' : 'default');
+      });
     }
   }
 
@@ -308,6 +375,15 @@
         if (saveBtn) saveBtn.disabled = false;
       });
   });
+
+  var exportMenu = document.getElementById('rh-export-prazos-menu');
+  if (exportMenu) {
+    document.addEventListener('click', function (e) {
+      if (!exportMenu.open) return;
+      if (exportMenu.contains(e.target)) return;
+      exportMenu.open = false;
+    });
+  }
 })();
 </script>
 {% endblock %}

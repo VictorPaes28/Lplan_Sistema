@@ -431,10 +431,14 @@ def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
 
     obras = list(colaborador.obras.values_list('nome', flat=True))
     inicio = colaborador.data_admissao
+    data_admissao_oficial = None
+    data_inicio_prevista = inicio
     try:
         contrato = colaborador.contrato_admissao
     except ContratoAdmissao.DoesNotExist:
         contrato = None
+    if contrato:
+        data_admissao_oficial = contrato.data_admissao_oficial
     prazo_ativo = colaborador.prazos_contrato.filter(
         status=PrazoContrato.Status.ATIVO,
     ).first()
@@ -447,6 +451,8 @@ def contexto_etapa_contrato(colaborador: Colaborador) -> dict:
         'cargo': colaborador.cargo,
         'obra': ', '.join(obras) if obras else '—',
         'data_inicio': inicio,
+        'data_inicio_prevista': data_inicio_prevista,
+        'data_admissao_oficial': data_admissao_oficial,
         'salario': formatar_salario_br(colaborador.salario),
         'deslocamento_origem': colaborador.deslocamento_origem or '—',
         'deslocamento_destino': colaborador.deslocamento_destino or '—',

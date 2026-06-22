@@ -122,7 +122,6 @@ def _salvar_rascunho_requisicao(request, form=None, exc_msg=None):
         'motivo': request.POST.get('motivo', 'Nova contratação'),
         'observacoes': request.POST.get('observacoes', ''),
         'prazo_duracao_dias': request.POST.get('prazo_duracao_dias', ''),
-        'clt_periodo_experiencia': bool(request.POST.get('clt_periodo_experiencia')),
     }
     if form is not None and not form.is_valid():
         draft['errors'] = {
@@ -305,6 +304,9 @@ _STATUS_ORDER = Case(
 @require_rh
 def colaboradores_list_view(request):
     _sincronizar_notificacoes_rh()
+    from recursos_humanos.services.prazo_contrato import garantir_prazos_teste_clt_ativos
+
+    garantir_prazos_teste_clt_ativos()
     qs = (
         Colaborador.objects.prefetch_related(
             'obras',
@@ -442,10 +444,31 @@ def colaborador_detalhe_view(request, pk):
         portal_url = f'{base}/rh/portal/{colaborador.token_portal}/'
 
     from recursos_humanos.services.reembolsos import reembolsos_para_contexto
+    from recursos_humanos.services.contrato import obter_contrato_admissao_arquivado
+    from recursos_humanos.models import DecisaoPrazoContrato
+    from recursos_humanos.services.prazo_contrato import (
+        calcular_situacao_experiencia,
+        colaborador_recebe_prazo_teste_clt,
+        obter_data_admissao_oficial,
+        serializar_experiencia_perfil,
+    )
+
+    data_admissao_oficial = obter_data_admissao_oficial(colaborador)
+    experiencia_ctx = None
+    if colaborador_recebe_prazo_teste_clt(colaborador):
+        situacao = calcular_situacao_experiencia(colaborador)
+        experiencia_ctx = serializar_experiencia_perfil(situacao) if situacao else None
+
+    decisoes_prazo = list(
+        DecisaoPrazoContrato.objects.filter(colaborador=colaborador)
+        .select_related('usuario', 'prazo_contrato')
+        .order_by('-registrado_em')[:15]
+    )
 
     ctx = {
         'colaborador': colaborador,
         'documentos': colaborador.documentos.all(),
+        'contrato_admissao_arquivado': obter_contrato_admissao_arquivado(colaborador),
         'form_colaborador': ColaboradorBasicoForm(instance=colaborador),
         'obras_catalogo': obras_reais_queryset(),
         'historico': historico,
@@ -454,6 +477,9 @@ def colaborador_detalhe_view(request, pk):
         'prazo_ativo': prazo_ativo,
         'prazo_tipo_choices': PrazoContrato.Tipo.choices,
         'reembolsos_ctx': reembolsos_para_contexto(colaborador),
+        'data_admissao_oficial': data_admissao_oficial,
+        'experiencia_ctx': experiencia_ctx,
+        'decisoes_prazo': decisoes_prazo,
         **_rh_nav_context(request),
     }
     return render(request, 'recursos_humanos/colaborador_detalhe.html', ctx)
@@ -506,7 +532,22 @@ def colaborador_json_view(request, pk):
             'url_arquivo': doc.arquivo.url if doc.arquivo else None,
         })
 
-    from .services.prazo_contrato import prazo_contrato_para_perfil, serializar_prazo_perfil
+    from .services.contrato import documento_contrato_assinado_json
+
+    contrato_doc = documento_contrato_assinado_json(colaborador)
+    if contrato_doc:
+        docs_data.append(contrato_doc)
+
+    from .services.prazo_contrato import (
+        data_admissao_oficial_bloqueada,
+        garantir_prazo_teste_clt_colaborador,
+        obter_data_admissao_oficial,
+        prazo_contrato_para_perfil,
+        serializar_prazo_perfil,
+    )
+
+    if colaborador.status == Colaborador.Status.ATIVO:
+        garantir_prazo_teste_clt_colaborador(colaborador)
 
     prazo_exibir = prazo_contrato_para_perfil(colaborador)
     prazo_data = serializar_prazo_perfil(prazo_exibir) if prazo_exibir else None
@@ -528,6 +569,8 @@ def colaborador_json_view(request, pk):
     from recursos_humanos.services.documentos import pode_solicitar_pendencias_coleta
 
     pode_solicitar_pendencias = pode_solicitar_pendencias_coleta(colaborador, request.user)
+
+    data_oficial = obter_data_admissao_oficial(colaborador)
 
     return JsonResponse({
         'id': colaborador.pk,
@@ -553,8 +596,17 @@ def colaborador_json_view(request, pk):
         'status_display': status_info['status_display'],
         'status_hint': status_info['status_hint'],
         'status_tone': status_info['status_tone'],
-        'data_admissao': colaborador.data_admissao.strftime('%Y-%m-%d') if colaborador.data_admissao else '',
-        'data_admissao_fmt': colaborador.data_admissao.strftime('%d/%m/%Y') if colaborador.data_admissao else '',
+        'data_admissao': (
+            data_oficial.strftime('%Y-%m-%d') if data_oficial
+            else (colaborador.data_admissao.strftime('%Y-%m-%d') if colaborador.data_admissao else '')
+        ),
+        'data_admissao_fmt': (
+            data_oficial.strftime('%d/%m/%Y') if data_oficial
+            else (colaborador.data_admissao.strftime('%d/%m/%Y') if colaborador.data_admissao else '')
+        ),
+        'data_admissao_oficial': data_oficial.strftime('%Y-%m-%d') if data_oficial else '',
+        'data_admissao_oficial_fmt': data_oficial.strftime('%d/%m/%Y') if data_oficial else '',
+        'data_admissao_bloqueada': data_admissao_oficial_bloqueada(colaborador),
         'tipo_contrato': colaborador.tipo_contrato,
         'salario': colaborador.salario,
         'deslocamento_origem': colaborador.deslocamento_origem,
@@ -972,6 +1024,21 @@ def admissao_acao_view(request, pk):
         ok, msg = enviar_contrato(colaborador, request.user)
     elif acao == 'enviar_lembrete':
         ok, msg = enviar_lembrete_coleta_documentos(colaborador, request.user)
+    elif acao == 'salvar_data_admissao':
+        from datetime import datetime
+
+        from recursos_humanos.services.prazo_contrato import aplicar_data_admissao_oficial
+
+        data_str = (request.POST.get('data_admissao_oficial') or '').strip()
+        if not data_str:
+            ok, msg = False, 'Informe a data de admissão.'
+        else:
+            try:
+                data = datetime.strptime(data_str, '%Y-%m-%d').date()
+            except ValueError:
+                ok, msg = False, 'Data de admissão inválida.'
+            else:
+                ok, msg = aplicar_data_admissao_oficial(colaborador, data, request.user)
     else:
         ok, msg = False, 'Ação inválida.'
 
@@ -1132,22 +1199,72 @@ def alertas_view(request):
         rotulo_usuario_alertas,
         usuarios_staff_alertas,
     )
-    from .services.alertas_email import enviar_emails_alertas_diarios
+    from .services.alerts import coletar_agenda_decisoes_semana
 
     alertas = gerar_alertas()
-    enviar_emails_alertas_diarios(alertas)
     config = obter_configuracao_alertas()
     usuarios_alertas = [
         {'id': u.pk, 'rotulo': rotulo_usuario_alertas(u)}
         for u in usuarios_staff_alertas()
     ]
+    agenda = coletar_agenda_decisoes_semana(dias=7)
     return render(request, 'recursos_humanos/alertas.html', {
         'alertas': alertas,
         'resumo': resumo_alertas(alertas, config),
+        'agenda_decisoes': agenda,
         'config_alertas': config_para_template(config),
         'usuarios_alertas': usuarios_alertas,
         **_rh_nav_context(request),
     })
+
+
+@login_required
+@require_rh
+def alertas_export_prazos_view(request):
+    from django.http import HttpResponse
+
+    from recursos_humanos.services.export_prazos_contrato import (
+        coletar_linhas_export_contratos_consolidado,
+        coletar_linhas_export_prazos_contrato,
+        gerar_excel_prazos_contrato,
+        gerar_pdf_prazos_contrato,
+    )
+
+    formato = (request.GET.get('formato') or 'xlsx').lower()
+    escopo = (request.GET.get('escopo') or 'experiencia').lower()
+    if formato not in ('xlsx', 'pdf'):
+        formato = 'xlsx'
+
+    if escopo == 'todos':
+        linhas = coletar_linhas_export_contratos_consolidado()
+        stamp = timezone.localdate().strftime('%Y%m%d')
+        prefixo = 'prazos_contratuais'
+    else:
+        linhas = coletar_linhas_export_prazos_contrato()
+        stamp = timezone.localdate().strftime('%Y%m%d')
+        prefixo = 'periodo_experiencia'
+
+    if formato == 'pdf':
+        conteudo = gerar_pdf_prazos_contrato(linhas, escopo=escopo)
+        response = HttpResponse(conteudo, content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="{prefixo}_{stamp}.pdf"'
+        )
+        return response
+
+    conteudo = gerar_excel_prazos_contrato(linhas, escopo=escopo)
+    response = HttpResponse(
+        conteudo,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="{prefixo}_{stamp}.xlsx"'
+    )
+    return response
+
+
+# Compatibilidade com URL antiga
+alertas_export_experiencia_view = alertas_export_prazos_view
 
 
 @login_required
@@ -2022,13 +2139,23 @@ def contrato_upload_view(request, pk):
         return _redirect_admissao(pk)
 
     from .services.contrato import obter_ou_criar_contrato, salvar_contrato_assinado
-    from .services.admissao_actions import contrato_marcado_enviado_zapsign
 
-    if not contrato_marcado_enviado_zapsign(colaborador):
-        messages.error(
-            request,
-            'Marque o contrato como enviado ao ZapSign antes de arquivar o PDF assinado.',
-        )
+    data_str = (request.POST.get('data_admissao_oficial') or '').strip()
+    if not data_str:
+        messages.error(request, 'Salve a data de admissão oficial antes de arquivar o contrato.')
+        return _redirect_admissao(pk)
+    from datetime import datetime
+
+    from recursos_humanos.services.prazo_contrato import aplicar_data_admissao_oficial
+
+    try:
+        data_admissao = datetime.strptime(data_str, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, 'Data de admissão inválida.')
+        return _redirect_admissao(pk)
+    ok_data, msg_data = aplicar_data_admissao_oficial(colaborador, data_admissao, request.user)
+    if not ok_data:
+        messages.error(request, msg_data)
         return _redirect_admissao(pk)
 
     contrato = obter_ou_criar_contrato(colaborador)
@@ -2068,10 +2195,7 @@ def _prazo_contrato_decisao_queryset(pk):
     return get_object_or_404(
         PrazoContrato.objects.select_related('colaborador'),
         pk=pk,
-        status__in=(
-            PrazoContrato.Status.ATIVO,
-            PrazoContrato.Status.CONVERTIDO,
-        ),
+        status=PrazoContrato.Status.ATIVO,
     )
 
 

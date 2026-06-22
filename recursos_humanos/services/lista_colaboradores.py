@@ -16,17 +16,27 @@ from recursos_humanos.services.documentos import (
     documento_precisa_atencao,
 )
 from recursos_humanos.services.papeis_fluxo import ETAPAS_FLUXO_LABELS
+from recursos_humanos.services.prazo_contrato import NOME_EXPERIENCIA_CLT
 
 _MAX_PENDENCIAS_VISIVEIS = 2
 
 _ETAPA_LABEL = dict(ETAPAS_FLUXO_LABELS)
 
 _PRAZO_CURTO = {
-    PrazoContrato.Tipo.EXPERIENCIA: 'Experiência',
+    PrazoContrato.Tipo.EXPERIENCIA: NOME_EXPERIENCIA_CLT,
     PrazoContrato.Tipo.DETERMINADO: 'Determinado',
     PrazoContrato.Tipo.ESTAGIO: 'Estágio',
     PrazoContrato.Tipo.PJ: 'PJ',
 }
+
+
+@dataclass(frozen=True)
+class ResumoContratoLista:
+    progresso: str
+    tipo_curto: str
+    hint: str
+    pct: int
+    tom: str
 
 
 @dataclass(frozen=True)
@@ -60,6 +70,92 @@ def _nome_curto(nome: str, *, max_len: int = 16) -> str:
 
 def _prazo_curto(prazo: PrazoContrato) -> str:
     return _PRAZO_CURTO.get(prazo.tipo, _nome_curto(prazo.get_tipo_display(), max_len=12))
+
+
+def _tom_progresso_prazo(*, urgencia: str | None = None, dias_restantes: int | None = None) -> str:
+    if urgencia in ('red', 'critico', 'urgente'):
+        return 'bad'
+    if urgencia in ('yellow', 'atencao'):
+        return 'warn'
+    if dias_restantes is not None:
+        if dias_restantes < 0:
+            return 'bad'
+        if dias_restantes <= 7:
+            return 'bad'
+        if dias_restantes <= 30:
+            return 'warn'
+    return 'ok'
+
+
+def obter_resumo_contrato_lista(colaborador: Colaborador) -> ResumoContratoLista | None:
+    """Progresso compacto do contrato ativo para a coluna da lista (ex.: 42/45, 75/200)."""
+    if colaborador.status != Colaborador.Status.ATIVO:
+        return None
+
+    from recursos_humanos.services.prazo_contrato import (
+        calcular_situacao_experiencia,
+        colaborador_recebe_prazo_teste_clt,
+        formatar_progresso_prazo_ativo,
+        formatar_progresso_prazo_teste_clt,
+        pct_progresso_texto,
+        prazo_teste_clt_deve_exibir,
+        prioridade_experiencia_para_urgencia,
+    )
+
+    if colaborador_recebe_prazo_teste_clt(colaborador):
+        situacao = calcular_situacao_experiencia(colaborador)
+        if situacao and prazo_teste_clt_deve_exibir(situacao):
+            progresso = formatar_progresso_prazo_teste_clt(situacao)
+            urgencia = prioridade_experiencia_para_urgencia(situacao.prioridade)
+            tom_map = {'green': 'ok', 'yellow': 'warn', 'red': 'bad'}
+            return ResumoContratoLista(
+                progresso=progresso,
+                tipo_curto='Período',
+                hint=(
+                    f'{NOME_EXPERIENCIA_CLT} · admissão {situacao.data_admissao:%d/%m/%Y} · '
+                    f'marco D{situacao.proximo_marco} ({situacao.proximo_marco_data:%d/%m/%Y})'
+                ),
+                pct=pct_progresso_texto(progresso),
+                tom=tom_map.get(urgencia, 'ok'),
+            )
+
+    prazos = getattr(colaborador, '_prefetched_objects_cache', {}).get('prazos_contrato')
+    if prazos is None:
+        prazos = colaborador.prazos_contrato.filter(status=PrazoContrato.Status.ATIVO)
+    else:
+        prazos = [p for p in prazos if p.status == PrazoContrato.Status.ATIVO]
+
+    candidatos = []
+    for prazo in prazos:
+        if prazo.tipo == PrazoContrato.Tipo.EXPERIENCIA:
+            continue
+        progresso = formatar_progresso_prazo_ativo(prazo)
+        if not progresso:
+            continue
+        dias = prazo.dias_restantes()
+        candidatos.append((prazo, progresso, dias if dias is not None else 9999))
+
+    if not candidatos:
+        return None
+
+    prazo, progresso, dias = min(candidatos, key=lambda item: item[2])
+    tipo = _prazo_curto(prazo)
+    fim_txt = prazo.data_fim.strftime('%d/%m/%Y') if prazo.data_fim else '—'
+    hint = f'{prazo.get_tipo_display()} · {prazo.data_inicio:%d/%m/%Y} a {fim_txt}'
+    if dias < 0:
+        hint += f' · vencido há {abs(dias)} dia(s)'
+    elif dias == 0:
+        hint += ' · vence hoje'
+    else:
+        hint += f' · {dias} dia(s) restantes'
+
+    return ResumoContratoLista(
+        progresso=progresso,
+        tipo_curto=tipo,
+        hint=hint,
+        pct=pct_progresso_texto(progresso),
+        tom=_tom_progresso_prazo(dias_restantes=dias),
+    )
 
 
 def _score_urgencia(urgencia: str, dias: int | None) -> int:
@@ -107,15 +203,51 @@ def _pendencias_prazo_contrato(
 ) -> list[PendenciaListaItem]:
     if colaborador.status == Colaborador.Status.DESLIGADO:
         return []
+    from recursos_humanos.services.prazo_contrato import (
+        calcular_situacao_experiencia,
+        colaborador_recebe_prazo_teste_clt,
+        formatar_progresso_prazo_teste_clt,
+        prazo_teste_clt_deve_exibir,
+        prioridade_experiencia_para_urgencia,
+    )
+
     hoje = timezone.localdate()
     limite = hoje.toordinal() + config.dias_antecedencia_documentos
     itens: list[PendenciaListaItem] = []
+
+    if colaborador_recebe_prazo_teste_clt(colaborador):
+        situacao = calcular_situacao_experiencia(colaborador)
+        if situacao and prazo_teste_clt_deve_exibir(situacao):
+            dias = situacao.dias_restantes_marco
+            urgencia = prioridade_experiencia_para_urgencia(situacao.prioridade)
+            if dias < 0:
+                label = f'{NOME_EXPERIENCIA_CLT} · marco vencido'
+                hint = (
+                    f'Marco D{situacao.proximo_marco} — '
+                    f'admissão {situacao.data_admissao:%d/%m/%Y}'
+                )
+            elif dias == 0:
+                label = f'{NOME_EXPERIENCIA_CLT} · marco hoje'
+                hint = f'Marco D{situacao.proximo_marco} vence hoje'
+            else:
+                label = f'{NOME_EXPERIENCIA_CLT} · marco {dias}d'
+                hint = (
+                    f'Marco D{situacao.proximo_marco} em '
+                    f'{situacao.proximo_marco_data:%d/%m/%Y}'
+                )
+            itens.append(
+                PendenciaListaItem(label, hint, urgencia, _score_urgencia(urgencia, dias))
+            )
+
     prazos = getattr(colaborador, '_prefetched_objects_cache', {}).get('prazos_contrato')
     if prazos is None:
         prazos = colaborador.prazos_contrato.all()
     for prazo in prazos:
         if prazo.status != PrazoContrato.Status.ATIVO or prazo.data_fim is None:
             continue
+        if prazo.tipo == PrazoContrato.Tipo.EXPERIENCIA:
+            continue
+
         if prazo.data_fim.toordinal() > limite:
             continue
         dias = prazo.dias_restantes()
@@ -288,6 +420,7 @@ def enriquecer_lista_colaborador(
     colaborador.pendencias_lista = pendencias
     colaborador.pendencias_visiveis = pendencias[:_MAX_PENDENCIAS_VISIVEIS]
     colaborador.pendencias_extra = max(0, len(pendencias) - _MAX_PENDENCIAS_VISIVEIS)
+    colaborador.resumo_contrato = obter_resumo_contrato_lista(colaborador)
     colaborador.resumo_docs = resumo_docs
 
     etapa = colaborador.etapa_admissao or 1

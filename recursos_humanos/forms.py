@@ -28,10 +28,6 @@ DEFAULT_DURACAO_POR_TIPO_CONTRATO = {
 }
 
 LIMITES_LEGAIS = {
-    'experiencia': (
-        90,
-        'Período de experiência não pode exceder 90 dias (CLT art. 445, parágrafo único).',
-    ),
     'determinado': (
         730,
         'Contrato por prazo determinado não pode exceder 2 anos (CLT art. 445).',
@@ -148,10 +144,6 @@ class NovaRequisicaoForm(forms.Form):
         ],
     )
     observacoes = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 3}))
-    clt_periodo_experiencia = forms.BooleanField(
-        required=False,
-        label='Período de experiência',
-    )
     prazo_duracao_dias = forms.IntegerField(
         required=False,
         label='Duração do contrato (dias)',
@@ -183,13 +175,11 @@ class NovaRequisicaoForm(forms.Form):
         if not self.tem_prazo():
             return None
         tipo_contrato = self.cleaned_data.get('tipo_contrato')
-        if tipo_contrato == 'CLT':
-            if self.cleaned_data.get('clt_periodo_experiencia'):
-                return PrazoContrato.Tipo.EXPERIENCIA
-            return PrazoContrato.Tipo.DETERMINADO
         return MAPA_TIPO_PRAZO.get(tipo_contrato)
 
     def tem_prazo(self):
+        if self.cleaned_data.get('tipo_contrato') == 'CLT':
+            return False
         duracao = self.cleaned_data.get('prazo_duracao_dias')
         return bool(duracao and duracao > 0)
 
@@ -198,20 +188,7 @@ class NovaRequisicaoForm(forms.Form):
         tipo_contrato = cleaned.get('tipo_contrato')
 
         if tipo_contrato == 'CLT':
-            duracao = cleaned.get('prazo_duracao_dias')
-            is_experiencia = cleaned.get('clt_periodo_experiencia')
-
-            if is_experiencia and not duracao:
-                cleaned['prazo_duracao_dias'] = 90
-                duracao = 90
-
-            if duracao:
-                chave_limite = 'experiencia' if is_experiencia else 'determinado'
-                limite, msg_erro = LIMITES_LEGAIS[chave_limite]
-                if duracao > limite:
-                    self.add_error('prazo_duracao_dias', msg_erro)
-            elif not is_experiencia:
-                cleaned['prazo_duracao_dias'] = None
+            cleaned['prazo_duracao_dias'] = None
 
         elif tipo_contrato == 'Estágio':
             duracao = cleaned.get('prazo_duracao_dias') or DEFAULT_DURACAO_POR_TIPO_CONTRATO['Estágio']
@@ -451,6 +428,10 @@ class ColaboradorBasicoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from .services.admissao_actions import obras_reais_queryset
+        from .services.prazo_contrato import (
+            data_admissao_oficial_bloqueada,
+            obter_data_admissao_oficial,
+        )
 
         self.fields['obras'].queryset = obras_reais_queryset()
         self.fields['obras'].required = False
@@ -462,6 +443,14 @@ class ColaboradorBasicoForm(forms.ModelForm):
             attrs={'class': 'rh-select'},
         )
         self.fields['status'].choices = Colaborador.Status.choices
+        if self.instance and self.instance.pk:
+            if data_admissao_oficial_bloqueada(self.instance):
+                oficial = obter_data_admissao_oficial(self.instance)
+                self.fields['data_admissao'].disabled = True
+                self.fields['data_admissao'].help_text = (
+                    f'Data oficial da etapa 4: {oficial:%d/%m/%Y}. '
+                    'Altere somente no fluxo de admissão (etapa do contrato).'
+                )
         for name, field in self.fields.items():
             if name in ('obras', 'cargo_rh'):
                 continue
@@ -471,6 +460,19 @@ class ColaboradorBasicoForm(forms.ModelForm):
     def clean_cpf(self):
         exclude_pk = self.instance.pk if self.instance and self.instance.pk else None
         return normalizar_cpf(self.cleaned_data.get('cpf'), exclude_pk=exclude_pk)
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.instance or not self.instance.pk:
+            return cleaned
+        from .services.prazo_contrato import (
+            data_admissao_oficial_bloqueada,
+            obter_data_admissao_oficial,
+        )
+
+        if data_admissao_oficial_bloqueada(self.instance):
+            cleaned['data_admissao'] = obter_data_admissao_oficial(self.instance)
+        return cleaned
 
 
 class ConfigurarAlertasForm(forms.Form):

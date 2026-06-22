@@ -6,6 +6,7 @@ from .models import (
     CargoRH,
     Colaborador,
     ContratoAdmissao,
+    DecisaoPrazoContrato,
     DocumentoColaborador,
     NotificacaoEnviada,
     ObraLocal,
@@ -79,6 +80,14 @@ class NotificacaoEnviadaAdmin(admin.ModelAdmin):
     list_filter = ('tipo_alerta', 'data_envio')
     search_fields = ('prazo_contrato__colaborador__nome',)
     readonly_fields = ('prazo_contrato', 'tipo_alerta', 'marco', 'data_envio')
+
+
+@admin.register(DecisaoPrazoContrato)
+class DecisaoPrazoContratoAdmin(admin.ModelAdmin):
+    list_display = ('colaborador', 'acao', 'usuario', 'registrado_em')
+    list_filter = ('acao', 'registrado_em')
+    search_fields = ('colaborador__nome', 'motivo')
+    readonly_fields = ('prazo_contrato', 'colaborador', 'acao', 'usuario', 'motivo', 'observacoes', 'registrado_em')
 
 
 @admin.register(PrazoContrato)

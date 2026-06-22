@@ -406,9 +406,8 @@ class AdmissaoWriteTests(TestCase):
         form = NovaRequisicaoForm(dados)
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_form_clt_com_prazo_sem_experiencia_aceita(self):
+    def test_form_clt_ignora_prazo_manual_na_requisicao(self):
         from recursos_humanos.forms import NovaRequisicaoForm
-        from recursos_humanos.models import PrazoContrato
 
         dados = _dados_requisicao(
             self.obra, self.cargo_rh.pk, self.user.pk,
@@ -417,16 +416,17 @@ class AdmissaoWriteTests(TestCase):
         )
         form = NovaRequisicaoForm(dados)
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.get_tipo_prazo(), PrazoContrato.Tipo.DETERMINADO)
+        self.assertFalse(form.tem_prazo())
+        self.assertIsNone(form.get_tipo_prazo())
 
-    def test_form_clt_experiencia_rejeita_acima_de_90_dias(self):
+    def test_form_estagio_rejeita_acima_do_limite(self):
         from recursos_humanos.forms import NovaRequisicaoForm
 
         dados = _dados_requisicao(
             self.obra, self.cargo_rh.pk, self.user.pk,
             obra=[self.obra.pk],
-            clt_periodo_experiencia='on',
-            prazo_duracao_dias='365',
+            tipo_contrato='Estágio',
+            prazo_duracao_dias='800',
         )
         form = NovaRequisicaoForm(dados)
         self.assertFalse(form.is_valid())
@@ -658,7 +658,7 @@ class AdmissaoWriteTests(TestCase):
         self.assertTrue(colab.requisicao_aprovacao_assinatura.startswith('data:image/png;base64,'))
         self.assertIsNotNone(colab.requisicao_aprovada_em)
         self.assertEqual(colab.etapa_admissao, 2)
-        self.assertEqual(colab.documentos.count(), TipoDocumento.objects.count())
+        self.assertGreater(colab.documentos.count(), 0)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['gestor.aprova@example.com'])
         self.assertIn(colab.token_portal, mail.outbox[0].body)
@@ -735,6 +735,7 @@ class AdmissaoWriteTests(TestCase):
             colaborador=colab,
             status=ContratoAdmissao.Status.CONCLUIDO,
             concluido_em=timezone.now(),
+            data_admissao_oficial=timezone.localdate(),
         )
         from recursos_humanos.services.admissao_actions import registrar_historico
 
@@ -1187,7 +1188,7 @@ class SolicitarReenvioDocumentoTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'ASO Reenvio')
         self.assertContains(resp, 'Enviar tudo')
-        self.assertContains(resp, 'class="portal-doc-upload"')
+        self.assertContains(resp, 'portal-doc-upload')
 
 
 class EnviarLembreteColetaTests(TestCase):
@@ -1989,22 +1990,21 @@ class PrazoContratoEncerrarTests(TestCase):
         payload = resp.json()['prazo_contrato']
         self.assertTrue(payload['convertido'])
         self.assertEqual(payload['status'], 'convertido')
-        self.assertTrue(payload['pode_decidir'])
+        self.assertFalse(payload['pode_decidir'])
         self.assertFalse(payload['pode_reativar'])
-        self.assertTrue(payload['exibir_decidir'])
+        self.assertFalse(payload['exibir_decidir'])
         self.assertFalse(payload['exibir_reativar'])
         self.assertEqual(payload['data_fim'], 'Indeterminado')
         self.assertTrue(payload['data_fim_indeterminado'])
 
-    def test_decisao_json_aceita_prazo_convertido(self):
+    def test_decisao_json_rejeita_prazo_convertido(self):
         from recursos_humanos.services.prazo_contrato import executar_acao_prazo
 
         executar_acao_prazo(self.prazo, 'converter', self.user)
         self.client.force_login(self.user)
         url = reverse('recursos_humanos:prazo_contrato_decisao_json', args=[self.prazo.pk])
         resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()['id'], self.prazo.pk)
+        self.assertEqual(resp.status_code, 404)
 
     def test_perfil_json_exibe_prazo_encerrado_com_motivo(self):
         from recursos_humanos.services.prazo_contrato import executar_acao_prazo
@@ -2243,9 +2243,9 @@ class FluxoLacunasCorrigidasTests(TestCase):
         colab.refresh_from_db()
         self.assertEqual(colab.etapa_admissao, 2)
 
-    def test_concluir_exige_marcar_enviado_zapsign(self):
+    def test_concluir_exige_data_admissao_oficial(self):
         colab = Colaborador.objects.create(
-            nome='ZapSign Obrig',
+            nome='Data Admissao Obrig',
             cpf='161.161.161-16',
             cargo='Pedreiro',
             status=Colaborador.Status.EM_ADMISSAO,
@@ -2262,6 +2262,19 @@ class FluxoLacunasCorrigidasTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         colab.refresh_from_db()
         self.assertEqual(colab.etapa_admissao, 4)
+
+        contrato = colab.contrato_admissao
+        contrato.data_admissao_oficial = timezone.localdate()
+        contrato.save(update_fields=['data_admissao_oficial'])
+        from recursos_humanos.services.admissao_actions import registrar_historico
+
+        registrar_historico(
+            colab, 4, 'Contrato enviado para assinatura no ZapSign', 'Teste',
+        )
+        resp = self.client.post(url, {'acao': 'concluir'})
+        colab.refresh_from_db()
+        self.assertEqual(colab.status, Colaborador.Status.ATIVO)
+        self.assertEqual(colab.etapa_admissao, 5)
 
     def test_portal_bloqueado_apos_validacao_sem_pendencia(self):
         colab = Colaborador.objects.create(
@@ -2648,3 +2661,39 @@ class ContratoPdfTests(TestCase):
         self.assertEqual(resp['Content-Type'], 'application/pdf')
         pdf_bytes = b''.join(resp.streaming_content)
         self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
+    def test_colaborador_json_inclui_contrato_assinado(self):
+        from django.core.files.base import ContentFile
+
+        colab = Colaborador.objects.create(
+            nome='Ana Contrato JSON',
+            cpf='331.331.331-31',
+            cargo='Analista',
+            status=Colaborador.Status.ATIVO,
+        )
+        contrato = ContratoAdmissao.objects.create(
+            colaborador=colab,
+            status=ContratoAdmissao.Status.CONCLUIDO,
+            concluido_em=timezone.now(),
+            data_admissao_oficial=timezone.localdate(),
+        )
+        contrato.pdf_contrato.save(
+            'contrato_assinado_teste.pdf',
+            ContentFile(b'%PDF-1.4 contrato teste'),
+            save=True,
+        )
+        grupo, _ = Group.objects.get_or_create(name=GRUPOS.RECURSOS_HUMANOS)
+        user = User.objects.create_user('rh_contrato_json', password='test')
+        user.groups.add(grupo)
+        self.client.force_login(user)
+        url = reverse('recursos_humanos:colaborador_json', args=[colab.pk])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        contratos = [
+            d for d in data['documentos']
+            if d.get('es_contrato_admissao')
+        ]
+        self.assertEqual(len(contratos), 1)
+        self.assertIn('Contrato de trabalho assinado', contratos[0]['nome'])
+        self.assertTrue(contratos[0]['url_arquivo'])

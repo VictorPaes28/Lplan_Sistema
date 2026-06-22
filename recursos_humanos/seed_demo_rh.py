@@ -182,6 +182,9 @@ def _criar_colab(
 
 @transaction.atomic
 def popular_demo_rh() -> dict:
+    from recursos_humanos.services.contrato import obter_ou_criar_contrato
+    from recursos_humanos.services.prazo_contrato import aplicar_data_admissao_oficial
+
     hoje = timezone.localdate()
     gestor = _rh_user()
     rh_user = gestor
@@ -348,9 +351,10 @@ def popular_demo_rh() -> dict:
         cargo_rh_nome='Encarregado de Obras',
         status=Colaborador.Status.ATIVO,
         etapa_admissao=5,
-        data_admissao=date(2022, 1, 12),
+        data_admissao=hoje - timedelta(days=41),
         obra_nomes=('Obra Paulista', 'Obra Morumbi'),
     )
+    aplicar_data_admissao_oficial(carlos, hoje - timedelta(days=41), rh_user)
     for doc in carlos.documentos.all():
         doc.status = DocumentoColaborador.Status.RECEBIDO
         if doc.tipo.nome == 'ASO – Atestado de Saúde Ocupacional':
@@ -383,6 +387,18 @@ def popular_demo_rh() -> dict:
         data_admissao=date(2021, 9, 1),
         obra_nomes=('Obra Paulista',),
     )
+    contrato_roberto = obter_ou_criar_contrato(roberto)
+    contrato_roberto.data_admissao_oficial = date(2021, 9, 1)
+    contrato_roberto.status = ContratoAdmissao.Status.CONCLUIDO
+    contrato_roberto.save(update_fields=['data_admissao_oficial', 'status'])
+    prazo_roberto = PrazoContrato.objects.filter(
+        colaborador=roberto,
+        tipo=PrazoContrato.Tipo.EXPERIENCIA,
+        status=PrazoContrato.Status.ATIVO,
+    ).first()
+    if prazo_roberto:
+        prazo_roberto.status = PrazoContrato.Status.CONVERTIDO
+        prazo_roberto.save(update_fields=['status'])
     for doc in roberto.documentos.all():
         doc.status = DocumentoColaborador.Status.RECEBIDO
         if doc.tipo.nome == 'ASO – Atestado de Saúde Ocupacional':

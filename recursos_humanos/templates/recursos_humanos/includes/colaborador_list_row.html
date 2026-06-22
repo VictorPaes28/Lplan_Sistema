@@ -1,6 +1,6 @@
 <tr id="rh-colab-row-{{ c.pk }}" data-pk="{{ c.pk }}">
 
-  <td>
+  <td class="rh-colab-nome-cell">
     <div class="rh-person-cell">
       <span class="rh-avatar" aria-hidden="true">{{ c.iniciais }}</span>
       <button type="button" class="rh-person-name js-rh-modal-ver rh-colab-nome"
@@ -9,14 +9,17 @@
   </td>
 
   <td class="rh-colab-cargo">
-    <span class="rh-colab-cargo-nome">{{ c.cargo }}{% if c.tipo_contrato %} <span class="rh-colab-cargo-meta">· {{ c.tipo_contrato }}</span>{% endif %}</span>
+    <span class="rh-colab-cargo-nome">{{ c.cargo }}</span>
+    {% if c.tipo_contrato %}
+    <span class="rh-colab-cargo-meta">{{ c.tipo_contrato }}</span>
+    {% endif %}
   </td>
 
   <td class="rh-colab-obras">
     {% for obra in c.obras_visiveis %}
-    <span class="rh-tag rh-tag--compact">{{ obra.nome }}</span>
+    <span class="rh-tag rh-tag--compact" title="{{ obra.nome }}">{{ obra.nome }}</span>
     {% empty %}<span class="rh-muted">—</span>{% endfor %}
-    {% if c.obras_extra %}<span class="rh-tag rh-tag-more">+{{ c.obras_extra }}</span>{% endif %}
+    {% if c.obras_extra %}<span class="rh-tag rh-tag-more" title="Mais obras">+{{ c.obras_extra }}</span>{% endif %}
   </td>
 
   <td class="rh-colab-situacao">
@@ -31,19 +34,39 @@
 
   <td class="rh-colab-docs">
     {% if c.status == 'em_admissao' %}
-    <a href="{{ c.url_operacional }}" class="rh-docs-compact" title="Abrir fluxo de admissão ({{ c.etapa_nome_curto }})">
-      <span class="rh-docs-fracao">{{ c.resumo_docs.fracao }}</span>
-      <i class="fas fa-arrow-right" aria-hidden="true"></i>
+    <a href="{{ c.url_operacional }}" class="rh-metric-cell rh-metric-cell--link" title="Abrir fluxo de admissão ({{ c.etapa_nome_curto }})">
+      <span class="rh-metric-kicker">Dossiê</span>
+      <div class="rh-metric-track">
+        <span class="rh-metric-value">{{ c.resumo_docs.fracao }}</span>
+        <i class="fas fa-arrow-right rh-metric-link-icon" aria-hidden="true"></i>
+      </div>
     </a>
     {% else %}
-    <a href="{{ c.url_operacional }}" class="rh-docs-compact" title="Ver dossiê no perfil">
-      <div class="rh-progress rh-progress--compact">
-        <div class="rh-progress-bar">
+    <a href="{{ c.url_operacional }}" class="rh-metric-cell rh-metric-cell--link" title="Ver dossiê no perfil">
+      <span class="rh-metric-kicker">Dossiê</span>
+      <div class="rh-metric-track">
+        <div class="rh-progress-bar rh-progress-bar--cell">
           <div class="rh-progress-fill {% if c.resumo_docs.completo %}ok{% elif c.resumo_docs.recebidos >= c.resumo_docs.total|add:-2 %}warn{% else %}bad{% endif %}" style="width: {% if c.resumo_docs.total %}{% widthratio c.resumo_docs.recebidos c.resumo_docs.total 100 %}{% else %}0{% endif %}%"></div>
         </div>
+        <span class="rh-metric-value {% if c.resumo_docs.completo %}ok{% elif c.resumo_docs.pendentes_count %}warn{% endif %}">{{ c.resumo_docs.fracao }}</span>
       </div>
-      <span class="rh-docs-fracao {% if c.resumo_docs.completo %}ok{% elif c.resumo_docs.pendentes_count %}warn{% endif %}">{{ c.resumo_docs.fracao }}</span>
     </a>
+    {% endif %}
+  </td>
+
+  <td class="rh-colab-contrato">
+    {% if c.resumo_contrato %}
+    <div class="rh-metric-cell" title="{{ c.resumo_contrato.hint }}">
+      <span class="rh-metric-kicker">{{ c.resumo_contrato.tipo_curto }}</span>
+      <div class="rh-metric-track">
+        <div class="rh-progress-bar rh-progress-bar--cell">
+          <div class="rh-progress-fill {{ c.resumo_contrato.tom }}" style="width: {{ c.resumo_contrato.pct }}%"></div>
+        </div>
+        <span class="rh-metric-value {{ c.resumo_contrato.tom }}">{{ c.resumo_contrato.progresso }}</span>
+      </div>
+    </div>
+    {% else %}
+    <span class="rh-metric-empty" title="Sem prazo contratual ativo">—</span>
     {% endif %}
   </td>
 
@@ -58,11 +81,11 @@
       {% endif %}
     </div>
     {% else %}
-    <span class="rh-pendencias-ok" title="Sem alertas urgentes">—</span>
+    <span class="rh-metric-empty" title="Sem alertas no momento">—</span>
     {% endif %}
   </td>
 
-  <td>
+  <td class="rh-colab-acoes">
     <div class="rh-actions-cell">
       <button type="button" class="rh-icon-btn js-rh-modal-ver" title="Ver perfil"
               data-pk="{{ c.pk }}" data-nome="{{ c.nome }}" data-status="{{ c.status }}">

@@ -107,7 +107,7 @@
         <a href="{% url 'recursos_humanos:admissao' %}" class="rh-link rh-lista-grupo__link">Fluxo completo →</a>
       </div>
       <div class="rh-table-wrap">
-        <table class="rh-table">
+        <table class="rh-table rh-table--colaboradores">
           {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
           <tbody>
             {% for c in colaboradores_em_andamento %}
@@ -126,7 +126,7 @@
         </div>
       </div>
       <div class="rh-table-wrap">
-        <table class="rh-table">
+        <table class="rh-table rh-table--colaboradores">
           {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
           <tbody>
             {% for c in colaboradores_quadro %}
@@ -143,7 +143,7 @@
 
   <div class="rh-card rh-table-wrap">
 
-    <table class="rh-table">
+    <table class="rh-table rh-table--colaboradores">
 
       {% include "recursos_humanos/includes/colaborador_list_thead.html" %}
 
@@ -154,7 +154,7 @@
         {% endfor %}
 
         {% if not colaboradores %}
-        <tr><td colspan="7" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
+        <tr><td colspan="8" class="rh-empty">Nenhum colaborador encontrado.</td></tr>
         {% endif %}
 
       </tbody>
@@ -264,7 +264,7 @@
       <button type="button" class="rh-btn rh-btn-outline js-modal-close">Fechar</button>
       <button type="button" class="rh-btn rh-btn-danger-outline" id="modal-perfil-btn-desligar" hidden>Desligar</button>
       <button type="button" class="rh-btn rh-btn-danger-outline" id="modal-perfil-btn-excluir" hidden>Excluir</button>
-      <button type="button" class="rh-btn rh-btn-primary" id="modal-perfil-btn-editar">Editar cadastro</button>
+      <button type="button" class="rh-btn rh-btn-primary" id="modal-perfil-btn-editar" title="Salário, contrato, cargo e demais dados">Editar cadastro</button>
     </footer>
   </div>
 </div>
@@ -340,7 +340,10 @@
               <option value="desligado">Desligado</option>
             </select>
           </label>
-          <label class="modal-rh-field">Data de admissão<input type="date" name="data_admissao" id="edit-data_admissao" class="rh-input"></label>
+          <label class="modal-rh-field">Data de admissão
+            <input type="date" name="data_admissao" id="edit-data_admissao" class="rh-input">
+            <span class="rh-muted rh-field-hint" id="edit-data_admissao-hint" hidden>Definida na etapa 4 do fluxo de admissão.</span>
+          </label>
           <label class="modal-rh-field">Empresa responsável<input type="text" name="empresa" id="edit-empresa" class="rh-input"></label>
           <label class="modal-rh-field">Tipo de contrato
             <select name="tipo_contrato" id="edit-tipo_contrato" class="rh-select">
@@ -522,8 +525,11 @@
     });
   }
 
-  function docCategoria(nome) {
+  function docCategoria(doc) {
+    if (doc.categoria) return doc.categoria;
+    var nome = typeof doc === 'string' ? doc : doc.nome;
     var n = (nome || '').toLowerCase();
+    if (n.indexOf('contrato') >= 0 && n.indexOf('assinado') >= 0) return 'contratos';
     if (n.indexOf('aso') >= 0 || n.indexOf('saúde') >= 0 || n.indexOf('saude') >= 0) return 'saude';
     if (n.indexOf('nr-') >= 0 || n.indexOf('nr ') >= 0) return 'treinamentos';
     if (n.indexOf('comprovante') >= 0 || n.indexOf('fgts') >= 0 || n.indexOf('banc') >= 0) return 'comprovantes';
@@ -534,6 +540,7 @@
   }
 
   var catLabels = {
+    contratos: 'Contrato de admissão',
     pessoais: 'Documentos Pessoais',
     comprovantes: 'Comprovantes',
     saude: 'Saúde e Segurança',
@@ -763,10 +770,25 @@
           setPrazoBtn(btnDecidir, true, { prazoPk: p.id, podeDecidir: '1' });
         }
       } else if (!isTerminal) {
-        situacaoLabel.textContent = 'Dias restantes';
-        var diasTxt = p.dias_restantes + ' dia(s)';
-        if (p.dias_restantes < 0) diasTxt += ' (vencido)';
-        document.getElementById('modal-prazo-dias').textContent = diasTxt;
+        if (p.experiencia || p.prazo_teste_clt) {
+          var exp = p.prazo_teste_clt || p.experiencia;
+          situacaoLabel.textContent = 'Progresso';
+          var expTxt = exp.progresso || ('D' + exp.proximo_marco);
+          if (exp.dias_restantes_marco < 0) {
+            expTxt += ' · marco vencido';
+          } else if (exp.dias_restantes_marco === 0) {
+            expTxt += ' · marco hoje';
+          } else {
+            expTxt += ' · faltam ' + exp.dias_restantes_marco + ' dia(s) p/ D' + exp.proximo_marco;
+          }
+          document.getElementById('modal-prazo-dias').textContent = expTxt;
+          document.getElementById('modal-prazo-fim').textContent = exp.proximo_marco_data;
+        } else {
+          situacaoLabel.textContent = 'Dias restantes';
+          var diasTxt = p.dias_restantes + ' dia(s)';
+          if (p.dias_restantes < 0) diasTxt += ' (vencido)';
+          document.getElementById('modal-prazo-dias').textContent = diasTxt;
+        }
         if (p.pode_decidir) {
           setPrazoBtn(btnDecidir, true, { prazoPk: p.id, podeDecidir: '1' });
         }
@@ -785,9 +807,9 @@
       '<div class="modal-rh-doc-progress__bar"><div class="rh-progress-bar rh-progress-bar--lg"><div class="rh-progress-fill ok" style="width:' + pct + '%"></div></div></div>' +
       '<span class="rh-progress-label ok">' + data.docs_recebidos + ' de ' + data.docs_total + ' recebidos</span>';
 
-    var grupos = { pessoais: [], comprovantes: [], saude: [], treinamentos: [], outros: [] };
+    var grupos = { contratos: [], pessoais: [], comprovantes: [], saude: [], treinamentos: [], outros: [] };
     (data.documentos || []).forEach(function (doc) {
-      grupos[docCategoria(doc.nome)].push(doc);
+      grupos[docCategoria(doc)].push(doc);
     });
 
     var html = '';
@@ -800,11 +822,16 @@
           '<div class="modal-rh-doc-body">' +
           '<span class="modal-rh-doc-name">' + esc(doc.nome) + '</span>' +
           '<span class="modal-rh-doc-meta">' + docStatusLabelFor(doc);
+        var metaParts = [];
+        if (doc.detalhe) metaParts.push(doc.detalhe);
         if (doc.data_emissao) {
-          html += ' · Emitido: ' + esc(doc.data_emissao);
-          if (doc.vencimento) html += ' · Vence: ' + esc(doc.vencimento);
-        } else if (doc.vencimento) {
-          html += ' · ' + esc(doc.vencimento);
+          metaParts.push(
+            (doc.es_contrato_admissao ? 'Admissão: ' : 'Emitido: ') + doc.data_emissao
+          );
+        }
+        if (doc.vencimento) metaParts.push('Vence: ' + doc.vencimento);
+        if (metaParts.length) {
+          html += ' · ' + metaParts.map(function (part) { return esc(part); }).join(' · ');
         }
         html += '</span></div>' +
           '<div class="modal-rh-doc-actions">';
@@ -895,7 +922,14 @@
     document.getElementById('edit-status').value = data.status || 'em_admissao';
     document.getElementById('edit-tipo_contrato').value = data.tipo_contrato || 'CLT';
     document.getElementById('edit-salario').value = data.salario || '';
-    document.getElementById('edit-data_admissao').value = data.data_admissao || '';
+    var admField = document.getElementById('edit-data_admissao');
+    var admHint = document.getElementById('edit-data_admissao-hint');
+    if (admField) {
+      admField.value = data.data_admissao || '';
+      var lockAdm = !!data.data_admissao_bloqueada;
+      admField.disabled = lockAdm;
+      if (admHint) admHint.hidden = !lockAdm;
+    }
     document.getElementById('edit-escolaridade').value = data.escolaridade || '';
     document.getElementById('edit-tamanho_camisa').value = data.tamanho_camisa || '';
     document.getElementById('edit-tamanho_bota').value = data.tamanho_bota || '';
@@ -912,7 +946,10 @@
   function abrirModalPerfil(pk, tabId, docId) {
     var tab = docId ? 'documentos' : (tabId || 'pessoal');
     fetch(getJsonUrl(pk), { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('fetch');
+        return r.json();
+      })
       .then(function (data) {
         popularModalPerfil(data);
         ativarColabTab(document.getElementById('modal-perfil'), tab);
@@ -922,6 +959,9 @@
             destacarDocumentoPerfil(docId);
           });
         }
+      })
+      .catch(function () {
+        alert('Não foi possível carregar o perfil do colaborador. Tente novamente.');
       });
   }
 
@@ -931,6 +971,7 @@
       dataPromise = Promise.resolve(cachedData);
     } else {
       dataPromise = fetch(getJsonUrl(pk), { credentials: 'same-origin' }).then(function (r) {
+        if (!r.ok) throw new Error('fetch');
         return r.json();
       });
     }
@@ -938,7 +979,7 @@
       popularModalEditar(data);
       abrirModal('modal-editar');
     }).catch(function () {
-      /* falha silenciosa — fetch ou parse JSON */
+      alert('Não foi possível carregar os dados para edição. Tente novamente.');
     });
   }
 
@@ -1025,29 +1066,43 @@
     });
   }
 
-  document.querySelectorAll('.js-rh-modal-ver').forEach(function (btn) {
-    btn.addEventListener('click', function () { abrirModalPerfil(btn.dataset.pk); });
-  });
-  document.querySelectorAll('.js-rh-modal-editar').forEach(function (btn) {
-    btn.addEventListener('click', function () { abrirModalEditar(btn.dataset.pk); });
-  });
-
-  var tableBody = document.querySelector('.rh-table tbody');
-  if (tableBody) {
-    tableBody.addEventListener('click', function (e) {
-      var btn = e.target.closest('.js-rh-modal-desligar');
-      if (btn) {
-        abrirModalDesligar(btn.dataset.pk, btn.dataset.nome);
-        return;
-      }
-      btn = e.target.closest('.js-rh-modal-excluir');
-      if (btn) {
-        abrirModalExcluir(btn.dataset.pk, btn.dataset.nome, btn.dataset.status);
-      }
-    });
+  function bindClick(id, handler) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', handler);
   }
 
-  document.getElementById('modal-perfil-btn-editar').addEventListener('click', function (e) {
+  function bindSubmit(id, handler) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('submit', handler);
+  }
+
+  document.addEventListener('click', function (e) {
+    var desligar = e.target.closest('.js-rh-modal-desligar');
+    if (desligar && desligar.dataset.pk) {
+      e.preventDefault();
+      abrirModalDesligar(desligar.dataset.pk, desligar.dataset.nome);
+      return;
+    }
+    var excluir = e.target.closest('.js-rh-modal-excluir');
+    if (excluir && excluir.dataset.pk) {
+      e.preventDefault();
+      abrirModalExcluir(excluir.dataset.pk, excluir.dataset.nome, excluir.dataset.status);
+      return;
+    }
+    var ver = e.target.closest('.js-rh-modal-ver');
+    if (ver && ver.dataset.pk) {
+      e.preventDefault();
+      abrirModalPerfil(ver.dataset.pk);
+      return;
+    }
+    var editar = e.target.closest('.js-rh-modal-editar');
+    if (editar && editar.dataset.pk) {
+      e.preventDefault();
+      abrirModalEditar(editar.dataset.pk);
+    }
+  });
+
+  bindClick('modal-perfil-btn-editar', function (e) {
     e.preventDefault();
     e.stopPropagation();
     var pk = (perfilData && perfilData.id) || this.dataset.pk;
@@ -1055,14 +1110,14 @@
     abrirModalEditar(pk, perfilData);
   });
 
-  document.getElementById('modal-perfil-btn-desligar').addEventListener('click', function (e) {
+  bindClick('modal-perfil-btn-desligar', function (e) {
     e.preventDefault();
     e.stopPropagation();
     if (!perfilData) return;
     abrirModalDesligar(perfilData.id, perfilData.nome);
   });
 
-  document.getElementById('modal-perfil-btn-excluir').addEventListener('click', function (e) {
+  bindClick('modal-perfil-btn-excluir', function (e) {
     e.preventDefault();
     e.stopPropagation();
     if (!perfilData) return;
@@ -1083,11 +1138,11 @@
     if (e.key === 'Escape') fecharModais();
   });
 
-  document.getElementById('form-editar-colaborador').addEventListener('submit', function (e) {
+  bindSubmit('form-editar-colaborador', function (e) {
     e.preventDefault();
   });
 
-  document.getElementById('btn-salvar-editar').addEventListener('click', function () {
+  bindClick('btn-salvar-editar', function () {
     var pk = editPk;
     if (!pk) return;
     var form = document.getElementById('form-editar-colaborador');
@@ -1127,11 +1182,11 @@
       });
   });
 
-  document.getElementById('form-desligar-colaborador').addEventListener('submit', function (e) {
+  bindSubmit('form-desligar-colaborador', function (e) {
     e.preventDefault();
   });
 
-  document.getElementById('btn-desligar-confirm').addEventListener('click', function () {
+  bindClick('btn-desligar-confirm', function () {
     var pk = desligarPk;
     if (!pk) return;
     var form = document.getElementById('form-desligar-colaborador');
@@ -1187,7 +1242,7 @@
       });
   });
 
-  document.getElementById('modal-prazo-reativar').addEventListener('click', function () {
+  bindClick('modal-prazo-reativar', function () {
     var btn = this;
     var url = btn.dataset.urlReativar;
     if (!url) return;
@@ -1222,7 +1277,7 @@
   initColabTabs(document.getElementById('modal-perfil'));
   initColabTabs(document.getElementById('modal-editar'));
 
-  document.getElementById('form-excluir-colaborador').addEventListener('submit', function (e) {
+  bindSubmit('form-excluir-colaborador', function (e) {
     e.preventDefault();
     var modal = document.getElementById('modal-excluir');
     if (modal.dataset.status === 'ativo') return;

@@ -6,9 +6,18 @@ from datetime import timedelta
 from django.urls import reverse
 from django.utils import timezone
 
-from recursos_humanos.models import Colaborador, DocumentoColaborador
+from recursos_humanos.models import Colaborador, DocumentoColaborador, PrazoContrato
 from recursos_humanos.services.alertas_config import obter_configuracao_alertas
-from recursos_humanos.services.prazo_contrato import prazos_vencendo
+from recursos_humanos.services.prazo_contrato import (
+    calcular_situacao_experiencia,
+    formatar_progresso_prazo_teste_clt,
+    MARCO_EXPERIENCIA_2,
+    NOME_EXPERIENCIA_CLT,
+    prazo_teste_clt_deve_exibir,
+    prioridade_experiencia_para_urgencia,
+    prazos_vencendo,
+    sincronizar_datas_prazos_experiencia,
+)
 
 
 @dataclass
@@ -28,6 +37,21 @@ class AlertaRH:
     icone: str = 'fa-bell'
     acao_label: str = ''
     acao_hint: str = ''
+    categoria: str = ''
+    prazo_exibicao: str = ''
+
+
+@dataclass
+class ItemAgendaDecisao:
+    colaborador_id: int
+    colaborador_nome: str
+    tipo: str
+    marco_label: str
+    data_marco: str
+    dias_label: str
+    progresso: str
+    url_decidir: str
+    urgencia: str
 
 
 def _texto_situacao_prazo(dias: int) -> str:
@@ -65,6 +89,7 @@ def _montar_alerta_documento(doc, dias: int, tipo_alerta: str, acao: str) -> Ale
         icone='fa-exclamation-triangle' if dias < 0 else 'fa-file-alt',
         acao_label='Abrir documentos',
         acao_hint='Abre o perfil na aba Documentos com este item em destaque.',
+        categoria='doc',
     )
 
 
@@ -123,7 +148,169 @@ def _doc_deve_gerar_alerta(doc: DocumentoColaborador, hoje, dias: int, config) -
     )
 
 
+def _montar_alerta_experiencia(situacao, prazo) -> AlertaRH:
+    colaborador = prazo.colaborador
+    prazo_fmt = situacao.proximo_marco_data.strftime('%d/%m/%Y')
+    dias = situacao.dias_restantes_marco
+    urgencia = prioridade_experiencia_para_urgencia(situacao.prioridade)
+    progresso = formatar_progresso_prazo_teste_clt(situacao)
+
+    if situacao.dias_decorridos > MARCO_EXPERIENCIA_2 and situacao.decisao_status in ('pendente', 'prorrogado'):
+        titulo = (
+            f'{NOME_EXPERIENCIA_CLT} — {progresso} · DECISÃO OBRIGATÓRIA (D90 ultrapassado)'
+        )
+        urgencia = 'red'
+    elif dias < 0:
+        titulo = (
+            f'{NOME_EXPERIENCIA_CLT} — {progresso} · marco D{situacao.proximo_marco} vencido'
+        )
+    elif dias == 0:
+        titulo = f'{NOME_EXPERIENCIA_CLT} — {progresso} · marco D{situacao.proximo_marco} hoje'
+    elif situacao.prioridade == 'urgente':
+        titulo = f'{NOME_EXPERIENCIA_CLT} — {progresso} · URGENTE (marco D{situacao.proximo_marco})'
+    else:
+        titulo = f'{NOME_EXPERIENCIA_CLT} — {progresso} · marco D{situacao.proximo_marco}'
+
+    detalhe = (
+        f'Admissão {situacao.data_admissao.strftime("%d/%m/%Y")} · '
+        f'{situacao.periodo_label} · decisão: {situacao.decisao_status}'
+    )
+
+    return AlertaRH(
+        id=f'exp-{prazo.pk}',
+        colaborador_id=colaborador.pk,
+        colaborador_nome=colaborador.nome,
+        tipo=NOME_EXPERIENCIA_CLT,
+        detalhe=detalhe,
+        prazo=prazo_fmt,
+        dias_restantes=dias,
+        urgencia=urgencia,
+        acao='Decidir',
+        url=_url_colaborador(colaborador.pk),
+        acao_extra={'prazo_id': prazo.pk, 'tipo': 'contrato', 'experiencia': True},
+        titulo=titulo,
+        icone='fa-user-clock',
+        acao_label='Decidir período de experiência',
+        acao_hint='Abre as opções para efetivar, prorrogar (1º período) ou desligar.',
+        categoria='prazo_teste_clt',
+        prazo_exibicao=progresso,
+    )
+
+
+def _gerar_alertas_experiencia() -> list[AlertaRH]:
+    alertas: list[AlertaRH] = []
+    colaboradores = Colaborador.objects.filter(
+        status=Colaborador.Status.ATIVO,
+        tipo_contrato__iexact='CLT',
+    ).select_related('contrato_admissao')
+    for colaborador in colaboradores:
+        situacao = calcular_situacao_experiencia(colaborador)
+        if not situacao or not prazo_teste_clt_deve_exibir(situacao):
+            continue
+        prazo = None
+        if situacao.prazo_id:
+            prazo = PrazoContrato.objects.filter(pk=situacao.prazo_id).first()
+        if prazo is None:
+            prazo = colaborador.prazos_contrato.filter(
+                status=PrazoContrato.Status.ATIVO,
+                tipo=PrazoContrato.Tipo.EXPERIENCIA,
+            ).first()
+        if prazo is None:
+            continue
+        alertas.append(_montar_alerta_experiencia(situacao, prazo))
+    return alertas
+
+
+def _url_decisao_prazo(colaborador_pk: int, prazo_id: int | None) -> str:
+    from urllib.parse import urlencode
+
+    params = {'abrir_colaborador': colaborador_pk}
+    if prazo_id:
+        params['abrir_prazo_decisao'] = prazo_id
+    return f"{reverse('recursos_humanos:colaboradores_list')}?{urlencode(params)}"
+
+
+def _label_dias_agenda(dias: int) -> str:
+    if dias < 0:
+        return f'{abs(dias)}d atraso'
+    if dias == 0:
+        return 'Hoje'
+    return f'{dias}d'
+
+
+def coletar_agenda_decisoes_semana(*, dias: int = 7) -> list[ItemAgendaDecisao]:
+    """Marcos de decisão nos próximos N dias (inclui vencidos)."""
+    hoje = timezone.localdate()
+    limite = hoje + timedelta(days=dias)
+    itens: list[ItemAgendaDecisao] = []
+
+    colaboradores = Colaborador.objects.filter(
+        status=Colaborador.Status.ATIVO,
+        tipo_contrato__iexact='CLT',
+    ).select_related('contrato_admissao')
+    for colaborador in colaboradores:
+        situacao = calcular_situacao_experiencia(colaborador)
+        if not situacao or not prazo_teste_clt_deve_exibir(situacao):
+            continue
+        data_marco = situacao.proximo_marco_data
+        if data_marco > limite and situacao.dias_restantes_marco >= 0:
+            continue
+        prazo_id = situacao.prazo_id
+        if not prazo_id:
+            prazo = colaborador.prazos_contrato.filter(
+                status=PrazoContrato.Status.ATIVO,
+                tipo=PrazoContrato.Tipo.EXPERIENCIA,
+            ).first()
+            prazo_id = prazo.pk if prazo else None
+        urgencia = prioridade_experiencia_para_urgencia(situacao.prioridade)
+        if situacao.dias_decorridos > MARCO_EXPERIENCIA_2:
+            urgencia = 'red'
+        itens.append(ItemAgendaDecisao(
+            colaborador_id=colaborador.pk,
+            colaborador_nome=colaborador.nome,
+            tipo=NOME_EXPERIENCIA_CLT,
+            marco_label=f'D{situacao.proximo_marco}',
+            data_marco=data_marco.strftime('%d/%m/%Y'),
+            dias_label=_label_dias_agenda(situacao.dias_restantes_marco),
+            progresso=formatar_progresso_prazo_teste_clt(situacao),
+            url_decidir=_url_decisao_prazo(colaborador.pk, prazo_id),
+            urgencia=urgencia,
+        ))
+
+    for prazo in prazos_vencendo(dias_antecedencia=dias):
+        if prazo.tipo == PrazoContrato.Tipo.EXPERIENCIA:
+            continue
+        dias_rest = prazo.dias_restantes()
+        if dias_rest is None:
+            continue
+        if prazo.data_fim and prazo.data_fim > limite and dias_rest >= 0:
+            continue
+        itens.append(ItemAgendaDecisao(
+            colaborador_id=prazo.colaborador_id,
+            colaborador_nome=prazo.colaborador.nome,
+            tipo=prazo.get_tipo_display(),
+            marco_label='Vencimento',
+            data_marco=prazo.data_fim.strftime('%d/%m/%Y'),
+            dias_label=_label_dias_agenda(dias_rest),
+            progresso='—',
+            url_decidir=_url_decisao_prazo(prazo.colaborador_id, prazo.pk),
+            urgencia='red' if dias_rest < 0 else ('red' if dias_rest <= 7 else 'yellow'),
+        ))
+
+    itens.sort(key=lambda i: (
+        0 if 'atraso' in i.dias_label else 1,
+        i.data_marco,
+        i.colaborador_nome.lower(),
+    ))
+    return itens
+
+
 def gerar_alertas() -> list[AlertaRH]:
+    from recursos_humanos.services.prazo_contrato import garantir_prazos_teste_clt_ativos
+
+    sincronizar_datas_prazos_experiencia()
+    garantir_prazos_teste_clt_ativos()
+
     hoje = timezone.localdate()
     config = obter_configuracao_alertas()
     alertas: list[AlertaRH] = []
@@ -172,6 +359,7 @@ def gerar_alertas() -> list[AlertaRH]:
                     icone='fa-user-check',
                     acao_label='Abrir admissão',
                     acao_hint='Abre o fluxo de admissão na etapa de validação para aprovar ou devolver.',
+                    categoria='fluxo',
                 )
             )
         elif faltando or pendentes:
@@ -205,10 +393,13 @@ def gerar_alertas() -> list[AlertaRH]:
                     icone='fa-folder-open',
                     acao_label='Abrir admissão',
                     acao_hint='Abre o fluxo de admissão para conferir o que o candidato ainda precisa enviar.',
+                    categoria='fluxo',
                 )
             )
 
     for prazo in prazos_vencendo(dias_antecedencia=config.dias_antecedencia_documentos):
+        if prazo.tipo == PrazoContrato.Tipo.EXPERIENCIA:
+            continue
         dias = prazo.dias_restantes()
         if dias < 0:
             urgencia = 'red'
@@ -240,8 +431,11 @@ def gerar_alertas() -> list[AlertaRH]:
                 icone='fa-file-signature',
                 acao_label='Decidir contrato',
                 acao_hint='Abre o formulário para efetivar, converter ou encerrar o prazo do contrato.',
+                categoria='fluxo',
             )
         )
+
+    alertas.extend(_gerar_alertas_experiencia())
 
     alertas.sort(key=lambda a: a.dias_restantes)
     return alertas
@@ -265,6 +459,7 @@ def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
     vencidos = sum(1 for a in alertas if a.tipo == 'Documento vencido')
     admissoes = sum(1 for a in alertas if a.tipo == 'Admissão em andamento')
     contratos = sum(1 for a in alertas if a.tipo == 'Prazo de contrato')
+    prazo_teste_clt = sum(1 for a in alertas if a.categoria == 'prazo_teste_clt')
     treinamentos = sum(
         1 for a in alertas
         if a.tipo == 'Documento vencendo'
@@ -282,6 +477,8 @@ def resumo_alertas(alertas: list[AlertaRH], config=None) -> dict:
         'treinamentos': treinamentos,
         'admissoes': admissoes,
         'contratos': contratos,
+        'prazo_teste_clt': prazo_teste_clt,
+        'experiencia': prazo_teste_clt,
         'documentos': documentos,
         'urgentes': urgentes,
         'fluxo': fluxo,

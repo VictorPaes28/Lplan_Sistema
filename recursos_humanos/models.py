@@ -459,6 +459,15 @@ class ContratoAdmissao(models.Model):
         choices=Status.choices,
         default=Status.PENDENTE,
     )
+    data_admissao_oficial = models.DateField(
+        'Data de admissão oficial',
+        null=True,
+        blank=True,
+        help_text=(
+            'Informada manualmente na etapa do contrato (ZapSign). '
+            'Base para marcos D45/D90 do período de experiência CLT.'
+        ),
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
     concluido_em = models.DateTimeField(null=True, blank=True)
 
@@ -471,7 +480,7 @@ class ContratoAdmissao(models.Model):
 
 class PrazoContrato(models.Model):
     class Tipo(models.TextChoices):
-        EXPERIENCIA = 'experiencia', 'Período de Experiência'
+        EXPERIENCIA = 'experiencia', 'Período de experiência (90 dias)'
         DETERMINADO = 'determinado', 'Contrato Determinado'
         ESTAGIO = 'estagio', 'Estágio'
         PJ = 'pj', 'Pessoa Jurídica'
@@ -549,29 +558,28 @@ class PrazoContrato(models.Model):
 
     def acoes_disponiveis(self):
         """Retorna lista de ações possíveis para este tipo e status."""
-        if self.status == self.Status.ENCERRADO:
+        if self.status != self.Status.ATIVO:
             return []
         if self.tipo == self.Tipo.EXPERIENCIA:
-            acoes = ['efetivar', 'prorrogar', 'desligar']
-        elif self.tipo == self.Tipo.DETERMINADO:
-            acoes = ['converter', 'renovar', 'encerrar']
-        elif self.tipo == self.Tipo.ESTAGIO:
-            acoes = ['renovar', 'efetivar', 'encerrar']
-        elif self.tipo == self.Tipo.PJ:
-            acoes = ['renovar', 'encerrar']
-        else:
-            return []
-        if self.status == self.Status.CONVERTIDO:
-            acoes = [a for a in acoes if a not in ('converter', 'efetivar')]
-        return acoes
+            acoes = ['efetivar', 'desligar']
+            if self.renovacao_numero == 0:
+                acoes.insert(1, 'prorrogar')
+            return acoes
+        if self.tipo == self.Tipo.DETERMINADO:
+            return ['converter', 'renovar', 'encerrar']
+        if self.tipo == self.Tipo.ESTAGIO:
+            return ['renovar', 'efetivar', 'encerrar']
+        if self.tipo == self.Tipo.PJ:
+            return ['renovar', 'encerrar']
+        return []
 
 
 class NotificacaoEnviada(models.Model):
     """Registro de e-mails automáticos de vencimento de contrato (idempotência diária)."""
 
     class TipoAlerta(models.TextChoices):
-        EXPERIENCIA_45 = 'experiencia_45', 'Experiência — 45 dias'
-        EXPERIENCIA_90 = 'experiencia_90', 'Experiência — 90 dias'
+        EXPERIENCIA_45 = 'experiencia_45', 'Período de experiência — 45 dias'
+        EXPERIENCIA_90 = 'experiencia_90', 'Período de experiência — 90 dias'
         DETERMINADO_FIM = 'determinado_fim', 'Determinado — fim do prazo'
         ESTAGIO_FIM = 'estagio_fim', 'Estágio — fim do período'
         ESTAGIO_2ANOS = 'estagio_2anos', 'Estágio — limite 2 anos'
@@ -611,6 +619,51 @@ class NotificacaoEnviada(models.Model):
         return (
             f'{self.prazo_contrato.colaborador.nome} — '
             f'{self.get_tipo_alerta_display()} ({self.data_envio:%d/%m/%Y})'
+        )
+
+
+class DecisaoPrazoContrato(models.Model):
+    """Auditoria de decisões sobre prazos contratuais (quem, quando, qual ação)."""
+
+    class Acao(models.TextChoices):
+        EFETIVAR = 'efetivar', 'Efetivar'
+        PRORROGAR = 'prorrogar', 'Prorrogar'
+        CONVERTER = 'converter', 'Converter'
+        RENOVAR = 'renovar', 'Renovar'
+        DESLIGAR = 'desligar', 'Desligar'
+        ENCERRAR = 'encerrar', 'Encerrar'
+
+    prazo_contrato = models.ForeignKey(
+        PrazoContrato,
+        on_delete=models.CASCADE,
+        related_name='decisoes',
+    )
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.CASCADE,
+        related_name='decisoes_prazo',
+    )
+    acao = models.CharField(max_length=20, choices=Acao.choices)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='decisoes_prazo_rh',
+    )
+    motivo = models.TextField(blank=True)
+    observacoes = models.TextField(blank=True)
+    registrado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Decisão de prazo contratual'
+        verbose_name_plural = 'Decisões de prazo contratual'
+        ordering = ['-registrado_em']
+
+    def __str__(self):
+        return (
+            f'{self.colaborador.nome} — {self.get_acao_display()} '
+            f'({self.registrado_em:%d/%m/%Y %H:%M})'
         )
 
 

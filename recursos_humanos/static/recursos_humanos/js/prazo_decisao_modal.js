@@ -64,8 +64,8 @@
   var CONFIRMACOES_ACAO = {
     converter: 'Converter este contrato de prazo determinado para indeterminado? O vínculo passará a CLT sem prazo a decidir.',
     renovar: 'Confirmar a renovação do contrato com a nova data de fim informada?',
-    prorrogar: 'Confirmar a prorrogação do período de experiência com a nova data de fim informada?',
-    efetivar: 'Efetivar o colaborador em CLT indeterminado ao término do período de experiência?',
+    prorrogar: 'Prorrogar para o 2º período de experiência (até o marco D90)?',
+    efetivar: 'Efetivar o colaborador em CLT indeterminado após o período de experiência?',
     desligar: 'Esta ação irá encerrar o contrato e desligar o colaborador. Deseja continuar?',
     encerrar: 'Esta ação irá encerrar o contrato e desligar o colaborador. Deseja continuar?',
   };
@@ -75,7 +75,7 @@
     if (!msg) return true;
     if (codigo === 'renovar' || codigo === 'prorrogar') {
       var dataInput = form.querySelector('[name=nova_data_fim]');
-      if (!dataInput || !dataInput.value) {
+      if (dataInput && dataInput.required && (!dataInput || !dataInput.value)) {
         var errEl = form.querySelector('.modal-rh-prazo-form-error');
         if (errEl) {
           errEl.textContent = 'Informe a nova data de fim.';
@@ -95,11 +95,13 @@
     window.location.href = url.pathname + url.search;
   }
 
-  function renderCampoData() {
+  function renderCampoData(valor) {
     return ''
       + '<label class="modal-rh-prazo-field">'
       + '<span class="modal-rh-prazo-field-label">Nova data de fim <span class="rh-required">*</span></span>'
-      + '<input type="date" name="nova_data_fim" class="rh-input" required>'
+      + '<input type="date" name="nova_data_fim" class="rh-input" required'
+      + (valor ? ' value="' + esc(valor) + '"' : '')
+      + '>'
       + '</label>';
   }
 
@@ -122,7 +124,8 @@
     html += '<input type="hidden" name="acao" value="' + esc(acao.codigo) + '">';
 
     if (acao.precisa_data) {
-      html += renderCampoData();
+      var sugerida = (acao.codigo === 'prorrogar' && data.data_fim_sugerida) ? data.data_fim_sugerida : '';
+      html += renderCampoData(sugerida);
     }
 
     if (acao.motivo_obrigatorio || acao.danger) {
@@ -141,7 +144,23 @@
   }
 
   function renderConteudo(data) {
-    var html = '<section class="modal-rh-prazo-info" aria-label="Resumo do contrato">';
+    var html = '';
+    if (data.guia_texto) {
+      html += '<div class="rh-banner rh-banner-info modal-rh-prazo-guia" role="note">';
+      html += '<i class="fas fa-compass" aria-hidden="true"></i>';
+      html += '<div><strong>O que decidir agora</strong><p class="rh-muted">' + esc(data.guia_texto) + '</p></div>';
+      html += '</div>';
+    }
+    if (data.experiencia && data.experiencia.progresso) {
+      html += '<p class="modal-rh-prazo-progresso"><strong>Progresso:</strong> ' + esc(data.experiencia.progresso);
+      html += ' · ' + esc(data.experiencia.periodo_label || '') + '</p>';
+    }
+    if (data.ultima_decisao) {
+      html += '<p class="modal-rh-prazo-ultima-decisao rh-muted">';
+      html += 'Última decisão: ' + esc(data.ultima_decisao.acao) + ' por ' + esc(data.ultima_decisao.por);
+      html += ' em ' + esc(data.ultima_decisao.em) + '</p>';
+    }
+    html += '<section class="modal-rh-prazo-info" aria-label="Resumo do contrato">';
     html += '<div class="modal-rh-prazo-info-grid">';
     html += '<div class="modal-rh-prazo-info-item"><span class="rh-field-label">Tipo</span><span class="rh-field-value">' + esc(data.tipo) + '</span></div>';
     html += '<div class="modal-rh-prazo-info-item"><span class="rh-field-label">Vigência</span><span class="rh-field-value">' + esc(data.vigencia) + '</span></div>';

@@ -474,12 +474,52 @@
     <div class="rh-info-box"><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ ctx.tipo_contrato }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ ctx.cargo }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Obras</span><span class="rh-field-value">{{ ctx.obra }}</span></div>
-    <div class="rh-info-box"><span class="rh-field-label">Data de início</span><span class="rh-field-value">{% if ctx.data_inicio %}{{ ctx.data_inicio|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="rh-info-box"><span class="rh-field-label">Data prevista (requisição)</span><span class="rh-field-value">{% if ctx.data_inicio_prevista %}{{ ctx.data_inicio_prevista|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ ctx.salario }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ ctx.deslocamento_origem }}</span></div>
     <div class="rh-info-box"><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ ctx.deslocamento_destino }}</span></div>
   </div>
   {% include "recursos_humanos/includes/admissao_reembolsos_resumo.html" with reembolsos_ctx=ctx.reembolsos %}
+
+  {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
+    {% if not ctx.contrato or ctx.contrato.status != 'concluido' %}
+  <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" class="rh-form-block" style="margin-top:1rem;">
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="salvar_data_admissao">
+    <div class="rh-info-grid" style="align-items:end;">
+      <div class="rh-form-field">
+        <label class="rh-field-label" for="data_admissao_oficial">
+          Data de admissão <span class="rh-required">*</span>
+        </label>
+        <input type="date" name="data_admissao_oficial" id="data_admissao_oficial" class="rh-input" required
+               value="{% if ctx.data_admissao_oficial %}{{ ctx.data_admissao_oficial|date:'Y-m-d' }}{% elif ctx.data_inicio_prevista %}{{ ctx.data_inicio_prevista|date:'Y-m-d' }}{% endif %}">
+        <p class="rh-muted" style="margin:0.35rem 0 0;font-size:0.85rem;">
+          Data oficial para os marcos D45 e D90 do período de experiência CLT. Não usa a data prevista da requisição.
+        </p>
+      </div>
+      <div>
+        <button type="submit" class="rh-btn rh-btn-outline"><i class="fas fa-save" aria-hidden="true"></i> Salvar data</button>
+      </div>
+    </div>
+  </form>
+    {% elif ctx.data_admissao_oficial %}
+  <div class="rh-banner rh-banner-info" style="margin-top:1rem;">
+    <i class="fas fa-calendar-check" aria-hidden="true"></i>
+    <div>
+      <strong>Data de admissão oficial: {{ ctx.data_admissao_oficial|date:"d/m/Y" }}</strong>
+      <p class="rh-muted">Base para marcos D45/D90 e alertas do período de experiência CLT.</p>
+    </div>
+  </div>
+    {% endif %}
+  {% elif ctx.data_admissao_oficial %}
+  <div class="rh-banner rh-banner-info" style="margin-top:1rem;">
+    <i class="fas fa-calendar-check" aria-hidden="true"></i>
+    <div>
+      <strong>Data de admissão oficial: {{ ctx.data_admissao_oficial|date:"d/m/Y" }}</strong>
+      <p class="rh-muted">Base para marcos D45/D90 e alertas do período de experiência CLT.</p>
+    </div>
+  </div>
+  {% endif %}
 
   {% if ctx.prazo_ativo %}
   <div class="rh-banner rh-banner-warning" style="margin-top:1rem;">
@@ -503,47 +543,109 @@
       {% endif %}
     </div>
   {% else %}
-    <div class="rh-info-box" style="margin-top:1rem;">
-      <span class="rh-field-label">Fluxo ZapSign</span>
-      <ol class="rh-muted" style="margin:0.5rem 0 0 1.25rem;padding:0;font-size:0.9rem;line-height:1.6;">
-        <li>Gere e baixe o PDF do contrato pelo botão abaixo</li>
-        <li>Envie o PDF para o ZapSign e colete as assinaturas</li>
-        <li>Baixe o PDF assinado do ZapSign</li>
-        <li>Faça upload do PDF assinado nesta tela</li>
-      </ol>
-    </div>
+    <div class="rh-contrato-flow" style="margin-top:1.25rem;">
+      <section class="rh-contrato-flow__step">
+        <div class="rh-contrato-flow__head">
+          <span class="rh-contrato-flow__num">1</span>
+          <div>
+            <h4 class="rh-contrato-flow__title">Gerar contrato para o ZapSign</h4>
+            <p class="rh-muted">Gere o PDF, baixe e envie para assinatura eletrônica no ZapSign.</p>
+          </div>
+        </div>
+        <div class="rh-action-row" style="margin-top:0.75rem;">
+          {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
+          <a href="{% url 'recursos_humanos:contrato_gerar' selecionado.pk %}" class="rh-btn rh-btn-primary">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i> Gerar PDF para ZapSign
+          </a>
+          {% if ctx.contrato and ctx.contrato.pdf_contrato %}
+          <a href="{% url 'recursos_humanos:contrato_download' selecionado.pk %}" class="rh-btn rh-btn-outline">
+            <i class="fas fa-download" aria-hidden="true"></i> Baixar PDF gerado
+          </a>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% if ctx.contrato and ctx.contrato.pdf_contrato and ctx.contrato.status != 'concluido' %}
+        <p class="rh-muted" style="margin:0.75rem 0 0;font-size:0.85rem;">
+          <i class="fas fa-check-circle" style="color:#059669;" aria-hidden="true"></i>
+          PDF gerado e disponível para download. Envie ao ZapSign para coleta das assinaturas.
+        </p>
+        {% endif %}
+      </section>
 
-    <div class="rh-action-row" style="margin-top:1rem;">
+      <section class="rh-contrato-flow__step rh-contrato-flow__step--upload">
+        <div class="rh-contrato-flow__head">
+          <span class="rh-contrato-flow__num">2</span>
+          <div>
+            <h4 class="rh-contrato-flow__title">Arquivar contrato assinado</h4>
+            <p class="rh-muted">Após assinar no ZapSign, baixe o PDF assinado e faça upload aqui para concluir a admissão.</p>
+          </div>
+        </div>
+
+        {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
+        <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-doc-upload-panel" style="margin-top:0.85rem;">
+          {% csrf_token %}
+          <div class="rh-doc-upload-panel__inner">
+            <div class="rh-doc-upload-panel__step">
+              <span class="rh-doc-upload-panel__step-num">A</span>
+              <div class="rh-doc-upload-panel__field">
+                <label class="rh-field-label" for="upload_data_admissao_oficial">
+                  Data de admissão <span class="rh-required">*</span>
+                </label>
+                <input type="date" name="data_admissao_oficial" id="upload_data_admissao_oficial"
+                       class="rh-input rh-doc-upload-panel__date" required
+                       value="{% if ctx.data_admissao_oficial %}{{ ctx.data_admissao_oficial|date:'Y-m-d' }}{% elif ctx.data_inicio_prevista %}{{ ctx.data_inicio_prevista|date:'Y-m-d' }}{% endif %}">
+                <p class="rh-doc-upload-panel__hint">Data oficial para admissão e marcos D45/D90 do período de experiência CLT.</p>
+              </div>
+            </div>
+            <div class="rh-doc-upload-panel__step">
+              <span class="rh-doc-upload-panel__step-num">B</span>
+              <div class="rh-doc-upload-panel__field">
+                <label class="rh-field-label" for="pdf_assinado">
+                  PDF assinado (ZapSign) <span class="rh-required">*</span>
+                </label>
+                <input type="file" name="pdf_assinado" id="pdf_assinado" accept="application/pdf,.pdf" required class="rh-input">
+                <p class="rh-doc-upload-panel__hint">Selecione o arquivo PDF baixado do ZapSign após todas as assinaturas.</p>
+              </div>
+            </div>
+            <div class="rh-doc-upload-panel__actions">
+              <button type="submit" class="rh-btn rh-btn-success">
+                <i class="fas fa-upload" aria-hidden="true"></i> Arquivar e ativar colaborador
+              </button>
+            </div>
+          </div>
+        </form>
+        {% if not ctx.contrato or not ctx.contrato.pdf_contrato %}
+        <p class="rh-muted" style="margin-top:0.65rem;font-size:0.85rem;">
+          <i class="fas fa-info-circle" aria-hidden="true"></i>
+          Recomenda-se gerar o PDF (passo 1) antes de arquivar, mas o upload do assinado pode ser feito a qualquer momento.
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="rh-muted" style="margin-top:0.75rem;">Aguardando arquivamento do contrato assinado pelo RH.</p>
+        {% endif %}
+      </section>
+
       {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
-      <a href="{% url 'recursos_humanos:contrato_gerar' selecionado.pk %}" class="rh-btn rh-btn-primary"><i class="fas fa-file-pdf"></i> Gerar PDF para ZapSign</a>
-      {% if ctx.contrato and ctx.contrato.pdf_contrato %}
-      <a href="{% url 'recursos_humanos:contrato_download' selecionado.pk %}" class="rh-btn rh-btn-outline"><i class="fas fa-download"></i> Baixar rascunho</a>
-      {% if not ctx.contrato_enviado %}
-      <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="acao" value="enviar_contrato">
-        <button type="submit" class="rh-btn rh-btn-outline"><i class="fas fa-paper-plane"></i> Marcar enviado ao ZapSign</button>
-      </form>
-      {% else %}
-      <span class="rh-muted" style="align-self:center;"><i class="fas fa-check" aria-hidden="true"></i> Enviado ao ZapSign</span>
-      {% endif %}
-      {% endif %}
+      <details class="rh-contrato-flow__optional" style="margin-top:0.75rem;">
+        <summary class="rh-muted" style="cursor:pointer;font-size:0.85rem;">Controle opcional: marcar envio ao ZapSign</summary>
+        <div class="rh-action-row" style="margin-top:0.5rem;">
+          {% if ctx.contrato_enviado %}
+          <span class="rh-muted"><i class="fas fa-check" aria-hidden="true"></i> Marcado como enviado ao ZapSign</span>
+          {% elif ctx.contrato and ctx.contrato.pdf_contrato %}
+          <form method="post" action="{% url 'recursos_humanos:admissao_acao' selecionado.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="enviar_contrato">
+            <button type="submit" class="rh-btn rh-btn-outline rh-btn-sm">
+              <i class="fas fa-paper-plane" aria-hidden="true"></i> Marcar enviado ao ZapSign
+            </button>
+          </form>
+          {% else %}
+          <span class="rh-muted">Gere o PDF primeiro.</span>
+          {% endif %}
+        </div>
+      </details>
       {% endif %}
     </div>
-
-    {% if not somente_leitura and admissao_ctx.usuario_rh_pode and ctx.contrato_enviado %}
-    <form method="post" action="{% url 'recursos_humanos:contrato_upload' selecionado.pk %}" enctype="multipart/form-data" class="rh-form-block" style="margin-top:1.25rem;">
-      {% csrf_token %}
-      <label class="rh-field-label" for="pdf_assinado">Upload do PDF assinado (ZapSign)</label>
-      <input type="file" name="pdf_assinado" id="pdf_assinado" accept="application/pdf,.pdf" required class="rh-input">
-      <div class="rh-action-row" style="margin-top:0.75rem;">
-        <button type="submit" class="rh-btn rh-btn-success"><i class="fas fa-upload"></i> Arquivar contrato assinado</button>
-      </div>
-      <p class="rh-muted" style="margin-top:0.5rem;font-size:0.85rem;">Após arquivar o PDF assinado, o colaborador será ativado automaticamente.</p>
-    </form>
-    {% elif not somente_leitura and admissao_ctx.usuario_rh_pode and ctx.contrato and ctx.contrato.pdf_contrato and not ctx.contrato_enviado %}
-    <p class="rh-muted" style="margin-top:1rem;"><i class="fas fa-info-circle" aria-hidden="true"></i> Marque o contrato como enviado ao ZapSign antes de arquivar o PDF assinado.</p>
-    {% endif %}
   {% endif %}
   {% endwith %}
 

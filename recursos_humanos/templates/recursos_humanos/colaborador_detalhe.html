@@ -46,9 +46,9 @@
 
     <div class="rh-profile-actions">
 
-      <button type="button" class="rh-btn rh-btn-outline" id="rh-profile-edit-btn">
+      <button type="button" class="rh-btn rh-btn-outline" id="rh-profile-edit-btn" title="Salário, tipo de contrato, cargo, obras e demais dados">
 
-        <i class="fas fa-pen" aria-hidden="true"></i> Editar
+        <i class="fas fa-pen" aria-hidden="true"></i> Editar cadastro
 
       </button>
 
@@ -62,11 +62,11 @@
 
       {% elif colaborador.status == 'ativo' %}
 
-      <a href="{% url 'recursos_humanos:colaborador_desligar' colaborador.pk %}" class="rh-btn rh-btn-danger-outline">
+      <button type="button" class="rh-btn rh-btn-danger-outline" id="rh-profile-btn-desligar">
 
         <i class="fas fa-user-times" aria-hidden="true"></i> Desligar
 
-      </a>
+      </button>
 
       {% else %}
 
@@ -111,7 +111,7 @@
         <div class="rh-fields-grid">
           <div><span class="rh-field-label">Cargo</span><span class="rh-field-value">{{ colaborador.cargo|default:"—" }}</span></div>
           <div><span class="rh-field-label">Status</span><span class="rh-field-value">{{ colaborador.get_status_display }}</span></div>
-          <div><span class="rh-field-label">Data de admissão</span><span class="rh-field-value">{% if colaborador.data_admissao %}{{ colaborador.data_admissao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+          <div><span class="rh-field-label">Data de admissão</span><span class="rh-field-value">{% if data_admissao_oficial %}{{ data_admissao_oficial|date:"d/m/Y" }} <span class="rh-muted" style="font-size:0.85rem;">(oficial — etapa 4)</span>{% elif colaborador.data_admissao %}{{ colaborador.data_admissao|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
           <div><span class="rh-field-label">Empresa responsável</span><span class="rh-field-value">{{ colaborador.empresa|default:"—" }}</span></div>
           <div><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ colaborador.tipo_contrato|default:"—" }}</span></div>
           <div><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ colaborador.salario|default:"—" }}</span></div>
@@ -187,6 +187,21 @@
   <div class="rh-card rh-pad rh-prazo-contrato-section">
     <h3 class="rh-card-title"><i class="fas fa-file-contract" aria-hidden="true"></i> Prazo de contrato</h3>
 
+    {% if experiencia_ctx %}
+    <div class="rh-banner rh-banner-info" style="margin-bottom:1rem;">
+      <i class="fas fa-user-clock" aria-hidden="true"></i>
+      <div>
+        <strong>Período de experiência — {{ experiencia_ctx.progresso }}</strong>
+        <p class="rh-muted" style="margin:0.35rem 0 0;">
+          Marco D{{ experiencia_ctx.proximo_marco }} · decisão: {{ experiencia_ctx.decisao_status }}
+          {% if prazo_ativo %}
+          · <button type="button" class="rh-link-btn js-rh-prazo-decidir" data-prazo-pk="{{ prazo_ativo.pk }}">Abrir decisão</button>
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
     {% if prazo_ativo %}
     <div class="rh-fields-grid" style="margin-bottom:1rem;">
       <div>
@@ -214,7 +229,7 @@
       <i class="fas fa-gavel" aria-hidden="true"></i> Decidir
     </button>
     {% else %}
-    <p class="rh-muted">Nenhum prazo determinado ativo. Registre um prazo para contratos temporários, estágio, experiência ou PJ.</p>
+    <p class="rh-muted">Nenhum prazo determinado ativo. Registre um prazo para contratos temporários, estágio ou PJ. CLT usa período de experiência automático (D45/D90) após a admissão.</p>
     <details class="rh-prazo-registrar-details">
       <summary class="rh-btn rh-btn-outline" style="display:inline-flex;cursor:pointer;list-style:none;">
         <i class="fas fa-plus" aria-hidden="true"></i> Registrar prazo determinado
@@ -247,6 +262,27 @@
     {% endif %}
   </div>
 
+  {% if decisoes_prazo %}
+  <div class="rh-card rh-pad">
+    <h3 class="rh-card-title"><i class="fas fa-gavel" aria-hidden="true"></i> Decisões de prazo registradas</h3>
+    <ul class="rh-timeline rh-timeline--admission">
+      {% for dec in decisoes_prazo %}
+      <li class="rh-timeline-item done">
+        <span class="rh-timeline-dot"></span>
+        <div class="rh-timeline-body">
+          <strong>{{ dec.get_acao_display }}</strong>
+          <span class="rh-timeline-meta">
+            {{ dec.registrado_em|date:"d/m/Y H:i" }}
+            · {{ dec.usuario.get_full_name|default:dec.usuario.username|default:"—" }}
+            {% if dec.observacoes %}· {{ dec.observacoes }}{% endif %}
+          </span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
 
 
   <div class="rh-card rh-pad rh-doc-checklist">
@@ -274,7 +310,37 @@
 
 </div>
 
-
+{% if colaborador.status == 'ativo' %}
+<div id="modal-desligar-detalhe" class="modal-overlay" aria-hidden="true">
+  <div class="modal-rh modal-rh-desligar" role="dialog" aria-labelledby="modal-desligar-detalhe-heading">
+    <header class="modal-rh-header">
+      <div>
+        <h2 id="modal-desligar-detalhe-heading" class="modal-rh-title">Desligar colaborador</h2>
+        <p class="modal-rh-subtitle">{{ colaborador.nome }}</p>
+      </div>
+      <button type="button" class="modal-rh-close js-modal-desligar-close" aria-label="Fechar"><i class="fas fa-times"></i></button>
+    </header>
+    <form id="form-desligar-detalhe" class="modal-rh-body modal-rh-body-desligar" method="post" action="{% url 'recursos_humanos:colaborador_desligar' colaborador.pk %}" novalidate>
+      {% csrf_token %}
+      <div class="modal-rh-desligar-icon" aria-hidden="true"><i class="fas fa-user-times"></i></div>
+      <p class="modal-rh-desligar-intro">Registre o desligamento. O status passará para desligado e os prazos ativos serão encerrados.</p>
+      <label class="modal-rh-field">Data do desligamento
+        <input type="date" name="data_desligamento" id="desligar-detalhe-data" class="rh-input" max="{% now 'Y-m-d' %}" required>
+      </label>
+      <label class="modal-rh-field">Motivo
+        <textarea name="motivo" id="desligar-detalhe-motivo" class="rh-input rh-textarea" rows="3" minlength="10" required placeholder="Descreva o motivo (mín. 10 caracteres)..."></textarea>
+      </label>
+      <div class="modal-rh-form-errors" id="desligar-detalhe-errors" hidden></div>
+      <footer class="modal-rh-footer">
+        <button type="button" class="rh-btn rh-btn-outline js-modal-desligar-close">Cancelar</button>
+        <button type="submit" class="rh-btn rh-btn-danger-outline" id="btn-desligar-detalhe-confirm">
+          <i class="fas fa-user-times" aria-hidden="true"></i> Confirmar desligamento
+        </button>
+      </footer>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <script>
 
@@ -311,7 +377,7 @@
     edit.hidden = !on;
     editBtn.innerHTML = on
       ? '<i class="fas fa-eye" aria-hidden="true"></i> Visualizar'
-      : '<i class="fas fa-pen" aria-hidden="true"></i> Editar';
+      : '<i class="fas fa-pen" aria-hidden="true"></i> Editar cadastro';
     ativarTab('pessoal');
   }
 
@@ -322,6 +388,60 @@
   if (cancelBtn) {
     cancelBtn.addEventListener('click', function () {
       showEdit(false);
+    });
+  }
+
+  var btnDesligar = document.getElementById('rh-profile-btn-desligar');
+  var modalDesligar = document.getElementById('modal-desligar-detalhe');
+  var formDesligar = document.getElementById('form-desligar-detalhe');
+
+  function abrirModalDesligar() {
+    if (!modalDesligar) return;
+    var dataEl = document.getElementById('desligar-detalhe-data');
+    if (dataEl) dataEl.value = new Date().toISOString().slice(0, 10);
+    modalDesligar.classList.add('open');
+    modalDesligar.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('rh-modal-open');
+  }
+
+  function fecharModalDesligar() {
+    if (!modalDesligar) return;
+    modalDesligar.classList.remove('open');
+    modalDesligar.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('rh-modal-open');
+  }
+
+  if (btnDesligar) btnDesligar.addEventListener('click', abrirModalDesligar);
+  document.querySelectorAll('.js-modal-desligar-close').forEach(function (btn) {
+    btn.addEventListener('click', fecharModalDesligar);
+  });
+
+  if (formDesligar) {
+    formDesligar.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('btn-desligar-detalhe-confirm');
+      var errEl = document.getElementById('desligar-detalhe-errors');
+      if (btn) btn.disabled = true;
+      fetch(formDesligar.action, {
+        method: 'POST',
+        body: new FormData(formDesligar),
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+        .then(function (res) {
+          if (res.ok && res.data.ok) {
+            window.location.reload();
+            return;
+          }
+          if (errEl) {
+            var msgs = (res.data && res.data.errors) ? res.data.errors : ['Não foi possível desligar.'];
+            errEl.innerHTML = msgs.map(function (m) { return '<p>' + m + '</p>'; }).join('');
+            errEl.hidden = false;
+          }
+        })
+        .catch(function () { alert('Erro ao desligar. Tente novamente.'); })
+        .finally(function () { if (btn) btn.disabled = false; });
     });
   }
 
