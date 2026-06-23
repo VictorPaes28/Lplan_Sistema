@@ -534,7 +534,11 @@ RH_ENVIO_PORTAL_CANDIDATO_ATIVO = os.environ.get('RH_ENVIO_PORTAL_CANDIDATO_ATIV
 )
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4.1')
+# Obras excluídas das consultas operacionais da IA WhatsApp (sede/escritório)
+WHATSAPP_IA_OBRAS_EXCLUIDAS = os.environ.get('WHATSAPP_IA_OBRAS_EXCLUIDAS', 'Sede')
+# Cache do briefing operacional (segundos) — contexto automático por usuário/dia
+WHATSAPP_IA_BRIEFING_CACHE_TTL = int(os.environ.get('WHATSAPP_IA_BRIEFING_CACHE_TTL', '300'))
 # Usa SITE_URL do .env por padrão — não edite este arquivo no servidor; use .env ou settings_local.py
 WHATSAPP_BASE_URL = (os.environ.get('WHATSAPP_BASE_URL', '') or SITE_URL).rstrip('/')
 

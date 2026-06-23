@@ -1,162 +1,206 @@
 import json
+import logging
 
 from django.conf import settings
 from openai import OpenAI
 
+from whatsapp_ia.briefing import gerar_briefing_operacional
 from whatsapp_ia.ia_functions import TOOLS, executar_funcao
+from whatsapp_ia.models import IaMensagemLog
+from whatsapp_ia.prompts import montar_system_prompt
 
-SYSTEM_PROMPT = """
-Você é a assistente operacional da Lplan no WhatsApp —
-inteligente, analítica e direta.
-
-REGRAS DE DADOS:
-- Responda SEMPRE com base nos dados retornados pelas
-  funções do sistema. Nunca invente números, obras,
-  datas ou responsáveis.
-- Se não encontrar dado, diga claramente e sugira
-  como o usuário pode obter a informação.
-
-REGRAS DE ANÁLISE:
-- Zeros não são necessariamente boas notícias.
-  Interprete o contexto:
-  * 0 RDOs pendentes pode significar que nenhum RDO
-    foi criado ainda — alerte isso.
-  * 0 pedidos pode indicar obra sem movimentação
-    financeira — mencione.
-  * 0 restrições pode ser positivo OU ausência de
-    cadastro — avalie pelo histórico.
-- Quando uma obra não tem dados em nenhuma categoria,
-  alerte que ela pode estar sem acompanhamento adequado.
-- Identifique padrões: obra com muitas pendências
-  vencidas + restrições críticas + sem RDO = risco alto.
-- Priorize informações críticas no topo da resposta.
-
-REGRAS DE ANÁLISE — RDOs:
-- Em análises gerais, panoramas ou resumos operacionais,
-  SEMPRE chame consultar_frequencia_rdos.
-- Diferencie claramente:
-  * "sem RDO hoje" = nenhum RDO aprovado na data atual;
-  * "nunca teve RDO" = obra/frente sem histórico de diário.
-- Alerte obras ou frentes com último RDO há mais de 7 dias
-  e lacunas grandes no histórico (buracos entre registros).
-- Se a obra tiver frentes ativas, analise RDO por frente,
-  não apenas no nível da obra.
-
-REGRAS DE ANÁLISE — Pedidos:
-- Em análises de aprovação ou situação financeira, chame
-  consultar_situacao_pedidos_obras para panorama por obra.
-- Alerte pedidos pendentes há mais de 7 dias e pedidos
-  com prazo estimado vencido.
-- Priorize obras com mais pedidos parados ou críticos.
-- Informe a frente quando o pedido estiver vinculado a uma.
-
-REGRAS DE ANÁLISE — Frentes de obra:
-- Obras podem ter frentes/subobras (torres, blocos, setores).
-- Quando a obra tiver frentes ativas, estruture resumos
-  por frente quando relevante.
-- Use listar_frentes_obra ou resumo_frente_obra antes de
-  concluir que "a obra está em dia" se apenas uma frente
-  estiver ok.
-
-REGRAS DE RESPOSTA:
-- Seja direto e objetivo — respostas curtas quando
-  o dado é simples, mais completas quando for resumo
-  ou análise.
-- Use linguagem operacional, não técnica.
-  Fale "pedidos aguardando aprovação" não "WorkOrder".
-- Para resumos de obra SEM frentes, estruture:
-  1. Situação geral (uma frase)
-  2. Alertas ou pontos de atenção
-  3. O que está ok
-  4. Recomendação se aplicável
-- Para resumos de obra COM frentes ativas, estruture:
-  1. Situação geral da obra
-  2. Situação por frente (quando houver dados)
-  3. Alertas críticos (RDO, pedidos, restrições)
-  4. O que está ok
-  5. Recomendação se aplicável
-- Nunca diga "tudo em dia" se os zeros indicam
-  ausência de dados em vez de ausência de problemas.
-- Ações críticas como aprovar, excluir, alterar
-  dados não são permitidas neste MVP.
-
-REGRAS DE ESCOPO:
-- Quando o usuário não especificar obra, consulte
-  todas as obras do seu escopo.
-- Quando faltar informação para uma consulta
-  específica, pergunte apenas o essencial.
-
-MÓDULOS DISPONÍVEIS:
-- Mapa geográfico das obras: elementos, pastas/trechos,
-  progresso, alertas (bloqueios, EAP, estagnação), marcadores
-  GPS de RDO e comparação entre datas.
-- RH/DP: colaboradores, admissões em andamento, documentos
-  vencendo/vencidos, prazos de contrato e alertas críticos.
-
-DADOS SENSÍVEIS (LGPD):
-- NUNCA forneça CPF, RG, PIS, salário, dados bancários,
-  endereço, data de nascimento, e-mail, telefone ou arquivos
-  de documentos/contratos — mesmo que o usuário peça.
-- Para RH, use apenas os dados retornados pelas funções
-  (nome, cargo, obra, status, datas de vencimento/prazo).
-"""
+logger = logging.getLogger(__name__)
 
 MSG_ERRO_PADRAO = (
     'Não consegui processar sua consulta agora. '
     'Tente novamente ou acione o suporte.'
 )
 
+MAX_TOOL_ROUNDS = 8
+MAX_TOKENS = 2000
+HISTORICO_MENSAGENS = 10
+
+_ACOES_PDF = frozenset({'enviar_pdf_rdo', 'enviar_pdf_pedido'})
+
+_MSG_CONSOLIDAR_DEGRADADO = (
+    'Limite de rodadas de consulta atingido. Consolide TODOS os dados '
+    'já obtidos nas respostas das funções e responda ao usuário agora. '
+    'Não invente dados que não foram retornados — indique claramente o '
+    'que não foi possível verificar.'
+)
+
+_STATUS_HISTORICO_EXCLUIDOS = frozenset({'nao_autorizado', 'erro_envio'})
+
+
+def _texto_usuario_de_log(mensagem_recebida: str) -> str:
+    """Extrai texto do usuário — webhook JSON ou texto puro legado."""
+    raw = (mensagem_recebida or '').strip()
+    if not raw:
+        return ''
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if not isinstance(payload, dict):
+        return raw
+    try:
+        entry = payload.get('entry') or []
+        if not entry:
+            return ''
+        changes = entry[0].get('changes') or []
+        if not changes:
+            return ''
+        value = changes[0].get('value') or {}
+        messages = value.get('messages') or []
+        if not messages:
+            return ''
+        message = messages[0]
+        if message.get('type') != 'text':
+            return ''
+        return (message.get('text') or {}).get('body', '').strip()
+    except (IndexError, KeyError, TypeError, AttributeError):
+        return ''
+
+
+def _montar_historico_conversa(usuario_wa) -> list[dict]:
+    """
+    Últimas HISTORICO_MENSAGENS trocas (log) em ordem cronológica,
+    como pares user/assistant para o contexto da OpenAI.
+    """
+    if not usuario_wa:
+        return []
+
+    logs = list(
+        IaMensagemLog.objects.filter(usuario=usuario_wa)
+        .exclude(status__in=_STATUS_HISTORICO_EXCLUIDOS)
+        .exclude(resposta_enviada='')
+        .order_by('-id')[:HISTORICO_MENSAGENS]
+    )
+    logs.reverse()
+
+    historico = []
+    for log in logs:
+        texto_user = _texto_usuario_de_log(log.mensagem_recebida)
+        resposta = (log.resposta_enviada or '').strip()
+        if not texto_user or not resposta:
+            continue
+        historico.append({'role': 'user', 'content': texto_user})
+        historico.append({'role': 'assistant', 'content': resposta})
+
+    return historico
+
+
+def _montar_messages_openai(
+    system_prompt: str,
+    mensagem_usuario: str,
+    usuario_wa=None,
+) -> list[dict]:
+    messages = [{'role': 'system', 'content': system_prompt}]
+    messages.extend(_montar_historico_conversa(usuario_wa))
+    messages.append({'role': 'user', 'content': mensagem_usuario})
+    return messages
+
 
 def chamar_openai(mensagem_usuario: str, usuario_wa=None) -> str:
+    """Compatível com chamadas existentes — retorna só o texto da resposta."""
+    resposta, _meta = chamar_openai_com_meta(mensagem_usuario, usuario_wa=usuario_wa)
+    return resposta
+
+
+def chamar_openai_com_meta(
+    mensagem_usuario: str,
+    usuario_wa=None,
+) -> tuple[str, dict]:
+    """
+    Orquestra briefing → prompt dinâmico → loop de tools → resposta final.
+
+    Retorna (texto_resposta, meta) onde meta contém:
+      - tool_rounds: int
+      - functions_called: list[str]
+      - degraded: bool (True se consolidou após esgotar rodadas)
+    """
+    meta = {
+        'tool_rounds': 0,
+        'functions_called': [],
+        'degraded': False,
+    }
+
     try:
+        briefing = gerar_briefing_operacional(usuario_wa=usuario_wa)
+        system_prompt = montar_system_prompt(briefing)
+
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        messages = [
-            {'role': 'system', 'content': SYSTEM_PROMPT},
-            {'role': 'user', 'content': mensagem_usuario},
-        ]
+        messages = _montar_messages_openai(
+            system_prompt,
+            mensagem_usuario,
+            usuario_wa=usuario_wa,
+        )
 
-        response = client.chat.completions.create(
+        for round_idx in range(MAX_TOOL_ROUNDS):
+            response = client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                max_tokens=MAX_TOKENS,
+                tools=TOOLS,
+                tool_choice='auto',
+                messages=messages,
+            )
+
+            msg = response.choices[0].message
+
+            if not msg.tool_calls:
+                texto = msg.content.strip() if msg.content else MSG_ERRO_PADRAO
+                return texto, meta
+
+            meta['tool_rounds'] = round_idx + 1
+            messages.append(msg)
+
+            for tool_call in msg.tool_calls:
+                nome = tool_call.function.name
+                meta['functions_called'].append(nome)
+
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    args = {}
+
+                resultado = executar_funcao(nome, args, usuario_wa=usuario_wa)
+
+                try:
+                    dados_acao = json.loads(resultado)
+                    if dados_acao.get('acao') in _ACOES_PDF:
+                        return resultado, meta
+                except json.JSONDecodeError:
+                    pass
+
+                messages.append({
+                    'role': 'tool',
+                    'tool_call_id': tool_call.id,
+                    'content': resultado,
+                })
+
+        # Fase 4: resposta degradada — consolida o que já foi coletado
+        meta['degraded'] = True
+        messages.append({
+            'role': 'system',
+            'content': _MSG_CONSOLIDAR_DEGRADADO,
+        })
+
+        response_final = client.chat.completions.create(
             model=settings.OPENAI_MODEL,
-            max_tokens=1000,
-            tools=TOOLS,
-            tool_choice='auto',
+            max_tokens=MAX_TOKENS,
             messages=messages,
         )
 
-        msg = response.choices[0].message
+        texto = response_final.choices[0].message.content
+        if texto and texto.strip():
+            return texto.strip(), meta
 
-        if not msg.tool_calls:
-            return msg.content.strip() if msg.content else MSG_ERRO_PADRAO
-
-        messages.append(msg)
-        for tool_call in msg.tool_calls:
-            nome = tool_call.function.name
-            try:
-                args = json.loads(tool_call.function.arguments)
-            except json.JSONDecodeError:
-                args = {}
-            resultado = executar_funcao(nome, args, usuario_wa=usuario_wa)
-            try:
-                dados_acao = json.loads(resultado)
-                if dados_acao.get('acao') in (
-                    'enviar_pdf_rdo', 'enviar_pdf_pedido',
-                ):
-                    return resultado
-            except json.JSONDecodeError:
-                pass
-            messages.append({
-                'role': 'tool',
-                'tool_call_id': tool_call.id,
-                'content': resultado,
-            })
-
-        response2 = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            max_tokens=1000,
-            messages=messages,
+        logger.warning(
+            'WhatsApp IA: rodadas esgotadas sem resposta (%s tools)',
+            len(meta['functions_called']),
         )
-
-        return response2.choices[0].message.content.strip()
+        return MSG_ERRO_PADRAO, meta
 
     except Exception:
-        return MSG_ERRO_PADRAO
+        logger.exception('WhatsApp IA: erro em chamar_openai_com_meta')
+        return MSG_ERRO_PADRAO, meta

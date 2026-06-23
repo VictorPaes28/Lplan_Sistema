@@ -53,12 +53,16 @@ TOOLS = [
                 'Consulta pedidos de aprovação pendentes no '
                 'GestControll (status pendente ou reaprovacao). '
                 'Retorna dias_em_aberto, frente e agregação por obra '
-                'quando obra_id não for informado. '
-                'Nunca peça confirmação de obra — execute sempre.'
+                'quando obra não for informada. '
+                'Aceita obra_nome ou obra_id — nunca peça ID se tiver nome.'
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra (opcional).',
+                    },
                     'obra_id': {
                         'type': 'integer',
                         'description': 'ID do core.Project (opcional).',
@@ -152,8 +156,9 @@ TOOLS = [
             'name': 'consultar_situacao_pedidos_obras',
             'description': (
                 'Panorama de pedidos por obra e frente: pendentes total, '
-                'atrasados na aprovação, com prazo vencido e top pedidos críticos. '
-                'Use em análises gerais de aprovação e situação financeira.'
+                'atrasados na aprovação, com prazo vencido e lista completa '
+                'de pedidos atrasados (por dias em aberto) quando obra não '
+                'for especificada. Use em análises gerais de aprovação.'
             ),
             'parameters': {
                 'type': 'object',
@@ -258,6 +263,38 @@ TOOLS = [
                         'description': 'ID do mapa_obras.Obra (opcional).',
                     },
                 },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_panorama_suprimentos',
+            'description': (
+                'Panorama consolidado de suprimentos em todas as obras do '
+                'escopo: total de itens, sem alocação e atrasados no pipeline. '
+                'Ordenado por obras com mais itens. Use em análises gerais.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_panorama_mapa_controle',
+            'description': (
+                'Panorama do mapa de controle em todas as obras: se tem mapa, '
+                'percentual geral de conclusão e quantidade de unidades. '
+                'Ordenado por desenvolvimento. Use em análises gerais.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
                 'required': [],
             },
         },
@@ -474,12 +511,10 @@ TOOLS = [
         'function': {
             'name': 'consultar_usuarios',
             'description': (
-                'Consulta usuários do sistema. '
-                'Retorna total, lista de ativos/inativos, '
-                'ou dados de um usuário específico com '
-                'últimos registros de atividade. '
-                'Use quando perguntar sobre usuários, '
-                'quem está ativo, ou atividade de alguém.'
+                'Consulta usuários do sistema. Com usuario_nome, retorna '
+                'perfil cruzado: último login, obras como responsável, '
+                'restrições abertas, pedidos pendentes de aprovação, '
+                'pendências TrackHub atrasadas e tempo médio de aprovação.'
             ),
             'parameters': {
                 'type': 'object',
@@ -796,13 +831,10 @@ TOOLS = [
         'function': {
             'name': 'consultar_desempenho_equipe_gest',
             'description': (
-                'Consulta o desempenho da equipe no GestControll: '
-                'tempo médio de resposta por aprovador, '
-                'total aprovado/reprovado por pessoa, '
-                'desempenho de solicitantes. '
-                'Use quando perguntar sobre desempenho, '
-                'quem está demorando mais para aprovar, '
-                'ranking de aprovadores.'
+                'Desempenho de aprovadores no GestControll: pedidos '
+                'pendentes AGORA (não histórico), tempo médio de '
+                'aprovação em dias e pedidos aprovados no mês atual. '
+                'Use para ranking de aprovadores ou gargalos.'
             ),
             'parameters': {
                 'type': 'object',
@@ -1007,16 +1039,20 @@ TOOLS = [
         'function': {
             'name': 'consultar_restricoes_por_responsavel',
             'description': (
-                'Consulta restrições abertas filtradas por responsável. '
-                "Use quando perguntar 'restrições do João', "
-                "'impedimentos da Maria', 'o que o Carlos tem pendente'."
+                'Agrega restrições abertas por responsável: nome, '
+                'quantidade abertas, vencidas e dias médios de atraso. '
+                'Sem responsavel_nome retorna panorama de todos. '
+                'NUNCA confundir responsável com obra.'
             ),
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'responsavel_nome': {
                         'type': 'string',
-                        'description': 'Nome do responsável pela restrição.',
+                        'description': (
+                            'Nome do responsável (opcional — sem ele, '
+                            'retorna ranking de todos os responsáveis).'
+                        ),
                     },
                     'obra_nome': {
                         'type': 'string',
@@ -1027,7 +1063,7 @@ TOOLS = [
                         'description': 'Default False.',
                     },
                 },
-                'required': ['responsavel_nome'],
+                'required': [],
             },
         },
     },
@@ -1405,17 +1441,31 @@ def _data_ou_hoje(data_str):
         return timezone.localdate()
 
 
+def _nomes_obras_excluidas_operacionais():
+    from django.conf import settings
+
+    raw = getattr(settings, 'WHATSAPP_IA_OBRAS_EXCLUIDAS', 'Sede')
+    return [n.strip().lower() for n in raw.split(',') if n.strip()]
+
+
+def _excluir_nao_obras_qs(qs, campo_nome='nome'):
+    for nome in _nomes_obras_excluidas_operacionais():
+        qs = qs.exclude(**{f'{campo_nome}__iexact': nome})
+    return qs
+
+
 def _get_escopo_obras(usuario_wa=None):
     """
     Retorna queryset de mapa_obras.Obra permitidas para o usuário.
     - Se usuario_wa é None ou sem permissão: retorna todas ativas.
     - Se tem IaPermissaoConsulta com obras: retorna só essas.
     - Se tem IaPermissaoConsulta sem obras: retorna todas ativas.
+    - Exclui sede/escritório conforme WHATSAPP_IA_OBRAS_EXCLUIDAS.
     """
     from mapa_obras.models import Obra as ObraMapa
     from whatsapp_ia.models import IaPermissaoConsulta
 
-    todas_ativas = ObraMapa.objects.filter(ativa=True)
+    todas_ativas = _excluir_nao_obras_qs(ObraMapa.objects.filter(ativa=True))
 
     if not usuario_wa:
         return todas_ativas
@@ -1424,7 +1474,7 @@ def _get_escopo_obras(usuario_wa=None):
         permissao = IaPermissaoConsulta.objects.get(usuario=usuario_wa)
         obras_auth = permissao.obras_autorizadas.all()
         if obras_auth.exists():
-            return obras_auth.filter(ativa=True)
+            return _excluir_nao_obras_qs(obras_auth.filter(ativa=True))
         return todas_ativas
     except IaPermissaoConsulta.DoesNotExist:
         return todas_ativas
@@ -1856,7 +1906,14 @@ def consultar_rdos_pendentes(data=None, obra_id=None, usuario_wa=None) -> str:
     }, ensure_ascii=False)
 
 
-def consultar_pedidos_pendentes(obra_id=None, usuario_wa=None) -> str:
+def consultar_pedidos_pendentes(
+    obra_nome=None, obra_id=None, usuario_wa=None,
+) -> str:
+    if obra_nome and not obra_id:
+        project = _resolver_project(obra_nome=obra_nome, usuario_wa=usuario_wa)
+        if project:
+            obra_id = project.id
+
     project_ids = _project_ids_escopo(usuario_wa)
     if obra_id and obra_id not in project_ids:
         return json.dumps({
@@ -1987,6 +2044,77 @@ def consultar_suprimentos_obra(obra_nome=None, obra_id=None, usuario_wa=None) ->
         }, ensure_ascii=False)
     except Exception as e:
         return json.dumps({'erro': str(e)}, ensure_ascii=False)
+
+
+def consultar_panorama_suprimentos(usuario_wa=None) -> str:
+    obras = list(_get_escopo_obras(usuario_wa).order_by('nome'))
+    resultado = []
+    for obra in obras:
+        try:
+            service = MapaControleService(obra, MapaControleFilters())
+            kpis = service.build_summary_payload().get('kpis', {})
+            resultado.append({
+                'obra': obra.nome,
+                'total_itens': kpis.get('total_itens', 0),
+                'sem_alocacao': kpis.get('sem_alocacao', 0),
+                'atrasados': kpis.get('atrasados', 0),
+            })
+        except Exception:
+            resultado.append({
+                'obra': obra.nome,
+                'total_itens': 0,
+                'sem_alocacao': 0,
+                'atrasados': 0,
+                'erro': 'dados indisponíveis',
+            })
+    resultado.sort(key=lambda x: (-x['total_itens'], x['obra']))
+    obras_sem_itens = [r['obra'] for r in resultado if r['total_itens'] == 0]
+    return json.dumps({
+        'total_obras': len(resultado),
+        'obras': resultado,
+        'obras_sem_itens': obras_sem_itens,
+    }, ensure_ascii=False)
+
+
+def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
+    from painel_operacional.models import AmbienteOperacional, AmbienteTipo
+    from suprimentos.services.analise_obra_service import AnaliseObraService
+
+    obras = list(_get_escopo_obras(usuario_wa).order_by('nome'))
+    resultado = []
+    for obra in obras:
+        tem_mapa = AmbienteOperacional.objects.filter(
+            obra=obra,
+            tipo=AmbienteTipo.MAPA_CONTROLE,
+            ativo=True,
+        ).exists()
+        pct = None
+        unidades = 0
+        if tem_mapa:
+            try:
+                secao = AnaliseObraService(obra).build_section('controle') or {}
+                controle = secao.get('controle', {}) if isinstance(secao, dict) else {}
+                kpis = controle.get('kpis', {}) if isinstance(controle, dict) else {}
+                pct = kpis.get('percentual_medio')
+                unidades = kpis.get('total_itens', 0) or 0
+            except Exception:
+                pass
+        resultado.append({
+            'obra': obra.nome,
+            'tem_mapa_controle': tem_mapa,
+            'percentual_conclusao': pct,
+            'quantidade_unidades': unidades,
+        })
+    resultado.sort(
+        key=lambda x: (
+            x['percentual_conclusao'] is None,
+            -(x['percentual_conclusao'] or 0),
+        ),
+    )
+    return json.dumps({
+        'total_obras': len(resultado),
+        'obras': resultado,
+    }, ensure_ascii=False)
 
 
 def consultar_itens_sem_alocacao(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
@@ -2358,6 +2486,11 @@ def consultar_usuarios(
 ) -> str:
     from django.contrib.auth import get_user_model
 
+    from core.models import Project, ProjectMember
+    from gestao_aprovacao.models import Approval, WorkOrderPermission
+    from impedimentos.models import Impedimento, StatusImpedimento
+    from trackhub.models import Pendencia
+
     User = get_user_model()
 
     qs = User.objects.all()
@@ -2367,24 +2500,113 @@ def consultar_usuarios(
         qs = qs.filter(
             Q(first_name__icontains=usuario_nome)
             | Q(last_name__icontains=usuario_nome)
-            | Q(username__icontains=usuario_nome)
+            | Q(username__icontains=usuario_nome),
         )
 
     total = qs.count()
     ativos = User.objects.filter(is_active=True).count()
     inativos = User.objects.filter(is_active=False).count()
 
+    hoje = timezone.localdate()
+    inicio_mes = hoje.replace(day=1)
+    project_ids = _project_ids_escopo(usuario_wa)
+    escopo_ids = list(_get_escopo_obras(usuario_wa).values_list('id', flat=True))
+
     usuarios = []
     for u in qs[:20]:
         ultimo_login = str(u.last_login.date()) if u.last_login else 'Nunca'
-        usuarios.append({
+        perfil = {
             'id': u.id,
             'nome': u.get_full_name() or u.username,
             'username': u.username,
-            'email': u.email,
             'ativo': u.is_active,
             'ultimo_login': ultimo_login,
-        })
+        }
+
+        if usuario_nome:
+            obras_resp = set()
+            for p in Project.objects.filter(
+                is_active=True,
+                id__in=project_ids,
+                responsible__icontains=u.get_full_name() or u.username,
+            ).values_list('name', flat=True):
+                obras_resp.add(p)
+            for pm in ProjectMember.objects.filter(
+                user=u,
+                project_id__in=project_ids,
+            ).select_related('project'):
+                obras_resp.add(pm.project.name)
+            for perm in WorkOrderPermission.objects.filter(
+                usuario=u,
+                ativo=True,
+                obra__project_id__in=project_ids,
+            ).select_related('obra'):
+                obras_resp.add(perm.obra.nome)
+
+            imp_qs = Impedimento.objects.filter(
+                parent__isnull=True,
+                responsaveis=u,
+                obra__project__obra_mapa__id__in=escopo_ids,
+            )
+            restricoes_abertas = 0
+            for imp in imp_qs.select_related('obra', 'status'):
+                sf = StatusImpedimento.objects.filter(
+                    obra=imp.obra,
+                ).order_by('-ordem').first()
+                if sf and imp.status_id == sf.id:
+                    continue
+                restricoes_abertas += 1
+
+            obras_aprovador = WorkOrderPermission.objects.filter(
+                usuario=u,
+                tipo_permissao='aprovador',
+                ativo=True,
+                obra__project_id__in=project_ids,
+            ).values_list('obra_id', flat=True)
+            pedidos_pendentes = _queryset_workorders_escopo(usuario_wa).filter(
+                status__in=['pendente', 'reaprovacao'],
+                obra_id__in=obras_aprovador,
+            ).count()
+
+            pendencias_atrasadas = Pendencia.objects.filter(
+                responsavel_interno=u,
+                obra_id__in=escopo_ids,
+                prazo__lt=hoje,
+            ).exclude(
+                status__in=['concluida', 'cancelada'],
+            ).count()
+
+            tempos = []
+            for ap in Approval.objects.filter(
+                aprovado_por=u,
+                decisao='aprovado',
+                work_order__obra__project_id__in=project_ids,
+            ).select_related('work_order'):
+                wo = ap.work_order
+                if wo.data_envio:
+                    tempos.append(
+                        max(0, (ap.created_at.date() - wo.data_envio.date()).days),
+                    )
+
+            perfil.update({
+                'obras_como_responsavel': sorted(obras_resp),
+                'restricoes_abertas': restricoes_abertas,
+                'pedidos_pendentes_aprovacao': pedidos_pendentes,
+                'pendencias_trackhub_atrasadas': pendencias_atrasadas,
+                'tempo_medio_aprovacao_dias': (
+                    round(sum(tempos) / len(tempos), 1) if tempos else None
+                ),
+                'pedidos_aprovados_mes_atual': Approval.objects.filter(
+                    aprovado_por=u,
+                    decisao='aprovado',
+                    created_at__date__gte=inicio_mes,
+                    work_order__obra__project_id__in=project_ids,
+                ).count(),
+            })
+        else:
+            perfil['email'] = u.email
+
+        usuarios.append(perfil)
 
     return json.dumps({
         'total': total,
@@ -3042,12 +3264,11 @@ def consultar_status_pedido(
 def consultar_desempenho_equipe_gest(
     obra_nome=None, tipo=None, usuario_wa=None,
 ) -> str:
-    from django.contrib.auth import get_user_model
-    from django.db.models import Count
+    from gestao_aprovacao.models import Approval, WorkOrder, WorkOrderPermission
 
-    from gestao_aprovacao.models import Approval, WorkOrder
+    hoje = timezone.localdate()
+    inicio_mes = hoje.replace(day=1)
 
-    User = get_user_model()
     obra_g = None
     if obra_nome:
         project = _resolver_project(
@@ -3055,38 +3276,77 @@ def consultar_desempenho_equipe_gest(
         )
         obra_g = _obra_gestao_por_project(project)
 
+    project_ids = _project_ids_escopo(usuario_wa)
+
     aprovadores = []
     if not tipo or tipo == 'aprovadores':
-        qs_ap = Approval.objects.select_related(
-            'aprovado_por', 'work_order',
+        perm_qs = WorkOrderPermission.objects.filter(
+            tipo_permissao='aprovador',
+            ativo=True,
+            obra__project_id__in=project_ids,
+        ).select_related('usuario', 'obra')
+        if obra_g:
+            perm_qs = perm_qs.filter(obra=obra_g)
+
+        obras_por_aprovador = {}
+        nomes = {}
+        for perm in perm_qs:
+            uid = perm.usuario_id
+            nomes[uid] = perm.usuario.get_full_name() or perm.usuario.username
+            obras_por_aprovador.setdefault(uid, set()).add(perm.obra_id)
+
+        qs_pendentes = _queryset_workorders_escopo(usuario_wa).filter(
+            status__in=['pendente', 'reaprovacao'],
         )
         if obra_g:
-            qs_ap = qs_ap.filter(work_order__obra=obra_g)
+            qs_pendentes = qs_pendentes.filter(obra=obra_g)
 
-        por_aprovador = {}
-        for ap in qs_ap:
-            uid = ap.aprovado_por_id or 'desconhecido'
-            if uid not in por_aprovador:
-                por_aprovador[uid] = {
-                    'nome': (
-                        ap.aprovado_por.get_full_name()
-                        if ap.aprovado_por else 'Desconhecido'
-                    ),
-                    'total': 0,
-                    'aprovados': 0,
-                    'reprovados': 0,
-                }
-            por_aprovador[uid]['total'] += 1
-            if ap.decisao == 'reprovado':
-                por_aprovador[uid]['reprovados'] += 1
-            else:
-                por_aprovador[uid]['aprovados'] += 1
+        pendentes_por_user = dict.fromkeys(obras_por_aprovador, 0)
+        for w in qs_pendentes.values('obra_id'):
+            obra_id = w['obra_id']
+            for uid, obras in obras_por_aprovador.items():
+                if obra_id in obras:
+                    pendentes_por_user[uid] += 1
 
-        aprovadores = sorted(
-            por_aprovador.values(),
-            key=lambda x: x['total'],
-            reverse=True,
-        )[:10]
+        qs_aprovados = Approval.objects.filter(
+            decisao='aprovado',
+            work_order__obra__project_id__in=project_ids,
+        ).select_related('aprovado_por', 'work_order')
+        if obra_g:
+            qs_aprovados = qs_aprovados.filter(work_order__obra=obra_g)
+
+        tempos_por_user = {}
+        aprovados_mes_por_user = {}
+        for ap in qs_aprovados:
+            uid = ap.aprovado_por_id
+            if not uid:
+                continue
+            wo = ap.work_order
+            if wo.data_envio:
+                dias = max(
+                    0,
+                    (ap.created_at.date() - wo.data_envio.date()).days,
+                )
+                tempos_por_user.setdefault(uid, []).append(dias)
+            if ap.created_at.date() >= inicio_mes:
+                aprovados_mes_por_user[uid] = (
+                    aprovados_mes_por_user.get(uid, 0) + 1
+                )
+
+        for uid in obras_por_aprovador:
+            tempos = tempos_por_user.get(uid, [])
+            aprovadores.append({
+                'aprovador': nomes.get(uid, 'Desconhecido'),
+                'pedidos_pendentes_agora': pendentes_por_user.get(uid, 0),
+                'tempo_medio_aprovacao_dias': (
+                    round(sum(tempos) / len(tempos), 1) if tempos else None
+                ),
+                'pedidos_aprovados_mes_atual': aprovados_mes_por_user.get(uid, 0),
+            })
+
+        aprovadores.sort(
+            key=lambda x: (-x['pedidos_pendentes_agora'], x['aprovador']),
+        )
 
     solicitantes = []
     if not tipo or tipo == 'solicitantes':
@@ -3451,69 +3711,115 @@ def consultar_bi_obra(
 
 
 def consultar_restricoes_por_responsavel(
-    responsavel_nome, obra_nome=None,
+    responsavel_nome=None, obra_nome=None,
     incluir_concluidas=False, usuario_wa=None,
 ) -> str:
     from django.contrib.auth import get_user_model
 
+    from gestao_aprovacao.models import Obra as ObraGestao
     from impedimentos.models import Impedimento, StatusImpedimento
 
     User = get_user_model()
-
-    usuarios = User.objects.filter(
-        Q(first_name__icontains=responsavel_nome)
-        | Q(last_name__icontains=responsavel_nome)
-        | Q(username__icontains=responsavel_nome),
+    escopo_ids = list(_get_escopo_obras(usuario_wa).values_list('id', flat=True))
+    obras_gestao_qs = ObraGestao.objects.filter(
+        ativo=True,
+        project__obra_mapa__id__in=escopo_ids,
     )
+    if obra_nome:
+        obra = _resolver_obra_gestao(obra_nome=obra_nome, usuario_wa=usuario_wa)
+        if not obra:
+            return json.dumps(
+                {'erro': 'Obra não encontrada.'},
+                ensure_ascii=False,
+            )
+        obras_gestao_qs = obras_gestao_qs.filter(id=obra.id)
 
-    if not usuarios.exists():
-        return json.dumps({
-            'erro': f'Responsável "{responsavel_nome}" não encontrado.',
-        }, ensure_ascii=False)
+    obras_gestao_ids = list(obras_gestao_qs.values_list('id', flat=True))
+    status_final_por_obra = {}
+    for obra_id in obras_gestao_ids:
+        sf = StatusImpedimento.objects.filter(
+            obra_id=obra_id,
+        ).order_by('-ordem').first()
+        if sf:
+            status_final_por_obra[obra_id] = sf.id
+
+    usuarios_filtro = None
+    usuario_ids_filtro = None
+    if responsavel_nome:
+        usuarios_filtro = User.objects.filter(
+            Q(first_name__icontains=responsavel_nome)
+            | Q(last_name__icontains=responsavel_nome)
+            | Q(username__icontains=responsavel_nome),
+        )
+        if not usuarios_filtro.exists():
+            return json.dumps({
+                'erro': f'Responsável "{responsavel_nome}" não encontrado.',
+            }, ensure_ascii=False)
+        usuario_ids_filtro = set(usuarios_filtro.values_list('id', flat=True))
 
     qs = Impedimento.objects.filter(
-        responsaveis__in=usuarios,
         parent__isnull=True,
-    ).select_related('obra', 'status').distinct()
-
-    if obra_nome:
-        obra = _resolver_obra_gestao(
-            obra_nome=obra_nome, usuario_wa=usuario_wa,
-        )
-        if obra:
-            qs = qs.filter(obra=obra)
-
-    if not incluir_concluidas:
-        final_ids = []
-        for obra_id in qs.values_list('obra_id', flat=True).distinct():
-            status_final = StatusImpedimento.objects.filter(
-                obra_id=obra_id,
-            ).order_by('-ordem').first()
-            if status_final:
-                final_ids.append(status_final.id)
-        if final_ids:
-            qs = qs.exclude(status_id__in=final_ids)
+        obra_id__in=obras_gestao_ids,
+    ).prefetch_related('responsaveis')
+    if usuarios_filtro is not None:
+        qs = qs.filter(responsaveis__in=usuarios_filtro).distinct()
 
     hoje = timezone.localdate()
-    resultados = []
-    for imp in qs[:20]:
-        resultados.append({
-            'id': imp.id,
-            'titulo': imp.titulo,
-            'prioridade': imp.prioridade,
-            'obra': imp.obra.nome if imp.obra else '-',
-            'status': (
-                imp.status.nome if imp.status else '-'
-            ),
-            'prazo': str(imp.prazo) if imp.prazo else '-',
-            'vencida': imp.prazo < hoje if imp.prazo else False,
-        })
+    por_responsavel = {}
+    for imp in qs:
+        if not incluir_concluidas:
+            final_id = status_final_por_obra.get(imp.obra_id)
+            if final_id and imp.status_id == final_id:
+                continue
 
-    return json.dumps({
-        'responsavel': responsavel_nome,
-        'total': qs.count(),
-        'restricoes': resultados,
-    }, ensure_ascii=False)
+        responsaveis = list(imp.responsaveis.all())
+        if not responsaveis:
+            continue
+
+        vencida = imp.prazo is not None and imp.prazo < hoje
+        dias_atraso = (hoje - imp.prazo).days if vencida else None
+
+        for user in responsaveis:
+            if usuario_ids_filtro is not None and user.id not in usuario_ids_filtro:
+                continue
+            uid = user.id
+            if uid not in por_responsavel:
+                por_responsavel[uid] = {
+                    'responsavel': user.get_full_name() or user.username,
+                    'restricoes_abertas': 0,
+                    'vencidas': 0,
+                    '_soma_dias_atraso': 0,
+                    '_count_vencidas': 0,
+                }
+            por_responsavel[uid]['restricoes_abertas'] += 1
+            if vencida:
+                por_responsavel[uid]['vencidas'] += 1
+                por_responsavel[uid]['_soma_dias_atraso'] += dias_atraso
+                por_responsavel[uid]['_count_vencidas'] += 1
+
+    resultado = []
+    for stats in por_responsavel.values():
+        count_v = stats.pop('_count_vencidas', 0)
+        soma = stats.pop('_soma_dias_atraso', 0)
+        stats['dias_medio_atraso'] = (
+            round(soma / count_v, 1) if count_v else 0
+        )
+        resultado.append(stats)
+
+    resultado.sort(
+        key=lambda x: (-x['restricoes_abertas'], x['responsavel']),
+    )
+
+    payload = {
+        'total_responsaveis': len(resultado),
+        'responsaveis': resultado[:30],
+    }
+    if responsavel_nome:
+        payload['filtro_responsavel'] = responsavel_nome
+    if obra_nome:
+        payload['filtro_obra'] = obra_nome
+
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def consultar_pendencias_por_responsavel(
@@ -4403,12 +4709,33 @@ def consultar_situacao_pedidos_obras(
         reverse=True,
     )
 
-    return json.dumps({
+    payload = {
         'dias_aprovacao_alerta': dias_aprovacao_alerta,
         'total_obras': len(obras_resultado),
         'obras': obras_resultado,
         'top_pedidos_criticos': todos_criticos[:15],
-    }, ensure_ascii=False)
+    }
+
+    if not (obra_id or obra_nome):
+        todos_atrasados = []
+        for w in qs_pendentes.select_related('obra', 'front'):
+            dias = _dias_em_aberto_pedido(w, hoje) or 0
+            if dias > dias_aprovacao_alerta:
+                todos_atrasados.append({
+                    'codigo': w.codigo,
+                    'obra': w.obra.nome if w.obra else '-',
+                    'frente': _nome_frente_workorder(w),
+                    'credor': w.nome_credor,
+                    'dias_em_aberto': dias,
+                })
+        todos_atrasados.sort(
+            key=lambda x: x['dias_em_aberto'],
+            reverse=True,
+        )
+        payload['pedidos_atrasados'] = todos_atrasados
+        payload['total_pedidos_atrasados'] = len(todos_atrasados)
+
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def listar_frentes_obra(
@@ -4541,6 +4868,8 @@ FUNCOES_DISPONIVEIS = {
     'listar_frentes_obra': listar_frentes_obra,
     'resumo_frente_obra': resumo_frente_obra,
     'consultar_suprimentos_obra': consultar_suprimentos_obra,
+    'consultar_panorama_suprimentos': consultar_panorama_suprimentos,
+    'consultar_panorama_mapa_controle': consultar_panorama_mapa_controle,
     'consultar_itens_sem_alocacao': consultar_itens_sem_alocacao,
     'consultar_restricoes_obra': consultar_restricoes_obra,
     'consultar_restricoes_criticas': consultar_restricoes_criticas,

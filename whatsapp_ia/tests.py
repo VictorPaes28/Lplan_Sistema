@@ -14,6 +14,14 @@ from recursos_humanos.models import (
     DocumentoColaborador,
     TipoDocumento,
 )
+from whatsapp_ia.briefing import gerar_briefing_operacional, invalidar_cache_briefing
+from whatsapp_ia.ia_service import (
+    _montar_historico_conversa,
+    _montar_messages_openai,
+    _texto_usuario_de_log,
+)
+from whatsapp_ia.models import IaMensagemLog
+from whatsapp_ia.prompts import montar_system_prompt
 from whatsapp_ia.ia_functions import (
     _CAMPOS_SENSIVEIS_RH,
     comparar_progresso_mapa_datas,
@@ -273,3 +281,125 @@ class RecursosHumanosWhatsAppTests(TestCase):
         self.assertEqual(colab['nome'], 'João Silva')
         self.assertNotIn('cpf', colab)
         self.assertNotIn('salario', colab)
+
+
+class BriefingOperacionalTests(TestCase):
+    def setUp(self):
+        self.project, self.obra = _criar_obra_com_project(
+            nome='Obra Briefing',
+            codigo='OBR-BRF',
+        )
+        self.wa = _criar_usuario_wa(suffix='30')
+        invalidar_cache_briefing(self.wa)
+
+    def test_gerar_briefing_estrutura(self):
+        briefing = gerar_briefing_operacional(
+            usuario_wa=self.wa, use_cache=False,
+        )
+        self.assertIn('data_referencia', briefing)
+        self.assertIn('escopo', briefing)
+        self.assertIn('alertas', briefing)
+        self.assertIn('obras_sem_alertas', briefing)
+        self.assertIn('rdos_atrasados', briefing['alertas'])
+        self.assertIn('pedidos_criticos', briefing['alertas'])
+        self.assertIn('restricoes_abertas', briefing['alertas'])
+        self.assertIn('pendencias_vencidas', briefing['alertas'])
+        self.assertIn('Obra Briefing', briefing['escopo']['obras'])
+
+    def test_montar_system_prompt_inclui_briefing(self):
+        briefing = gerar_briefing_operacional(
+            usuario_wa=self.wa, use_cache=False,
+        )
+        prompt = montar_system_prompt(briefing)
+        self.assertIn('BRIEFING OPERACIONAL', prompt)
+        self.assertIn('CICLO DE RACIOCÍNIO OBRIGATÓRIO', prompt)
+        self.assertIn('Obra Briefing', prompt)
+
+    def test_briefing_usa_cache(self):
+        invalidar_cache_briefing(self.wa)
+        b1 = gerar_briefing_operacional(usuario_wa=self.wa, use_cache=True)
+        b2 = gerar_briefing_operacional(usuario_wa=self.wa, use_cache=True)
+        self.assertEqual(b1, b2)
+
+
+class HistoricoConversaWhatsAppTests(TestCase):
+    def setUp(self):
+        self.wa = _criar_usuario_wa(suffix='40')
+
+    def _payload_webhook(self, texto: str) -> str:
+        return json.dumps({
+            'entry': [{
+                'changes': [{
+                    'value': {
+                        'messages': [{
+                            'from': '5581999990040',
+                            'type': 'text',
+                            'text': {'body': texto},
+                        }],
+                    },
+                }],
+            }],
+        }, ensure_ascii=False)
+
+    def test_extrair_texto_de_json_webhook(self):
+        texto = _texto_usuario_de_log(self._payload_webhook('Olá, obras ativas'))
+        self.assertEqual(texto, 'Olá, obras ativas')
+
+    def test_extrair_texto_puro_legado(self):
+        self.assertEqual(_texto_usuario_de_log('mensagem antiga'), 'mensagem antiga')
+
+    def test_historico_ordem_cronologica_e_exclusoes(self):
+        IaMensagemLog.objects.create(
+            usuario=self.wa,
+            telefone=self.wa.telefone,
+            mensagem_recebida=self._payload_webhook('primeira'),
+            resposta_enviada='resposta 1',
+            status='ok',
+        )
+        IaMensagemLog.objects.create(
+            usuario=self.wa,
+            telefone=self.wa.telefone,
+            mensagem_recebida=self._payload_webhook('segunda'),
+            resposta_enviada='resposta 2',
+            status='ok',
+        )
+        IaMensagemLog.objects.create(
+            usuario=self.wa,
+            telefone=self.wa.telefone,
+            mensagem_recebida=self._payload_webhook('ignorada'),
+            resposta_enviada='',
+            status='ok',
+        )
+        IaMensagemLog.objects.create(
+            usuario=self.wa,
+            telefone=self.wa.telefone,
+            mensagem_recebida=self._payload_webhook('nao auth'),
+            resposta_enviada='bloqueado',
+            status='nao_autorizado',
+        )
+
+        historico = _montar_historico_conversa(self.wa)
+        self.assertEqual(len(historico), 4)
+        self.assertEqual(historico[0]['content'], 'primeira')
+        self.assertEqual(historico[1]['content'], 'resposta 1')
+        self.assertEqual(historico[2]['content'], 'segunda')
+        self.assertEqual(historico[3]['content'], 'resposta 2')
+
+    def test_montar_messages_com_historico(self):
+        IaMensagemLog.objects.create(
+            usuario=self.wa,
+            telefone=self.wa.telefone,
+            mensagem_recebida=self._payload_webhook('antes'),
+            resposta_enviada='resposta antes',
+            status='ok',
+        )
+        msgs = _montar_messages_openai(
+            'system test',
+            'agora',
+            usuario_wa=self.wa,
+        )
+        self.assertEqual(msgs[0], {'role': 'system', 'content': 'system test'})
+        self.assertEqual(msgs[1]['role'], 'user')
+        self.assertEqual(msgs[1]['content'], 'antes')
+        self.assertEqual(msgs[2]['role'], 'assistant')
+        self.assertEqual(msgs[-1], {'role': 'user', 'content': 'agora'})

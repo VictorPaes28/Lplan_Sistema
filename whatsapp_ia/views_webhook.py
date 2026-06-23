@@ -13,7 +13,7 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from whatsapp_ia.ia_service import MSG_ERRO_PADRAO, chamar_openai
+from whatsapp_ia.ia_service import MSG_ERRO_PADRAO, chamar_openai_com_meta
 from whatsapp_ia.models import IaErroLog, IaMensagemLog, UsuarioWhatsApp
 
 logger = logging.getLogger(__name__)
@@ -393,7 +393,9 @@ def _webhook_receber(request):
 
         usuario_whatsapp = usuario_wa
         try:
-            resposta = chamar_openai(texto, usuario_wa=usuario_wa)
+            resposta, meta_ia = chamar_openai_com_meta(
+                texto, usuario_wa=usuario_wa,
+            )
         except Exception as exc:
             logger.exception('Erro ao chamar OpenAI: %s', exc)
             _registrar_erro(
@@ -402,6 +404,7 @@ def _webhook_receber(request):
                 usuario=usuario_wa,
             )
             resposta = MSG_ERRO_PADRAO
+            meta_ia = {'tool_rounds': 0, 'functions_called': [], 'degraded': False}
 
         eh_pdf, resposta_final = _processar_acao_pdf(telefone, resposta)
         if eh_pdf:
@@ -423,9 +426,12 @@ def _webhook_receber(request):
 
         enviado = _enviar_mensagem_whatsapp(telefone, resposta_final)
 
+        funcs = meta_ia.get('functions_called') or []
+        rounds = meta_ia.get('tool_rounds', 0)
+        suffix = ':degraded' if meta_ia.get('degraded') else ''
         log.usuario = usuario_wa
-        log.intencao_detectada = 'resposta_direta'
-        log.funcao_chamada = 'chamar_openai'
+        log.intencao_detectada = ','.join(funcs[:8]) if funcs else 'resposta_direta'
+        log.funcao_chamada = f'chamar_openai:{rounds}r{suffix}'
         log.resposta_enviada = resposta_final
         log.status = 'ok' if enviado else 'erro_envio'
         log.save(
