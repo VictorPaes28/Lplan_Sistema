@@ -1,6 +1,6 @@
 import inspect
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.db.models import Count, DecimalField, Q, Sum, Value
@@ -52,8 +52,8 @@ TOOLS = [
             'description': (
                 'Consulta pedidos de aprovação pendentes no '
                 'GestControll (status pendente ou reaprovacao). '
-                'Se obra_id não for informado, retorna TODOS os '
-                'pedidos pendentes do sistema sem exceção. '
+                'Retorna dias_em_aberto, frente e agregação por obra '
+                'quando obra_id não for informado. '
                 'Nunca peça confirmação de obra — execute sempre.'
             ),
             'parameters': {
@@ -85,8 +85,10 @@ TOOLS = [
         'function': {
             'name': 'consultar_obras_sem_rdo',
             'description': (
-                'Lista obras ativas que não têm RDO aprovado '
-                'em uma data específica.'
+                'Lista obras ativas sem RDO aprovado em uma data '
+                'específica (sem_rdo_hoje) e obras que nunca '
+                'registraram RDO no histórico (nunca_teve_rdo). '
+                'Diferencie os dois conceitos na resposta.'
             ),
             'parameters': {
                 'type': 'object',
@@ -97,6 +99,136 @@ TOOLS = [
                             'Data no formato YYYY-MM-DD. '
                             'Se não informada, usa hoje.'
                         ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_frequencia_rdos',
+            'description': (
+                'Analisa frequência de RDOs por obra e por frente: '
+                'obras/frentes que nunca tiveram RDO, último RDO há X dias, '
+                'lacunas no histórico (buracos entre registros) e total no período. '
+                'Use SEMPRE em análises gerais, panoramas e resumos operacionais.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra (opcional).',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'dias_sem_rdo_alerta': {
+                        'type': 'integer',
+                        'description': 'Alerta se último RDO há mais de N dias. Default 7.',
+                    },
+                    'dias_analise': {
+                        'type': 'integer',
+                        'description': 'Janela de análise em dias. Default 90.',
+                    },
+                    'lacuna_minima_dias': {
+                        'type': 'integer',
+                        'description': (
+                            'Buracos no histórico com pelo menos N dias '
+                            'sem RDO. Default 7.'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_situacao_pedidos_obras',
+            'description': (
+                'Panorama de pedidos por obra e frente: pendentes total, '
+                'atrasados na aprovação, com prazo vencido e top pedidos críticos. '
+                'Use em análises gerais de aprovação e situação financeira.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra (opcional).',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'dias_aprovacao_alerta': {
+                        'type': 'integer',
+                        'description': (
+                            'Pedido considerado atrasado após N dias. Default 7.'
+                        ),
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'listar_frentes_obra',
+            'description': (
+                'Lista frentes/subobras ativas de uma obra com responsável. '
+                'Use antes de resumos por frente ou quando o usuário '
+                'perguntar sobre frentes, torres, blocos ou setores da obra.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'resumo_frente_obra',
+            'description': (
+                'Resumo operacional de uma frente específica: RDOs (último, '
+                'lacunas), pedidos pendentes/atrasados e restrições abertas. '
+                'Requer obra e frente (nome ou ID).'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'frente_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da frente.',
+                    },
+                    'frente_id': {
+                        'type': 'integer',
+                        'description': 'ID da frente (opcional).',
                     },
                 },
                 'required': [],
@@ -316,7 +448,8 @@ TOOLS = [
             'description': (
                 'Retorna um resumo consolidado de uma obra: '
                 'RDOs pendentes, pedidos pendentes, restrições abertas, '
-                'pendências TrackHub e itens sem alocação. '
+                'pendências TrackHub, itens sem alocação e mini-resumo '
+                'por frente quando a obra tiver frentes ativas. '
                 'Use quando o usuário pedir "resumo", "situação", '
                 '"como está" ou "overview" de uma obra.'
             ),
@@ -557,11 +690,11 @@ TOOLS = [
             'description': (
                 'Consulta pedidos do GestControll com filtros avançados. '
                 'Use para: pedidos dos últimos N dias, pedidos atrasados, '
-                'por obra, por responsável/aprovador, por tipo, por credor, '
-                'por solicitante, por status específico. '
+                'com prazo vencido, por obra, frente, responsável/aprovador, '
+                'tipo, credor, solicitante ou status. '
                 "Exemplos: 'pedidos pendentes da última semana', "
                 "'pedidos atrasados há mais de 15 dias', "
-                "'pedidos de medição', 'pedidos do credor X'."
+                "'pedidos com prazo vencido', 'pedidos da frente Norte'."
             ),
             'parameters': {
                 'type': 'object',
@@ -605,6 +738,20 @@ TOOLS = [
                         'type': 'integer',
                         'description': (
                             'Pedidos pendentes há mais de N dias (opcional).'
+                        ),
+                    },
+                    'frente_nome': {
+                        'type': 'string',
+                        'description': (
+                            'Filtrar por frente (ou "obra inteira" para '
+                            'pedidos sem frente). Opcional.'
+                        ),
+                    },
+                    'prazo_vencido': {
+                        'type': 'boolean',
+                        'description': (
+                            'Se True, retorna apenas pedidos pendentes/reaprovação '
+                            'com prazo estimado vencido. Opcional.'
                         ),
                     },
                     'ordem': {
@@ -1364,6 +1511,286 @@ def _resolver_project(obra_nome=None, obra_id=None, usuario_wa=None):
     return None
 
 
+def _queryset_workorders_escopo(usuario_wa=None):
+    project_ids = _project_ids_escopo(usuario_wa)
+    return WorkOrder.objects.filter(
+        obra__project_id__in=project_ids,
+    ).select_related('obra', 'front')
+
+
+def _dias_em_aberto_pedido(workorder, hoje=None):
+    if not workorder.data_envio:
+        return None
+    hoje = hoje or timezone.localdate()
+    return max(0, (hoje - workorder.data_envio.date()).days)
+
+
+def _pedido_prazo_vencido(workorder, hoje=None):
+    if workorder.status not in ('pendente', 'reaprovacao'):
+        return False
+    if workorder.prazo_estimado is None or not workorder.data_envio:
+        return False
+    hoje = hoje or timezone.localdate()
+    limite = workorder.data_envio.date() + timedelta(days=workorder.prazo_estimado)
+    return limite < hoje
+
+
+def _nome_frente_workorder(workorder):
+    if getattr(workorder, 'front', None) and workorder.front_id:
+        return workorder.front.name
+    return 'Obra inteira'
+
+
+def _frentes_ativas_project(project):
+    from core.models import ProjectFront
+
+    return list(
+        ProjectFront.objects.filter(
+            project=project,
+            is_active=True,
+        ).order_by('name'),
+    )
+
+
+def _resolver_frente(project, frente_nome=None, frente_id=None):
+    from core.models import ProjectFront
+
+    if not project:
+        return None
+    qs = ProjectFront.objects.filter(project=project, is_active=True)
+    if frente_id:
+        return qs.filter(pk=frente_id).first()
+    if frente_nome:
+        exato = qs.filter(name__iexact=frente_nome).first()
+        if exato:
+            return exato
+        return qs.filter(name__icontains=frente_nome).first()
+    return None
+
+
+def _calcular_lacunas_rdo(datas, lacuna_minima_dias=7):
+    if len(datas) < 2:
+        return 0, []
+    maior = 0
+    lacunas = []
+    for i in range(1, len(datas)):
+        gap = (datas[i] - datas[i - 1]).days - 1
+        if gap > maior:
+            maior = gap
+        if gap >= lacuna_minima_dias:
+            lacunas.append({
+                'apos_data': str(datas[i - 1]),
+                'antes_data': str(datas[i]),
+                'dias_sem_rdo': gap,
+            })
+    return maior, lacunas
+
+
+def _metricas_rdo_frequencia(
+    project,
+    front_id=None,
+    dias_analise=90,
+    dias_sem_rdo_alerta=7,
+    lacuna_minima_dias=7,
+):
+    hoje = timezone.localdate()
+    inicio_periodo = hoje - timedelta(days=dias_analise)
+
+    qs_all = ConstructionDiary.objects.filter(project=project)
+    qs_periodo = qs_all.filter(date__gte=inicio_periodo, date__lte=hoje)
+
+    if front_id == 'todas':
+        pass
+    elif front_id is None:
+        qs_all = qs_all.filter(front__isnull=True)
+        qs_periodo = qs_periodo.filter(front__isnull=True)
+    else:
+        qs_all = qs_all.filter(front_id=front_id)
+        qs_periodo = qs_periodo.filter(front_id=front_id)
+
+    datas_all = sorted(set(qs_all.values_list('date', flat=True)))
+    datas_periodo = sorted(set(qs_periodo.values_list('date', flat=True)))
+
+    nunca_teve = len(datas_all) == 0
+    ultimo = datas_all[-1] if datas_all else None
+    dias_desde_ultimo = (hoje - ultimo).days if ultimo else None
+    maior_lacuna, lacunas = _calcular_lacunas_rdo(
+        datas_periodo,
+        lacuna_minima_dias=lacuna_minima_dias,
+    )
+
+    return {
+        'nunca_teve_rdo': nunca_teve,
+        'ultimo_rdo_data': str(ultimo) if ultimo else None,
+        'dias_desde_ultimo': dias_desde_ultimo,
+        'sem_rdo_recente': (
+            dias_desde_ultimo is not None
+            and dias_desde_ultimo > dias_sem_rdo_alerta
+        ),
+        'total_periodo': len(datas_periodo),
+        'dias_analise': dias_analise,
+        'maior_lacuna_dias': maior_lacuna,
+        'lacunas_acima_limite': lacunas,
+    }
+
+
+def _contar_restricoes_abertas(obra_gestao, front_id=None):
+    from impedimentos.models import Impedimento, StatusImpedimento
+
+    if not obra_gestao:
+        return {'total_abertas': 0, 'vencidas': 0}
+
+    status_final = StatusImpedimento.objects.filter(
+        obra=obra_gestao,
+    ).order_by('-ordem').first()
+    qs = Impedimento.objects.filter(
+        obra=obra_gestao,
+        parent__isnull=True,
+    )
+    if status_final:
+        qs = qs.exclude(status_id=status_final.id)
+    if front_id is None:
+        qs = qs.filter(front__isnull=True)
+    else:
+        qs = qs.filter(front_id=front_id)
+
+    hoje = timezone.localdate()
+    return {
+        'total_abertas': qs.count(),
+        'vencidas': qs.filter(
+            prazo__isnull=False,
+            prazo__lt=hoje,
+        ).count(),
+    }
+
+
+def _serializar_pedido_pendente(workorder, hoje=None):
+    hoje = hoje or timezone.localdate()
+    dias = _dias_em_aberto_pedido(workorder, hoje)
+    return {
+        'codigo': workorder.codigo,
+        'tipo': workorder.tipo_solicitacao,
+        'credor': workorder.nome_credor,
+        'status': workorder.status,
+        'obra': workorder.obra.nome if workorder.obra else '-',
+        'frente': _nome_frente_workorder(workorder),
+        'data_envio': (
+            str(workorder.data_envio.date()) if workorder.data_envio else '-'
+        ),
+        'dias_em_aberto': dias,
+        'prazo_vencido': _pedido_prazo_vencido(workorder, hoje),
+    }
+
+
+def _agregar_pedidos_obra(
+    obra_gestao,
+    qs_pendentes,
+    dias_aprovacao_alerta=7,
+    hoje=None,
+):
+    hoje = hoje or timezone.localdate()
+    pedidos = list(
+        qs_pendentes.filter(obra=obra_gestao).select_related('front'),
+    )
+
+    por_frente = {}
+    criticos = []
+    atrasados = 0
+    prazo_vencido = 0
+
+    for w in pedidos:
+        frente = _nome_frente_workorder(w)
+        dias = _dias_em_aberto_pedido(w, hoje) or 0
+        pv = _pedido_prazo_vencido(w, hoje)
+        atrasado = dias > dias_aprovacao_alerta
+
+        if frente not in por_frente:
+            por_frente[frente] = {
+                'pendentes': 0,
+                'atrasados': 0,
+                'prazo_vencido': 0,
+            }
+        por_frente[frente]['pendentes'] += 1
+        if atrasado:
+            por_frente[frente]['atrasados'] += 1
+            atrasados += 1
+        if pv:
+            por_frente[frente]['prazo_vencido'] += 1
+            prazo_vencido += 1
+
+        if atrasado or pv:
+            criticos.append({
+                'codigo': w.codigo,
+                'tipo': w.tipo_solicitacao,
+                'credor': w.nome_credor,
+                'frente': frente,
+                'dias_em_aberto': dias,
+                'prazo_vencido': pv,
+                'data_envio': (
+                    str(w.data_envio.date()) if w.data_envio else '-'
+                ),
+            })
+
+    criticos.sort(
+        key=lambda x: (x['prazo_vencido'], x['dias_em_aberto']),
+        reverse=True,
+    )
+
+    return {
+        'pendentes_total': len(pedidos),
+        'atrasados': atrasados,
+        'prazo_vencido': prazo_vencido,
+        'por_frente': [
+            {'frente': nome, **dados}
+            for nome, dados in sorted(por_frente.items())
+        ],
+        'pedidos_criticos': criticos[:10],
+    }
+
+
+def _mini_resumo_frente(project, front, obra_gestao, hoje=None):
+    hoje = hoje or timezone.localdate()
+    front_id = front.id if front else None
+    metricas_rdo = _metricas_rdo_frequencia(
+        project,
+        front_id=front_id,
+        dias_analise=30,
+        dias_sem_rdo_alerta=7,
+        lacuna_minima_dias=7,
+    )
+
+    qs_pendentes = WorkOrder.objects.filter(
+        obra=obra_gestao,
+        status__in=['pendente', 'reaprovacao'],
+    )
+    if front_id is None:
+        qs_pendentes = qs_pendentes.filter(front__isnull=True)
+    else:
+        qs_pendentes = qs_pendentes.filter(front_id=front_id)
+
+    pedidos_pendentes = qs_pendentes.count()
+    pedidos_atrasados = sum(
+        1 for w in qs_pendentes.select_related('front')
+        if (_dias_em_aberto_pedido(w, hoje) or 0) > 7
+    )
+    restricoes = _contar_restricoes_abertas(obra_gestao, front_id=front_id)
+
+    return {
+        'frente': front.name if front else 'Obra inteira',
+        'frente_id': front_id,
+        'rdos': {
+            'ultimo_rdo_data': metricas_rdo['ultimo_rdo_data'],
+            'dias_desde_ultimo': metricas_rdo['dias_desde_ultimo'],
+            'nunca_teve_rdo': metricas_rdo['nunca_teve_rdo'],
+            'lacunas_periodo': len(metricas_rdo['lacunas_acima_limite']),
+        },
+        'pedidos_pendentes': pedidos_pendentes,
+        'pedidos_atrasados': pedidos_atrasados,
+        'restricoes_abertas': restricoes['total_abertas'],
+        'restricoes_vencidas': restricoes['vencidas'],
+    }
+
+
 def _queryset_itens_sem_alocacao(obra):
     """Queryset canônico de itens sem alocação efetiva para mapa_obras.Obra."""
     project = getattr(obra, 'project', None)
@@ -1435,29 +1862,50 @@ def consultar_pedidos_pendentes(obra_id=None, usuario_wa=None) -> str:
         return json.dumps({
             'total': 0,
             'pedidos': [],
+            'agregacao_por_obra': [],
             'mensagem': 'Obra não encontrada ou sem permissão.',
         }, ensure_ascii=False)
-    qs = WorkOrder.objects.filter(
+
+    hoje = timezone.localdate()
+    qs = _queryset_workorders_escopo(usuario_wa).filter(
         status__in=['pendente', 'reaprovacao'],
-        obra__project_id__in=project_ids,
-    ).select_related('obra')
+    ).order_by('-data_envio')
     if obra_id:
         qs = qs.filter(obra__project_id=obra_id)
+
     resultados = [
-        {
-            'codigo': w.codigo,
-            'tipo': w.tipo_solicitacao,
-            'credor': w.nome_credor,
-            'status': w.status,
-            'obra': w.obra.nome if w.obra else '-',
-            'data_envio': str(w.data_envio) if w.data_envio else '-',
-        }
+        _serializar_pedido_pendente(w, hoje)
         for w in qs[:20]
     ]
-    return json.dumps({
+
+    payload = {
         'total': qs.count(),
         'pedidos': resultados,
-    }, ensure_ascii=False)
+    }
+
+    if not obra_id:
+        agregacao = {}
+        for w in qs.select_related('obra', 'front'):
+            nome_obra = w.obra.nome if w.obra else '-'
+            if nome_obra not in agregacao:
+                agregacao[nome_obra] = {
+                    'obra': nome_obra,
+                    'pendentes': 0,
+                    'atrasados': 0,
+                    'prazo_vencido': 0,
+                }
+            agregacao[nome_obra]['pendentes'] += 1
+            dias = _dias_em_aberto_pedido(w, hoje) or 0
+            if dias > 7:
+                agregacao[nome_obra]['atrasados'] += 1
+            if _pedido_prazo_vencido(w, hoje):
+                agregacao[nome_obra]['prazo_vencido'] += 1
+        payload['agregacao_por_obra'] = sorted(
+            agregacao.values(),
+            key=lambda x: (-x['pendentes'], x['obra']),
+        )
+
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def listar_obras_ativas(usuario_wa=None) -> str:
@@ -1477,19 +1925,43 @@ def consultar_obras_sem_rdo(data=None, usuario_wa=None) -> str:
     data = _data_ou_hoje(data)
     project_ids = _project_ids_escopo(usuario_wa)
     projetos_ativos = Project.objects.filter(is_active=True, id__in=project_ids)
-    projetos_com_rdo_aprovado = ConstructionDiary.objects.filter(
+
+    projetos_com_rdo_aprovado_hoje = ConstructionDiary.objects.filter(
         date=data,
         status='AP',
+        project_id__in=project_ids,
     ).values_list('project_id', flat=True)
-    sem_rdo = list(
+
+    sem_rdo_hoje = list(
         projetos_ativos.exclude(
-            id__in=projetos_com_rdo_aprovado,
-        ).values('id', 'name')
+            id__in=projetos_com_rdo_aprovado_hoje,
+        ).values('id', 'name'),
     )
+
+    projetos_com_qualquer_rdo = ConstructionDiary.objects.filter(
+        project_id__in=project_ids,
+    ).values_list('project_id', flat=True).distinct()
+
+    nunca_teve_rdo = list(
+        projetos_ativos.exclude(
+            id__in=projetos_com_qualquer_rdo,
+        ).values('id', 'name'),
+    )
+
     return json.dumps({
-        'total': len(sem_rdo),
-        'data': str(data),
-        'obras': sem_rdo,
+        'data_referencia': str(data),
+        'sem_rdo_hoje': {
+            'total': len(sem_rdo_hoje),
+            'descricao': (
+                'Obras ativas sem RDO aprovado na data de referência'
+            ),
+            'obras': sem_rdo_hoje,
+        },
+        'nunca_teve_rdo': {
+            'total': len(nunca_teve_rdo),
+            'descricao': 'Obras ativas que nunca registraram RDO no histórico',
+            'obras': nunca_teve_rdo,
+        },
     }, ensure_ascii=False)
 
 
@@ -1761,6 +2233,7 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
     itens_sem_alocacao = count_itens_sem_alocacao_efetiva(project)
 
     restricoes_abertas = 0
+    obra_gestao = None
     try:
         from gestao_aprovacao.models import Obra as ObraGestao
 
@@ -1792,14 +2265,33 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
     except Exception:
         pass
 
-    return json.dumps({
+    frentes_resumo = []
+    if obra_gestao:
+        frentes_ativas = _frentes_ativas_project(project)
+        if frentes_ativas:
+            frentes_resumo.append(
+                _mini_resumo_frente(project, None, obra_gestao),
+            )
+            for front in frentes_ativas:
+                frentes_resumo.append(
+                    _mini_resumo_frente(project, front, obra_gestao),
+                )
+
+    payload = {
         'obra': project.name,
         'rdos_pendentes_gestor': rdos_pendentes,
         'pedidos_pendentes': pedidos_pendentes,
         'itens_sem_alocacao': itens_sem_alocacao,
         'restricoes_abertas': restricoes_abertas,
         'pendencias_trackhub_abertas': pendencias_abertas,
-    }, ensure_ascii=False)
+    }
+    if frentes_resumo:
+        payload['tem_frentes_ativas'] = True
+        payload['frentes'] = frentes_resumo
+    else:
+        payload['tem_frentes_ativas'] = False
+
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def buscar_pdf_rdo(
@@ -2365,18 +2857,18 @@ def consultar_pedidos_filtrados(
     obra_nome=None, status=None, tipo=None,
     credor_nome=None, solicitante_nome=None,
     aprovador_nome=None, ultimos_dias=None,
-    atraso_minimo_dias=None, ordem=None,
+    atraso_minimo_dias=None, frente_nome=None,
+    prazo_vencido=None, ordem=None,
     usuario_wa=None,
 ) -> str:
-    from datetime import timedelta
-
     from django.contrib.auth import get_user_model
 
-    from gestao_aprovacao.models import Approval, WorkOrder, WorkOrderPermission
+    from gestao_aprovacao.models import Approval, WorkOrderPermission
 
     User = get_user_model()
+    hoje = timezone.localdate()
 
-    qs = WorkOrder.objects.select_related('obra').order_by('-data_envio')
+    qs = _queryset_workorders_escopo(usuario_wa).order_by('-data_envio')
 
     if obra_nome:
         project = _resolver_project(
@@ -2385,6 +2877,13 @@ def consultar_pedidos_filtrados(
         obra_g = _obra_gestao_por_project(project)
         if obra_g:
             qs = qs.filter(obra=obra_g)
+
+    if frente_nome:
+        nome_lower = frente_nome.strip().lower()
+        if nome_lower in ('obra inteira', 'sem frente', 'obra toda'):
+            qs = qs.filter(front__isnull=True)
+        else:
+            qs = qs.filter(front__name__icontains=frente_nome)
 
     if status:
         qs = qs.filter(status=status.lower())
@@ -2432,6 +2931,18 @@ def consultar_pedidos_filtrados(
             data_envio__lte=limite_dt,
         )
 
+    if prazo_vencido:
+        candidatos = qs.filter(
+            status__in=['pendente', 'reaprovacao'],
+            prazo_estimado__isnull=False,
+            data_envio__isnull=False,
+        ).select_related('front')
+        ids_vencidos = [
+            w.id for w in candidatos
+            if _pedido_prazo_vencido(w, hoje)
+        ]
+        qs = qs.filter(id__in=ids_vencidos)
+
     if ordem == 'antigos':
         qs = qs.order_by('data_envio')
     elif ordem == 'obra':
@@ -2439,7 +2950,8 @@ def consultar_pedidos_filtrados(
 
     total = qs.count()
     pedidos = []
-    for w in qs[:20]:
+    for w in qs.select_related('front')[:20]:
+        dias = _dias_em_aberto_pedido(w, hoje)
         pedidos.append({
             'id': w.id,
             'codigo': w.codigo,
@@ -2447,9 +2959,12 @@ def consultar_pedidos_filtrados(
             'credor': w.nome_credor,
             'status': w.status,
             'obra': w.obra.nome if w.obra else '-',
+            'frente': _nome_frente_workorder(w),
             'data_envio': (
                 str(w.data_envio.date()) if w.data_envio else '-'
             ),
+            'dias_em_aberto': dias,
+            'prazo_vencido': _pedido_prazo_vencido(w, hoje),
             'criado_por': (
                 w.criado_por.get_full_name()
                 if w.criado_por else '-'
@@ -2639,13 +3154,11 @@ def buscar_pdf_pedido(
 def consultar_pedidos_reprovados(
     obra_nome=None, ultimos_dias=None, usuario_wa=None,
 ) -> str:
-    from datetime import timedelta
+    from gestao_aprovacao.models import Approval
 
-    from gestao_aprovacao.models import Approval, WorkOrder
-
-    qs = WorkOrder.objects.filter(
+    qs = _queryset_workorders_escopo(usuario_wa).filter(
         status='reprovado',
-    ).select_related('obra', 'criado_por').order_by('-data_envio')
+    ).select_related('obra', 'criado_por', 'front').order_by('-data_envio')
 
     if obra_nome:
         project = _resolver_project(
@@ -2674,6 +3187,7 @@ def consultar_pedidos_reprovados(
             'tipo': w.tipo_solicitacao,
             'credor': w.nome_credor,
             'obra': w.obra.nome if w.obra else '-',
+            'frente': _nome_frente_workorder(w),
             'data_envio': (
                 str(w.data_envio.date()) if w.data_envio else '-'
             ),
@@ -3740,11 +4254,292 @@ def consultar_alertas_rh_criticos(usuario_wa=None) -> str:
     }, ensure_ascii=False)
 
 
+def consultar_frequencia_rdos(
+    obra_nome=None,
+    obra_id=None,
+    dias_sem_rdo_alerta=None,
+    dias_analise=None,
+    lacuna_minima_dias=None,
+    usuario_wa=None,
+) -> str:
+    dias_sem_rdo_alerta = 7 if dias_sem_rdo_alerta is None else dias_sem_rdo_alerta
+    dias_analise = 90 if dias_analise is None else dias_analise
+    lacuna_minima_dias = 7 if lacuna_minima_dias is None else lacuna_minima_dias
+
+    project_ids = _project_ids_escopo(usuario_wa)
+    if obra_id or obra_nome:
+        project = _resolver_project(obra_nome, obra_id, usuario_wa)
+        if not project:
+            return json.dumps(
+                {'erro': 'Obra não encontrada.'},
+                ensure_ascii=False,
+            )
+        projects = [project]
+    else:
+        projects = list(
+            Project.objects.filter(
+                is_active=True,
+                id__in=project_ids,
+            ).order_by('name'),
+        )
+
+    resultado_obras = []
+    for project in projects:
+        frentes = _frentes_ativas_project(project)
+        bloco = {
+            'obra': project.name,
+            'project_id': project.id,
+            'tem_frentes_ativas': len(frentes) > 0,
+            'segmentos': [],
+        }
+
+        if frentes:
+            bloco['segmentos'].append({
+                'frente': 'Obra inteira',
+                'frente_id': None,
+                **_metricas_rdo_frequencia(
+                    project,
+                    front_id=None,
+                    dias_analise=dias_analise,
+                    dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+                    lacuna_minima_dias=lacuna_minima_dias,
+                ),
+            })
+            for front in frentes:
+                bloco['segmentos'].append({
+                    'frente': front.name,
+                    'frente_id': front.id,
+                    **_metricas_rdo_frequencia(
+                        project,
+                        front_id=front.id,
+                        dias_analise=dias_analise,
+                        dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+                        lacuna_minima_dias=lacuna_minima_dias,
+                    ),
+                })
+        else:
+            bloco['segmentos'].append({
+                'frente': 'Obra',
+                'frente_id': None,
+                **_metricas_rdo_frequencia(
+                    project,
+                    front_id='todas',
+                    dias_analise=dias_analise,
+                    dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+                    lacuna_minima_dias=lacuna_minima_dias,
+                ),
+            })
+
+        resultado_obras.append(bloco)
+
+    return json.dumps({
+        'total_obras': len(resultado_obras),
+        'parametros': {
+            'dias_sem_rdo_alerta': dias_sem_rdo_alerta,
+            'dias_analise': dias_analise,
+            'lacuna_minima_dias': lacuna_minima_dias,
+        },
+        'obras': resultado_obras,
+    }, ensure_ascii=False)
+
+
+def consultar_situacao_pedidos_obras(
+    obra_nome=None,
+    obra_id=None,
+    dias_aprovacao_alerta=None,
+    usuario_wa=None,
+) -> str:
+    from gestao_aprovacao.models import Obra as ObraGestao
+
+    dias_aprovacao_alerta = (
+        7 if dias_aprovacao_alerta is None else dias_aprovacao_alerta
+    )
+    hoje = timezone.localdate()
+    project_ids = _project_ids_escopo(usuario_wa)
+    qs_pendentes = _queryset_workorders_escopo(usuario_wa).filter(
+        status__in=['pendente', 'reaprovacao'],
+    )
+
+    if obra_id or obra_nome:
+        project = _resolver_project(obra_nome, obra_id, usuario_wa)
+        if not project:
+            return json.dumps(
+                {'erro': 'Obra não encontrada.'},
+                ensure_ascii=False,
+            )
+        obras_gestao = list(
+            ObraGestao.objects.filter(project=project, ativo=True),
+        )
+    else:
+        obras_gestao = list(
+            ObraGestao.objects.filter(
+                ativo=True,
+                project_id__in=project_ids,
+            ).select_related('project').order_by('nome'),
+        )
+
+    obras_resultado = []
+    todos_criticos = []
+    for obra_g in obras_gestao:
+        ag = _agregar_pedidos_obra(
+            obra_g,
+            qs_pendentes,
+            dias_aprovacao_alerta=dias_aprovacao_alerta,
+            hoje=hoje,
+        )
+        item = {
+            'obra': obra_g.nome,
+            'project_id': obra_g.project_id,
+            **ag,
+        }
+        obras_resultado.append(item)
+        for critico in ag['pedidos_criticos']:
+            critico_com_obra = dict(critico)
+            critico_com_obra['obra'] = obra_g.nome
+            todos_criticos.append(critico_com_obra)
+
+    todos_criticos.sort(
+        key=lambda x: (x.get('prazo_vencido', False), x.get('dias_em_aberto', 0)),
+        reverse=True,
+    )
+
+    return json.dumps({
+        'dias_aprovacao_alerta': dias_aprovacao_alerta,
+        'total_obras': len(obras_resultado),
+        'obras': obras_resultado,
+        'top_pedidos_criticos': todos_criticos[:15],
+    }, ensure_ascii=False)
+
+
+def listar_frentes_obra(
+    obra_nome=None,
+    obra_id=None,
+    usuario_wa=None,
+) -> str:
+    project = _resolver_project(obra_nome, obra_id, usuario_wa)
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    frentes = _frentes_ativas_project(project)
+    resultado = [
+        {
+            'id': f.id,
+            'nome': f.name,
+            'codigo': f.code or '',
+            'responsavel': f.responsible_name or '-',
+            'localizacao': f.location_reference or '-',
+        }
+        for f in frentes
+    ]
+
+    return json.dumps({
+        'obra': project.name,
+        'project_id': project.id,
+        'total_frentes': len(resultado),
+        'frentes': resultado,
+    }, ensure_ascii=False)
+
+
+def resumo_frente_obra(
+    obra_nome=None,
+    obra_id=None,
+    frente_nome=None,
+    frente_id=None,
+    usuario_wa=None,
+) -> str:
+    project = _resolver_project(obra_nome, obra_id, usuario_wa)
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    obra_gestao = _obra_gestao_por_project(project)
+    if not obra_gestao:
+        return json.dumps(
+            {'erro': 'Obra sem vínculo no GestControll.'},
+            ensure_ascii=False,
+        )
+
+    if frente_nome or frente_id:
+        front = _resolver_frente(project, frente_nome, frente_id)
+        if not front:
+            return json.dumps(
+                {'erro': 'Frente não encontrada nesta obra.'},
+                ensure_ascii=False,
+            )
+    else:
+        frentes = _frentes_ativas_project(project)
+        if len(frentes) == 1:
+            front = frentes[0]
+        else:
+            return json.dumps(
+                {
+                    'erro': (
+                        'Informe o nome ou ID da frente. '
+                        'Use listar_frentes_obra para ver as opções.'
+                    ),
+                },
+                ensure_ascii=False,
+            )
+
+    hoje = timezone.localdate()
+    front_id = front.id
+    metricas_rdo = _metricas_rdo_frequencia(
+        project,
+        front_id=front_id,
+        dias_analise=90,
+        dias_sem_rdo_alerta=7,
+        lacuna_minima_dias=7,
+    )
+
+    qs_pendentes = WorkOrder.objects.filter(
+        obra=obra_gestao,
+        status__in=['pendente', 'reaprovacao'],
+        front_id=front_id,
+    ).select_related('front')
+
+    pedidos_pendentes = []
+    for w in qs_pendentes:
+        pedidos_pendentes.append(_serializar_pedido_pendente(w, hoje))
+
+    pedidos_atrasados = [
+        p for p in pedidos_pendentes
+        if (p.get('dias_em_aberto') or 0) > 7
+    ]
+    pedidos_prazo_vencido = [
+        p for p in pedidos_pendentes if p.get('prazo_vencido')
+    ]
+    restricoes = _contar_restricoes_abertas(obra_gestao, front_id=front_id)
+
+    return json.dumps({
+        'obra': project.name,
+        'frente': front.name,
+        'frente_id': front.id,
+        'responsavel_frente': front.responsible_name or '-',
+        'rdos': metricas_rdo,
+        'pedidos': {
+            'pendentes_total': len(pedidos_pendentes),
+            'atrasados': len(pedidos_atrasados),
+            'prazo_vencido': len(pedidos_prazo_vencido),
+            'lista_pendentes': pedidos_pendentes[:10],
+        },
+        'restricoes': restricoes,
+    }, ensure_ascii=False)
+
+
 FUNCOES_DISPONIVEIS = {
     'consultar_rdos_pendentes': consultar_rdos_pendentes,
     'consultar_pedidos_pendentes': consultar_pedidos_pendentes,
     'listar_obras_ativas': listar_obras_ativas,
     'consultar_obras_sem_rdo': consultar_obras_sem_rdo,
+    'consultar_frequencia_rdos': consultar_frequencia_rdos,
+    'consultar_situacao_pedidos_obras': consultar_situacao_pedidos_obras,
+    'listar_frentes_obra': listar_frentes_obra,
+    'resumo_frente_obra': resumo_frente_obra,
     'consultar_suprimentos_obra': consultar_suprimentos_obra,
     'consultar_itens_sem_alocacao': consultar_itens_sem_alocacao,
     'consultar_restricoes_obra': consultar_restricoes_obra,
