@@ -134,3 +134,11 @@ class TestAnaliseObraService(TestCase):
         data = r.json()
         self.assertTrue(data.get("success"))
         self.assertIn("gestao_obra_id", data["data"]["meta"])
+
+    def test_analise_obra_api_heatmap(self):
+        url = reverse("suprimentos:analise_obra_api")
+        r = self.client.get(url, {"obra": self.obra.id, "secao": "heatmap"})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("heatmap", data["data"])

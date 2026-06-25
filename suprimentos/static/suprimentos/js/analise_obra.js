@@ -1117,17 +1117,46 @@
     pumpLazyQueue();
   }
 
+  function finishLazy(onDone) {
+    if (onDone) onDone();
+  }
+
   function carregarSecaoLazy(el, onDone) {
     var secao = el.dataset.secao;
     if (!secao || !el.dataset.obra) {
-      if (onDone) onDone();
+      finishLazy(onDone);
       return;
     }
     var skeleton = el.querySelector(".analise-loading-skeleton");
     var loadingHtml = skeleton ? skeleton.outerHTML : '<div class="analise-loading-skeleton">Carregando…</div>';
     el.innerHTML = loadingHtml;
-    fetch(apiUrl(el), { credentials: "same-origin", headers: { Accept: "application/json" } })
+
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timeoutId = null;
+    if (controller) {
+      timeoutId = window.setTimeout(function () {
+        try {
+          controller.abort();
+        } catch (e) {}
+      }, 120000);
+    }
+
+    fetch(apiUrl(el), {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal: controller ? controller.signal : undefined,
+    })
       .then(function (r) {
+        if (!r.ok) {
+          return r
+            .json()
+            .catch(function () {
+              return { success: false, error: "HTTP " + r.status };
+            })
+            .then(function (body) {
+              throw new Error((body && body.error) || "HTTP " + r.status);
+            });
+        }
         return r.json();
       })
       .then(function (j) {
@@ -1138,39 +1167,64 @@
         if (secao === "cruzamento" && data.cruzamento) mergeCruzamentoPriorities(data.cruzamento);
         if (secao === "trackhub" && data.trackhub) mergeTrackhubPriorities(data.trackhub);
       })
-      .catch(function () {
+      .catch(function (err) {
         el.dataset.lazyQueued = "";
+        var msg = err && err.message ? err.message : "Erro desconhecido";
         el.innerHTML =
-          '<div style="padding:16px;color:var(--bi-red)">Erro ao carregar esta seção. ' +
+          '<div style="padding:16px;color:var(--bi-red)">Erro ao carregar esta seção (' +
+          esc(msg) +
+          '). ' +
           '<button type="button" class="nav-link" style="border:none;cursor:pointer;background:transparent;color:var(--bi-accent);padding:0;margin-left:4px" data-retry>Tentar novamente</button></div>';
         var btn = el.querySelector("[data-retry]");
-        if (btn) btn.addEventListener("click", function () { carregarSecaoLazy(el); });
+        if (btn) {
+          btn.addEventListener("click", function () {
+            el.dataset.lazyQueued = "";
+            enqueueLazy(el);
+          });
+        }
       })
-      .finally(function () {
-        if (onDone) onDone();
+      .then(function () {
+        if (timeoutId) window.clearTimeout(timeoutId);
+        finishLazy(onDone);
       });
   }
 
   function initLazySections() {
-    var nodes = document.querySelectorAll(".analise-secao-lazy");
+    var nodes = Array.prototype.slice.call(document.querySelectorAll(".analise-secao-lazy"));
     if (!nodes.length) return;
-    if (!("IntersectionObserver" in window)) {
-      nodes.forEach(enqueueLazy);
-      return;
+
+    // Primeiras seções: carregamento imediato (hero já veio no SSR; lazy não pode depender só do IO).
+    var eager = Math.min(5, nodes.length);
+    nodes.slice(0, eager).forEach(enqueueLazy);
+
+    var rest = nodes.slice(eager);
+    if (rest.length && "IntersectionObserver" in window) {
+      var observer = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            observer.unobserve(entry.target);
+            enqueueLazy(entry.target);
+          });
+        },
+        { root: null, rootMargin: "480px 0px", threshold: 0.01 }
+      );
+      rest.forEach(function (el) {
+        observer.observe(el);
+      });
+    } else if (rest.length) {
+      rest.forEach(enqueueLazy);
     }
-    var observer = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          observer.unobserve(entry.target);
-          enqueueLazy(entry.target);
-        });
-      },
-      { root: null, rootMargin: "320px 0px", threshold: 0 }
-    );
-    nodes.forEach(function (el) {
-      observer.observe(el);
-    });
+
+    // Fallback: nada pode ficar eternamente em skeleton (IO falhou ou requisição travou).
+    window.setTimeout(function () {
+      nodes.forEach(function (el) {
+        if (el.dataset.lazyLoaded !== "1") {
+          el.dataset.lazyQueued = "";
+          enqueueLazy(el);
+        }
+      });
+    }, 3000);
   }
 
   if (document.readyState === "loading") {

@@ -196,7 +196,7 @@ STATIC_URL = '/static/'
 
 # Versão global de assets para bust de cache em CSS/JS.
 # Defina LPLAN_STATIC_VERSION no ambiente (ex.: data/hora do deploy).
-LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260520')
+LPLAN_STATIC_VERSION = os.environ.get('LPLAN_STATIC_VERSION', '20260625')
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
