@@ -44,6 +44,7 @@ from suprimentos.services.mapa_engenharia_diagnostico import (
     anexar_diagnostico_sienge_itens,
     build_ultima_importacao_info,
 )
+from suprimentos.services.mapa_engenharia_filters import apply_mapa_engenharia_filters
 
 
 def _item_mapa_levantamento(item):
@@ -604,6 +605,7 @@ def mapa_engenharia(request):
     pendencia_filtro = request.GET.get('pendencia', '')
     ordenar = request.GET.get('ordenar', 'descricao')
     search = request.GET.get('search', '')
+    quick_filtro = request.GET.get('quick', '')
     por_pagina_raw = request.GET.get('por_pagina', '')
     page_size = MAPA_ITENS_POR_PAGINA
     if por_pagina_raw.isdigit() and int(por_pagina_raw) in MAPA_ITENS_POR_PAGINA_OPCOES:
@@ -627,112 +629,7 @@ def mapa_engenharia(request):
         pendencias = stats_obra['pendencias']
         itens = _mapa_itens_queryset(obra_id, prefetch_alocacoes=True)
     
-    if categoria:
-        itens = itens.filter(categoria__icontains=categoria)
-    
-    if local_id:
-        itens = itens.filter(local_aplicacao_id=local_id)
-    
-    if prioridade:
-        itens = itens.filter(prioridade=prioridade)
-    
-    if search:
-        busca_q = (
-            Q(insumo__descricao__icontains=search) |
-            Q(insumo__codigo_sienge__icontains=search) |
-            Q(descricao_override__icontains=search) |
-            Q(local_aplicacao__nome__icontains=search) |
-            Q(responsavel__icontains=search)
-        )
-        if not mapa_suprimentos_manual():
-            busca_q |= (
-                Q(numero_sc__icontains=search) |
-                Q(numero_pc__icontains=search) |
-                Q(empresa_fornecedora__icontains=search)
-            )
-        itens = itens.filter(busca_q)
-
-    if pendencia_filtro == 'SEM_LOCAL':
-        itens = itens.filter(local_aplicacao__isnull=True)
-    elif pendencia_filtro == 'SEM_PRAZO':
-        itens = itens.filter(prazo_necessidade__isnull=True)
-    elif pendencia_filtro == 'SEM_CODIGO':
-        itens = itens.filter(
-            Q(insumo__codigo_sienge='') | Q(insumo__codigo_sienge__startswith='SM-LEV-')
-        )
-    elif pendencia_filtro == 'INCOMPLETO':
-        itens = itens.filter(
-            Q(local_aplicacao__isnull=True)
-            | Q(prazo_necessidade__isnull=True)
-            | Q(insumo__codigo_sienge='')
-            | Q(insumo__codigo_sienge__startswith='SM-LEV-')
-            | Q(categoria='A CLASSIFICAR')
-        )
-    
-    # Filtro por status (modo manual: SQL; legado Sienge: propriedades em Python)
-    if status_filtro:
-        if manual:
-            itens = _mapa_filtrar_status_manual(itens, status_filtro)
-        else:
-            itens_lista = list(itens)
-            _oid_rec = int(obra_id) if obra_id else None
-            _attach_recebimentos_obra_cache(itens_lista, _oid_rec)
-
-            if status_filtro == 'LEVANTAMENTO':
-                itens_lista = [item for item in itens_lista if not item.numero_sc or item.numero_sc.strip() == '']
-            elif status_filtro == 'AGUARDANDO_COMPRA':
-                itens_lista = [
-                    item for item in itens_lista
-                    if item.numero_sc and item.numero_sc.strip() != ''
-                    and (not item.numero_pc or item.numero_pc.strip() == '')
-                ]
-            elif status_filtro == 'AGUARDANDO_ENTREGA':
-                itens_lista = [
-                    item for item in itens_lista
-                    if item.numero_pc and item.numero_pc.strip() != ''
-                    and item.quantidade_recebida_obra < item.quantidade_solicitada_sienge
-                ]
-            elif status_filtro == 'AGUARDANDO_ALOCACAO':
-                itens_lista = [
-                    item for item in itens_lista
-                    if item.quantidade_recebida_obra > 0
-                    and item.quantidade_alocada_local == 0
-                ]
-            elif status_filtro == 'PARCIAL':
-                itens_lista = [
-                    item for item in itens_lista
-                    if item.quantidade_alocada_local > 0
-                    and (
-                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge)
-                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada)
-                    )
-                ]
-            elif status_filtro == 'ENTREGUE':
-                itens_lista = [
-                    item for item in itens_lista
-                    if (
-                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local >= item.quantidade_solicitada_sienge)
-                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local >= item.quantidade_planejada)
-                    )
-                ]
-            elif status_filtro == 'ATRASADO':
-                from django.utils import timezone
-                hoje = timezone.now().date()
-                itens_lista = [
-                    item for item in itens_lista
-                    if item.prazo_necessidade
-                    and item.prazo_necessidade < hoje
-                    and (
-                        (item.quantidade_solicitada_sienge > 0 and item.quantidade_alocada_local < item.quantidade_solicitada_sienge)
-                        or (item.quantidade_solicitada_sienge == 0 and item.quantidade_planejada > 0 and item.quantidade_alocada_local < item.quantidade_planejada)
-                    )
-                ]
-
-            if itens_lista:
-                ids_filtrados = [item.id for item in itens_lista]
-                itens = _mapa_itens_queryset(obra_id, prefetch_alocacoes=True).filter(id__in=ids_filtrados)
-            else:
-                itens = ItemMapa.objects.none()
+    itens = apply_mapa_engenharia_filters(itens, request, obra_id, manual)
     
     obra_selecionada = None
     if obra_id:
@@ -809,6 +706,7 @@ def mapa_engenharia(request):
             'ordenar': ordenar,
             'por_pagina': str(page_size),
             'search': search,
+            'quick': quick_filtro,
             'scroll_item': request.GET.get('scroll_item', ''),
         },
         'pendencias': pendencias,
@@ -848,6 +746,7 @@ def exportar_mapa_excel(request):
     local_id = request.GET.get('local', '')
     prioridade = request.GET.get('prioridade', '')
     search = request.GET.get('search', '')
+    manual = mapa_suprimentos_manual()
     
     # Filtrar itens
     # CORREÇÃO: Otimizar N+1 queries na exportação também
@@ -868,19 +767,8 @@ def exportar_mapa_excel(request):
         ).annotate(
             quantidade_alocada_annotated=Sum('alocacoes__quantidade_alocada')
         )
-    
-    if categoria:
-        itens = itens.filter(categoria__icontains=categoria)
-    if local_id:
-        itens = itens.filter(local_aplicacao_id=local_id)
-    if prioridade:
-        itens = itens.filter(prioridade=prioridade)
-    if search:
-        itens = itens.filter(
-            Q(insumo__descricao__icontains=search) |
-            Q(insumo__codigo_sienge__icontains=search) |
-            Q(descricao_override__icontains=search)
-        )
+
+    itens = apply_mapa_engenharia_filters(itens, request, obra_id, manual)
     
     # Ordenar como na view
     itens = itens.annotate(
@@ -1070,6 +958,13 @@ def exportar_mapa_excel(request):
             '9. ALOCADO / PLANEJADO', '10. SALDO LOCAL', '11. STATUS', '12. PRIORIDADE',
             '13. OBSERVAÇÃO',
         ]
+        hidden_col_map = {
+            'col-resp': '5. RESPONSÁVEL',
+            'col-prazo': '6. PRAZO',
+            'col-und': '8. UND',
+            'col-obs': '13. OBSERVAÇÃO',
+            'col-prioridade': '12. PRIORIDADE',
+        }
     else:
         colunas_excel = [
             '1. CATEGORIA', '2. CÓDIGO DO INSUMO', '3. DESCRIÇÃO DO ITEM', '4. LOCAL',
@@ -1078,6 +973,22 @@ def exportar_mapa_excel(request):
             '12. PRAZO RECEBIMENTO', '13. QUANTIDADE RECEBIDA', '14. SALDO A SER ENTREGUE',
             '15. STATUS', '16. PRIORIDADE', '17. OBSERVAÇÃO',
         ]
+        hidden_col_map = {
+            'col-resp': '5. RESPONSÁVEL',
+            'col-prazo': '6. PRAZO',
+            'col-und': '8. UND',
+            'col-obs': '17. OBSERVAÇÃO',
+            'col-prioridade': '16. PRIORIDADE',
+        }
+
+    hidden_cols_raw = request.GET.get('hidden_cols', '')
+    if hidden_cols_raw:
+        cols_to_hide = {
+            hidden_col_map[key.strip()]
+            for key in hidden_cols_raw.split(',')
+            if key.strip() in hidden_col_map
+        }
+        colunas_excel = [col for col in colunas_excel if col not in cols_to_hide]
     
     # Criar DataFrame apenas com as colunas de dados
     dados_limpos = []
@@ -1495,11 +1406,15 @@ def criar_levantamento_rapido(request):
     msg = f'Levantamento criado: {insumo.descricao}'
     redirect_url = reverse('engenharia:mapa') + f'?obra={obra_id}&scroll_item={item.id}'
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        from suprimentos.views_api import render_mapa_item_mobile_card, render_mapa_item_row
+
         return JsonResponse({
             'success': True,
             'message': msg,
             'item_id': item.id,
             'redirect_url': redirect_url,
+            'row_html': render_mapa_item_row(request, item),
+            'mobile_card_html': render_mapa_item_mobile_card(request, item),
         })
     messages.success(request, msg)
     return redirect(redirect_url)

@@ -1,6 +1,6 @@
 // SupplyMap - JavaScript principal
 // Versão: deve bater com window.__LPLAN_SUPPLYMAP_VER__ no base_mapa
-var __LPLAN_JS_VER__ = '19';
+var __LPLAN_JS_VER__ = '20';
 
 var _csrfReadyPromise = null;
 var FIELD_SPINNER_DELAY_MS = 250;
@@ -96,6 +96,14 @@ function handleInlineFieldSave(input) {
 
     if (field === 'prioridade') {
         updatePrioridadeClass(input, value);
+    }
+
+    if (typeof validateMapaFieldBeforeSave === 'function') {
+        var validationErr = validateMapaFieldBeforeSave(input);
+        if (validationErr) {
+            setFieldError(input, validationErr);
+            return;
+        }
     }
 
     updateItemField(itemId, field, value, url, input);
@@ -642,10 +650,17 @@ function initAlocacaoForm(itemId) {
         .then(data => {
             if (data.success) {
                 showMessage('Alocação realizada com sucesso!', 'success');
-                // Recarregar modal ou atualizar tabela
-                setTimeout(() => {
-                    location.reload();
-                }, 1000);
+                var itemId = form.querySelector('[name="item_id"]') && form.querySelector('[name="item_id"]').value;
+                if (itemId && data.row_patch && typeof applyRowPatch === 'function') {
+                    applyRowPatch(itemId, data.row_patch);
+                } else if (itemId && data.status_css && typeof updateRowStatus === 'function') {
+                    updateRowStatus(itemId, data.status_css);
+                }
+                var modalEl = document.getElementById('modalDetalhe');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    var inst = bootstrap.Modal.getInstance(modalEl);
+                    if (inst) inst.hide();
+                }
             } else {
                 showMessage('Erro: ' + (data.error || 'Erro desconhecido'), 'error');
             }
@@ -660,6 +675,7 @@ function initAlocacaoForm(itemId) {
 
 // Filtros - função mantida para extensibilidade futura
 function initFiltros() {
+    if (typeof window.refreshMapaFragment === 'function') return;
     var form = document.getElementById('filtro-form');
     var search = document.getElementById('search');
     if (!form || !search) return;
@@ -676,6 +692,7 @@ function initFiltros() {
 }
 
 function initFiltroChips() {
+    if (typeof window.refreshMapaFragment === 'function') return;
     var bar = document.getElementById('mapa-filtros-ativos');
     if (!bar) return;
 
@@ -727,6 +744,7 @@ function initGridKeyboardNav() {
 }
 
 function initKpiFilters() {
+    if (typeof window.refreshMapaFragment === 'function') return;
     var container = document.getElementById('kpi-container');
     var form = document.getElementById('filtro-form');
     if (!container || !form) return;
@@ -816,10 +834,12 @@ function initDuplicateItem() {
             .then(function(res) {
                 if (res.ok && res.data.success) {
                     showMessage(res.data.message || 'Item duplicado.', 'success');
-                    if (res.data.redirect_url) {
-                        setTimeout(function() { window.location.href = res.data.redirect_url; }, 400);
+                    if (typeof refreshMapaFragment === 'function') {
+                        refreshMapaFragment({}, { scrollItemId: res.data.item_id, loadingMessage: 'Atualizando mapa…' });
+                    } else if (res.data.redirect_url) {
+                        window.location.href = res.data.redirect_url;
                     } else {
-                        setTimeout(function() { window.location.reload(); }, 600);
+                        window.location.reload();
                     }
                 } else {
                     showMessage(res.data.error || 'Erro ao duplicar.', 'error');
@@ -1085,7 +1105,7 @@ function initDeleteItem() {
         const url = btn.getAttribute('data-delete-url');
         if (!itemId || !url) return;
 
-        const ok = window.confirm('Excluir este item?\n\nEssa ação não pode ser desfeita.');
+        const ok = window.confirm('Excluir este item?\n\nVocê terá 7 segundos para desfazer.');
         if (!ok) return;
 
         getCsrfTokenAsync().then(function(csrftoken) {
@@ -1122,8 +1142,17 @@ function initDeleteItem() {
         })
         .then(data => {
             if (data.success) {
-                showMessage(data.message || '✅ Item excluído', 'success');
-                setTimeout(() => window.location.reload(), 400);
+                if (typeof removeItemFromDom === 'function') removeItemFromDom(itemId);
+                var modal = document.getElementById('modalDetalhe');
+                if (modal && typeof bootstrap !== 'undefined') {
+                    var inst = bootstrap.Modal.getInstance(modal);
+                    if (inst) inst.hide();
+                }
+                if (typeof showUndoDeleteToast === 'function' && data.undo_snapshot) {
+                    showUndoDeleteToast(data.undo_snapshot, data.message || 'Item excluído.');
+                } else {
+                    showMessage(data.message || 'Item excluído', 'success');
+                }
             } else {
                 showMessage('❌ ' + (data.error || 'Erro ao excluir'), 'error');
             }
@@ -1334,18 +1363,19 @@ function criarItem() {
         .then(data => {
             if (data.success) {
                 showMessage('✅ Item criado com sucesso!', 'success');
-                // Limpar formulário
                 form.reset();
-                // Fechar modal
                 const modalElement = document.getElementById('modalCriarItem');
                 if (modalElement) {
                     const modal = bootstrap.Modal.getInstance(modalElement);
                     if (modal) modal.hide();
                 }
-                // Recarregar página após 1 segundo
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                if (typeof refreshMapaFragment === 'function' && data.item_id) {
+                    refreshMapaFragment({}, { scrollItemId: data.item_id, loadingMessage: 'Atualizando mapa…' });
+                } else if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    setTimeout(() => window.location.reload(), 800);
+                }
             } else {
                 showMessage('❌ Erro ao criar item: ' + (data.error || 'Erro desconhecido'), 'error');
                 submitBtn.disabled = false;

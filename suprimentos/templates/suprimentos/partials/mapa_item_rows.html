@@ -1,0 +1,23 @@
+{% if itens %}
+{% regroup itens by categoria as itens_por_categoria %}
+{% for categoria_group in itens_por_categoria %}
+    <tr class="categoria-header" data-categoria="{{ categoria_group.grouper }}">
+        <td colspan="14">
+            <span class="toggle-categoria" data-categoria="{{ categoria_group.grouper }}">
+                <i class="bi bi-chevron-down"></i>
+            </span>
+            {{ categoria_group.grouper }} ({{ categoria_group.list|length }} itens)
+        </td>
+    </tr>
+    {% for item in categoria_group.list %}
+        {% include 'suprimentos/partials/mapa_item_row.html' with categoria=categoria_group.grouper %}
+    {% endfor %}
+{% endfor %}
+{% else %}
+<tr>
+    <td colspan="14" class="text-center py-4 text-muted">
+        <p class="mb-1">Nenhum item encontrado.</p>
+        <small>Selecione uma obra no filtro acima ou crie um novo levantamento para começar.</small>
+    </td>
+</tr>
+{% endif %}

@@ -256,4 +256,101 @@ class TestMapaManual(TestCase):
         data = r.json()
         self.assertTrue(data.get('success'))
         self.assertIn('scroll_item', data.get('redirect_url', ''))
+        self.assertIn('row_html', data)
+        self.assertIn('mobile_card_html', data)
         self.assertEqual(ItemMapa.objects.filter(obra=self.obra).count(), antes + 1)
+
+    def test_item_restaurar_after_delete(self):
+        self.item.responsavel = 'eng'
+        self.item.save()
+        AlocacaoRecebimento.objects.create(
+            obra=self.obra,
+            insumo=self.insumo,
+            local_aplicacao=self.local,
+            item_mapa=self.item,
+            quantidade_alocada=Decimal('2'),
+            criado_por=self.user,
+        )
+        url_del = reverse('suprimentos:item_excluir', kwargs={'item_id': self.item.id})
+        r = self.client.post(url_del)
+        self.assertEqual(r.status_code, 200)
+        snapshot = r.json().get('undo_snapshot')
+        self.assertIsNotNone(snapshot)
+        self.assertFalse(ItemMapa.objects.filter(pk=self.item.pk).exists())
+
+        url_restore = reverse('suprimentos:item_restaurar')
+        r2 = self.client.post(
+            url_restore,
+            data=json.dumps({'undo_snapshot': snapshot}),
+            content_type='application/json',
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertTrue(r2.json().get('success'))
+        restaurado = ItemMapa.objects.filter(obra=self.obra, responsavel='eng').first()
+        self.assertIsNotNone(restaurado)
+        self.assertEqual(restaurado.alocacoes.count(), 1)
+
+    def test_quick_filter_meus_itens(self):
+        self.user.first_name = 'João'
+        self.user.last_name = 'Silva'
+        self.user.save()
+        self.item.responsavel = 'João Silva'
+        self.item.save()
+        outro = ItemMapa.objects.create(
+            obra=self.obra,
+            insumo=Insumo.objects.create(codigo_sienge='SM-OUT', descricao='Outro item', unidade='UND'),
+            quantidade_planejada=Decimal('1'),
+            responsavel='Outra pessoa',
+        )
+        url = reverse('engenharia:mapa') + f'?obra={self.obra.id}&quick=MEUS_ITENS'
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Cimento')
+        self.assertNotContains(r, outro.insumo.descricao)
+
+    def test_mapa_engenharia_fragment_returns_html(self):
+        url = reverse('suprimentos:mapa_engenharia_fragment') + f'?obra={self.obra.id}'
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data.get('success'))
+        self.assertIn(f'data-item-id="{self.item.id}"', data.get('tbody_html', ''))
+        self.assertIn('supply-card', data.get('mobile_cards_html', ''))
+        self.assertIn('total', data.get('kpis', {}))
+        self.assertIn('page', data.get('pagination', {}))
+
+    def test_export_respects_hidden_cols(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        url = (
+            reverse('engenharia:exportar_excel')
+            + f'?obra={self.obra.id}&hidden_cols=col-resp,col-prazo'
+        )
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        wb = load_workbook(BytesIO(r.content))
+        ws = wb.active
+        headers = [cell.value for cell in ws[3] if cell.value]
+        self.assertNotIn('5. RESPONSÁVEL', headers)
+        self.assertNotIn('6. PRAZO', headers)
+        self.assertIn('3. DESCRIÇÃO DO ITEM', headers)
+
+    def test_item_detalhe_inclui_historico(self):
+        from suprimentos.models import HistoricoAlteracao
+
+        HistoricoAlteracao.registrar(
+            obra=self.obra,
+            usuario=self.user,
+            tipo='EDICAO',
+            descricao='Prazo alterado para 2026-01-15',
+            item_mapa=self.item,
+            campo_alterado='prazo_necessidade',
+        )
+        url = reverse('suprimentos:item_detalhe', kwargs={'item_id': self.item.id})
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        html = r.json().get('html', '')
+        self.assertIn('Histórico Recente', html)
+        self.assertIn('Prazo alterado', html)

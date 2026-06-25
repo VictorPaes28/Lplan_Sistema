@@ -1,0 +1,71 @@
+{% load suprimentos_filters %}
+<article class="supply-card {{ item.status_css }}{% if item.is_atrasado %} supply-card-atrasado{% endif %}"
+         data-item-id="{{ item.id }}"
+         data-status-etapa="{{ item.status_etapa }}">
+    <div class="supply-card-header">
+        <div class="supply-card-title">{{ item.descricao_override|default:item.insumo.descricao }}</div>
+        <span class="supply-card-badge {% if item.status_css == 'status-verde' %}badge-verde{% elif item.status_css == 'status-laranja' %}badge-laranja{% elif item.status_css == 'status-atrasado' %}badge-atrasado{% elif item.status_css == 'status-branco' %}badge-branco{% else %}badge-branco{% endif %}">
+            {{ item.status_etapa }}
+        </span>
+    </div>
+    <div class="supply-card-body">
+        <div class="supply-card-field">
+            <span class="supply-card-label">Local</span>
+            <span class="supply-card-value">{{ item.local_aplicacao.nome|default:"—" }}</span>
+        </div>
+        <div class="supply-card-field">
+            <span class="supply-card-label">Prazo</span>
+            <span class="supply-card-value">{{ item.prazo_necessidade|date:"d/m/Y"|default:"—" }}</span>
+        </div>
+        <div class="supply-card-field">
+            <span class="supply-card-label">Planejado</span>
+            <span class="supply-card-value">{{ item.quantidade_planejada|format_quantidade }} {{ item.insumo.unidade|format_unidade }}</span>
+        </div>
+        <div class="supply-card-field">
+            <span class="supply-card-label">Saldo</span>
+            <span class="supply-card-value">{{ item.saldo_a_alocar_local|floatformat:2 }} {{ item.insumo.unidade|format_unidade }}</span>
+        </div>
+        <div class="supply-card-progress">
+            <div class="supply-card-progress-bar">
+                <div class="supply-card-progress-fill" style="width: {{ item.percentual_alocado_porcentagem|floatformat:0 }}%;"></div>
+            </div>
+            <span class="supply-card-progress-text">{{ item.percentual_alocado_porcentagem|floatformat:0 }}%</span>
+        </div>
+    </div>
+    <div class="supply-card-footer">
+        {% if item.is_atrasado %}
+        <span class="atraso-tag"><i class="bi bi-exclamation-triangle"></i> Atrasado</span>
+        {% else %}
+        <span>{{ item.categoria|default:"—" }}</span>
+        {% endif %}
+        <div class="mapa-acoes-inline supply-card-acoes">
+            <button type="button" class="btn btn-alocar btn-alocar-ghost"
+                    data-item-id="{{ item.id }}"
+                    data-saldo="{{ item.saldo_a_alocar_local }}"
+                    data-planejado="{{ item.quantidade_planejada }}"
+                    data-unidade="{{ item.insumo.unidade }}"
+                    data-alocado="{{ item.quantidade_alocada_local }}"
+                    title="{% if item.saldo_a_alocar_local > 0 %}Alocar{% else %}Revisar alocações{% endif %}">
+                {% if item.saldo_a_alocar_local > 0 %}<i class="bi bi-plus-lg"></i>{% else %}<i class="bi bi-sliders"></i>{% endif %}
+            </button>
+            <button type="button" class="btn"
+                    data-modal-target="modalDetalhe"
+                    data-item-id="{{ item.id }}"
+                    title="Detalhes">
+                <i class="bi bi-eye"></i>
+            </button>
+            <button type="button" class="btn"
+                    data-action="duplicate-item"
+                    data-item-id="{{ item.id }}"
+                    title="Duplicar">
+                <i class="bi bi-copy"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger"
+                    data-action="delete-item"
+                    data-item-id="{{ item.id }}"
+                    title="Excluir">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+</article>

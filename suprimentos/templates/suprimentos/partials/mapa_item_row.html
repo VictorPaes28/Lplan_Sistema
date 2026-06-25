@@ -1,0 +1,226 @@
+{% load l10n %}
+{% load suprimentos_filters %}
+<tr data-item-id="{{ item.id }}"
+    class="{{ item.status_css }} categoria-{{ categoria|slugify }} linha-item-mapa{% if item.is_atrasado %} linha-atrasada{% endif %}"
+    data-status-etapa="{{ item.status_etapa }}"
+    data-alocado="{{ item.quantidade_alocada_local }}"
+    {% if item.is_atrasado %}data-atrasado="true"{% endif %}>
+    <td class="col-sticky-left zona-plan col-align-text">
+        <select class="input-inline form-select form-select-sm"
+                data-item-id="{{ item.id }}"
+                data-field="categoria"
+                data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+            {% if item.categoria and item.categoria not in categorias_opcoes_values %}
+                <option value="{{ item.categoria }}" selected>LEGADO: {{ item.categoria }}</option>
+            {% endif %}
+            {% for val,label in categorias_opcoes %}
+                <option value="{{ val }}" {% if item.categoria == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </td>
+    <td class="zona-plan col-align-center">
+        {% with cod=item.insumo.codigo_sienge|default:"" %}
+            {% if cod|slice:":7" == "SM-LEV-" or not cod %}
+                <input type="text"
+                       class="input-inline form-control form-control-sm"
+                       value=""
+                       data-item-id="{{ item.id }}"
+                       data-field="insumo_codigo"
+                       data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                       placeholder="Código"
+                       title="Código do insumo (opcional)">
+            {% else %}
+                <input type="text"
+                       class="input-inline form-control form-control-sm"
+                       value="{{ cod }}"
+                       data-item-id="{{ item.id }}"
+                       data-field="insumo_codigo"
+                       data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                       placeholder="Código"
+                       title="Código do insumo">
+            {% endif %}
+        {% endwith %}
+    </td>
+    <td class="zona-plan col-align-text col-destaque-desc">
+        <input type="text"
+               class="input-inline form-control form-control-sm"
+               value="{{ item.descricao_override|default:item.insumo.descricao }}"
+               data-item-id="{{ item.id }}"
+               data-field="descricao_override"
+               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+               placeholder="{{ item.insumo.descricao }}"
+               title="Descrição original: {{ item.insumo.descricao }}">
+    </td>
+    <td class="zona-plan col-align-text">
+        <select class="input-inline form-select form-select-sm"
+                data-item-id="{{ item.id }}"
+                data-field="local_aplicacao"
+                data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+            <option value="">-- Selecione --</option>
+            {% for local in locais %}
+                <option value="{{ local.id }}" {% if item.local_aplicacao_id == local.id %}selected{% endif %}>
+                    {{ local.nome }}
+                </option>
+            {% endfor %}
+        </select>
+    </td>
+    <td class="col-opt col-resp zona-plan col-align-center">
+        <input type="text" class="input-inline form-control form-control-sm"
+               value="{{ item.responsavel|default:'' }}"
+               data-item-id="{{ item.id }}"
+               data-field="responsavel"
+               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+    </td>
+    <td class="col-opt col-prazo zona-plan col-align-center">
+        <input type="date" class="input-inline form-control form-control-sm"
+               value="{{ item.prazo_necessidade|date:'Y-m-d'|default:'' }}"
+               data-item-id="{{ item.id }}"
+               data-field="prazo_necessidade"
+               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+    </td>
+    <td class="zona-plan col-align-center">
+        <input type="number"
+               class="input-inline form-control form-control-sm"
+               value="{{ item.quantidade_planejada|unlocalize }}"
+               data-item-id="{{ item.id }}"
+               data-field="quantidade_planejada"
+               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+               step="0.01"
+               min="0.01"
+               title="Quantidade planejada para este item">
+    </td>
+    <td class="col-opt col-und zona-plan col-align-center">
+        <select class="input-inline form-select form-select-sm text-center select-unidade"
+                data-item-id="{{ item.id }}"
+                data-field="insumo_unidade"
+                data-update-url="{% url 'suprimentos:item_atualizar_campo' %}"
+                title="Unidade de medida - sempre editável">
+            <option value="" {% if not item.insumo.unidade or item.insumo.unidade == '' %}selected{% endif %}>--</option>
+            <option value="UND" {% if item.insumo.unidade == 'UND' %}selected{% endif %}>UND</option>
+            <option value="PÇ" {% if item.insumo.unidade == 'PÇ' %}selected{% endif %}>PÇ</option>
+            <option value="KG" {% if item.insumo.unidade == 'KG' %}selected{% endif %}>KG</option>
+            <option value="M3" {% if item.insumo.unidade == 'M3' %}selected{% endif %}>m³</option>
+            <option value="M2" {% if item.insumo.unidade == 'M2' %}selected{% endif %}>m²</option>
+            <option value="M" {% if item.insumo.unidade == 'M' %}selected{% endif %}>M</option>
+            <option value="L" {% if item.insumo.unidade == 'L' %}selected{% endif %}>L</option>
+            <option value="GL" {% if item.insumo.unidade == 'GL' %}selected{% endif %}>GL</option>
+            <option value="TON" {% if item.insumo.unidade == 'TON' %}selected{% endif %}>TON</option>
+            <option value="MES" {% if item.insumo.unidade == 'MES' %}selected{% endif %}>MES</option>
+        </select>
+    </td>
+    <td class="celula-progresso zona-exec zona-sep-exec col-align-center col-destaque-exec"
+        data-bs-toggle="tooltip"
+        title="Alocado: {{ item.quantidade_alocada_local|floatformat:2 }}{% if item.quantidade_planejada > 0 %} | Planejado: {{ item.quantidade_planejada|floatformat:2 }}{% else %} | Sem qtd. planejada{% endif %} {{ item.insumo.unidade|format_unidade }} — use + para alocar">
+        <div class="exec-cell">
+            <span class="exec-numeros">
+                <strong class="exec-alocado">{{ item.quantidade_alocada_local|format_quantidade }}</strong>
+                <span class="exec-sep">/</span>
+                {% if item.quantidade_planejada > 0 %}
+                <span class="exec-planejado">{{ item.quantidade_planejada|format_quantidade }}</span>
+                {% else %}
+                <span class="exec-planejado exec-planejado--vazio" title="Informe a qtd. planejada">—</span>
+                {% endif %}
+                <span class="exec-unidade">{{ item.insumo.unidade|format_unidade }}</span>
+            </span>
+            <button type="button" class="btn-alocar-ghost btn-alocar btn-alocar-inline"
+                    data-item-id="{{ item.id }}"
+                    data-saldo="{{ item.saldo_a_alocar_local }}"
+                    data-planejado="{{ item.quantidade_planejada }}"
+                    data-unidade="{{ item.insumo.unidade }}"
+                    data-alocado="{{ item.quantidade_alocada_local }}"
+                    title="{% if item.saldo_a_alocar_local > 0 %}Alocar até {{ item.saldo_a_alocar_local }} {{ item.insumo.unidade|format_unidade }}{% else %}Ver ou ajustar alocações{% endif %}">
+                {% if item.saldo_a_alocar_local > 0 %}<i class="bi bi-plus-lg"></i>{% else %}<i class="bi bi-sliders"></i>{% endif %}
+            </button>
+        </div>
+    </td>
+    <td class="input-readonly zona-exec col-align-center"
+        data-bs-toggle="tooltip"
+        title="Saldo do local: planejado − alocado">
+        {% if item.saldo_negativo %}
+            <span class="saldo-aviso" data-bs-toggle="tooltip"
+                  title="{% if item.quantidade_planejada <= 0 %}Há alocação sem quantidade planejada.{% else %}Alocado maior que o planejado neste local.{% endif %}">
+                <i class="bi bi-exclamation-circle"></i>
+            </span>
+            {% if item.quantidade_planejada <= 0 %}
+            <span class="saldo-valor saldo-valor--alert">—</span>
+            {% else %}
+            <span class="saldo-valor saldo-valor--alert">{{ item.saldo_local_diferenca|floatformat:2 }}</span>
+            {% endif %}
+            <span class="saldo-und">{{ item.insumo.unidade|format_unidade }}</span>
+        {% else %}
+            <span class="saldo-valor">{{ item.saldo_a_alocar_local|floatformat:2 }}</span>
+            <span class="saldo-und">{{ item.insumo.unidade|format_unidade }}</span>
+        {% endif %}
+    </td>
+    <td class="col-sticky-right status-cell zona-status zona-sep-status {{ item.status_css }}">
+        <div class="status-content">
+            <span class="badge-status
+                {% if item.status_css == 'status-branco' %}badge-branco
+                {% elif item.status_css == 'status-vermelho' %}badge-vermelho
+                {% elif item.status_css == 'status-amarelo' %}badge-amarelo
+                {% elif item.status_css == 'status-laranja' %}badge-laranja
+                {% elif item.status_css == 'status-verde' %}badge-verde
+                {% elif item.status_css == 'status-atrasado' %}badge-atrasado
+                {% else %}badge-branco{% endif %}">
+                {% if item.is_atrasado %}
+                    <i class="bi bi-clock-history"></i>
+                {% elif 'ENTREGUE' in item.status_etapa %}
+                    <i class="bi bi-check-circle"></i>
+                {% elif 'PARCIAL' in item.status_etapa %}
+                    <i class="bi bi-hourglass-split"></i>
+                {% elif 'LEVANTAMENTO' in item.status_etapa %}
+                    <i class="bi bi-file-earmark-text"></i>
+                {% elif not mapa_suprimentos_manual and 'AGUARDANDO ENTREGA' in item.status_etapa %}
+                    <i class="bi bi-hourglass-split"></i>
+                {% elif not mapa_suprimentos_manual and 'SOLICITACAO' in item.status_etapa %}
+                    <i class="bi bi-cart-plus"></i>
+                {% endif %}
+                {{ item.status_etapa|status_etapa_curto }}
+            </span>
+        </div>
+    </td>
+    <td class="td-prioridade zona-info zona-sep-info col-align-center">
+        <select class="input-inline form-select form-select-sm select-prioridade prioridade-{{ item.prioridade|lower }}"
+                data-item-id="{{ item.id }}"
+                data-field="prioridade"
+                data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+            <option value="URGENTE" {% if item.prioridade == "URGENTE" %}selected{% endif %}>Urgente</option>
+            <option value="ALTA" {% if item.prioridade == "ALTA" %}selected{% endif %}>Alta</option>
+            <option value="MEDIA" {% if item.prioridade == "MEDIA" %}selected{% endif %}>Média</option>
+            <option value="BAIXA" {% if item.prioridade == "BAIXA" %}selected{% endif %}>Baixa</option>
+        </select>
+    </td>
+    <td class="col-opt col-obs zona-info col-align-text">
+        <input type="text" class="input-inline form-control form-control-sm"
+               value="{{ item.observacao_eng|default:'' }}"
+               data-item-id="{{ item.id }}"
+               data-field="observacao_eng"
+               data-update-url="{% url 'suprimentos:item_atualizar_campo' %}">
+    </td>
+    <td class="zona-acoes zona-sep-acoes col-align-center">
+        <div class="mapa-acoes-inline">
+            <button class="btn"
+                    data-modal-target="modalDetalhe"
+                    data-item-id="{{ item.id }}"
+                    title="Detalhes">
+                <i class="bi bi-eye"></i>
+            </button>
+            <button type="button"
+                    class="btn"
+                    data-action="duplicate-item"
+                    data-item-id="{{ item.id }}"
+                    data-duplicate-url="{% url 'suprimentos:item_duplicar' item.id %}"
+                    title="Duplicar item">
+                <i class="bi bi-copy"></i>
+            </button>
+            <button type="button"
+                    class="btn btn-outline-danger"
+                    data-action="delete-item"
+                    data-item-id="{{ item.id }}"
+                    data-delete-url="{% url 'suprimentos:item_excluir' item.id %}"
+                    title="Excluir item">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </td>
+</tr>

@@ -1,0 +1,13 @@
+{% if filtros.status or filtros.pendencia or filtros.local_id or filtros.categoria or filtros.prioridade or filtros.search or filtros.quick %}
+<div class="mapa-filtros-ativos" id="mapa-filtros-ativos">
+    <span class="mapa-filtros-ativos-label">Ativos</span>
+    {% if filtros.status %}<a href="#" class="mapa-chip-filtro" data-remove-param="status">{{ filtros.status }} ×</a>{% endif %}
+    {% if filtros.pendencia %}<a href="#" class="mapa-chip-filtro" data-remove-param="pendencia">{{ filtros.pendencia }} ×</a>{% endif %}
+    {% if filtros.local_id %}<a href="#" class="mapa-chip-filtro" data-remove-param="local">Local ×</a>{% endif %}
+    {% if filtros.categoria %}<a href="#" class="mapa-chip-filtro" data-remove-param="categoria">{{ filtros.categoria|truncatechars:20 }} ×</a>{% endif %}
+    {% if filtros.prioridade %}<a href="#" class="mapa-chip-filtro" data-remove-param="prioridade">{{ filtros.prioridade }} ×</a>{% endif %}
+    {% if filtros.search %}<a href="#" class="mapa-chip-filtro" data-remove-param="search">«{{ filtros.search|truncatechars:18 }}» ×</a>{% endif %}
+    {% if filtros.quick == 'MEUS_ITENS' %}<a href="#" class="mapa-chip-filtro" data-remove-param="quick">Meus itens ×</a>{% endif %}
+    {% if filtros.quick == 'PRAZO_7_DIAS' %}<a href="#" class="mapa-chip-filtro" data-remove-param="quick">Prazo 7 dias ×</a>{% endif %}
+</div>
+{% endif %}

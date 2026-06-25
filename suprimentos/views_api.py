@@ -1,4 +1,6 @@
+from django.core.paginator import Paginator
 from django.http import JsonResponse
+from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -29,6 +31,10 @@ from core.obras_readonly import inactive_mapa_obra_write_json
 from suprimentos.services.mapa_engenharia_diagnostico import (
     diagnostico_vinculo_sienge_item,
     descricao_visivel_item as _descricao_visivel_item,
+)
+from suprimentos.services.mapa_engenharia_filters import (
+    apply_mapa_engenharia_filters,
+    get_mapa_filter_params,
 )
 
 
@@ -508,6 +514,97 @@ def item_detalhe(request, item_id):
     return JsonResponse({'html': html})
 
 
+def _serialize_item_undo_snapshot(item):
+    """Serializa item completo + alocações para restauração (undo)."""
+    insumo = item.insumo
+    alocacoes = list(
+        AlocacaoRecebimento.objects.filter(item_mapa=item).select_related(
+            'local_aplicacao', 'obra', 'insumo'
+        )
+    )
+    return {
+        'item': {
+            'obra_id': item.obra_id,
+            'insumo_id': item.insumo_id,
+            'categoria': item.categoria,
+            'prioridade': item.prioridade,
+            'nao_aplica': item.nao_aplica,
+            'descricao_override': item.descricao_override,
+            'local_aplicacao_id': item.local_aplicacao_id,
+            'responsavel': item.responsavel,
+            'prazo_necessidade': item.prazo_necessidade.isoformat() if item.prazo_necessidade else None,
+            'quantidade_planejada': str(item.quantidade_planejada),
+            'observacao_eng': item.observacao_eng,
+            'numero_sc': item.numero_sc,
+            'item_sc': item.item_sc,
+            'data_sc': item.data_sc.isoformat() if item.data_sc else None,
+            'numero_pc': item.numero_pc,
+            'data_pc': item.data_pc.isoformat() if item.data_pc else None,
+            'empresa_fornecedora': item.empresa_fornecedora,
+            'prazo_recebimento': item.prazo_recebimento.isoformat() if item.prazo_recebimento else None,
+            'quantidade_recebida': str(item.quantidade_recebida),
+            'saldo_a_entregar': str(item.saldo_a_entregar),
+            'status_sienge_raw': item.status_sienge_raw,
+        },
+        'insumo': {
+            'id': insumo.id if insumo else None,
+            'codigo_sienge': insumo.codigo_sienge if insumo else '',
+            'descricao': insumo.descricao if insumo else '',
+            'unidade': insumo.unidade if insumo else '',
+        },
+        'alocacoes': [
+            {
+                'obra_id': a.obra_id,
+                'insumo_id': a.insumo_id,
+                'local_aplicacao_id': a.local_aplicacao_id,
+                'recebimento_id': a.recebimento_id,
+                'quantidade_alocada': str(a.quantidade_alocada),
+                'observacao': a.observacao,
+                'criado_por_id': a.criado_por_id,
+            }
+            for a in alocacoes
+        ],
+    }
+
+
+def _mapa_row_render_context(request, item, **extras):
+    """Contexto compartilhado para partials de linha/card do mapa."""
+    locais = LocalObra.objects.filter(obra_id=item.obra_id).order_by('tipo', 'nome')
+    categorias_opcoes = ItemMapa.CATEGORIA_CHOICES
+    categorias_opcoes_values = [v for v, _ in categorias_opcoes]
+    ctx = {
+        'item': item,
+        'locais': locais,
+        'categorias_opcoes': categorias_opcoes,
+        'categorias_opcoes_values': categorias_opcoes_values,
+        'mapa_suprimentos_manual': mapa_suprimentos_manual(),
+        'categoria': extras.pop('categoria', item.categoria),
+    }
+    ctx.update(extras)
+    return ctx
+
+
+def _mapa_item_for_render(item):
+    """Recarrega item com anotações usadas pelos partials."""
+    from suprimentos.views_engenharia import _mapa_itens_queryset
+
+    return _mapa_itens_queryset(item.obra_id, prefetch_alocacoes=True).get(pk=item.pk)
+
+
+def render_mapa_item_row(request, item, **context_extras):
+    """Renderiza HTML de uma linha da tabela do mapa."""
+    item = _mapa_item_for_render(item)
+    ctx = _mapa_row_render_context(request, item, **context_extras)
+    return render_to_string('suprimentos/partials/mapa_item_row.html', ctx, request=request)
+
+
+def render_mapa_item_mobile_card(request, item, **context_extras):
+    """Renderiza HTML de um card mobile do mapa."""
+    item = _mapa_item_for_render(item)
+    ctx = _mapa_row_render_context(request, item, **context_extras)
+    return render_to_string('suprimentos/partials/mapa_mobile_card.html', ctx, request=request)
+
+
 @csrf_exempt
 @login_required
 @require_group(GRUPOS.ENGENHARIA)
@@ -515,7 +612,10 @@ def item_detalhe(request, item_id):
 @ensure_csrf_cookie
 def item_excluir(request, item_id):
     """Exclui um item do mapa (engenharia)."""
-    item = get_object_or_404(ItemMapa, id=item_id)
+    item = get_object_or_404(
+        ItemMapa.objects.select_related('obra', 'insumo', 'local_aplicacao'),
+        id=item_id,
+    )
 
     # Segregação: só permitir excluir itens da obra atual da sessão (exceto superuser)
     obra_sessao_id = request.session.get('obra_id')
@@ -540,6 +640,7 @@ def item_excluir(request, item_id):
     local = item.local_aplicacao.nome if item.local_aplicacao else '-'
     tinha_sc = bool((item.numero_sc or '').strip())
     tinha_alocacoes = AlocacaoRecebimento.objects.filter(item_mapa=item).exists()
+    undo_snapshot = _serialize_item_undo_snapshot(item)
 
     with transaction.atomic():
         # Registrar histórico (FK item_mapa ficará NULL após a exclusão por SET_NULL)
@@ -561,7 +662,143 @@ def item_excluir(request, item_id):
     if tinha_sc or tinha_alocacoes:
         aviso = 'Item excluído. Atenção: ele tinha vínculo com SC e/ou alocações (histórico preservado).'
 
-    return JsonResponse({'success': True, 'message': aviso or 'Item excluído com sucesso.'})
+    return JsonResponse({
+        'success': True,
+        'message': aviso or 'Item excluído com sucesso.',
+        'undo_snapshot': undo_snapshot,
+    })
+
+
+@csrf_exempt
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["POST"])
+@ensure_csrf_cookie
+def item_restaurar(request):
+    """Recria item + alocações a partir de undo_snapshot."""
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido.'}, status=400)
+
+    snapshot = data.get('undo_snapshot') or data.get('snapshot')
+    if not snapshot or not isinstance(snapshot, dict):
+        return JsonResponse({'success': False, 'error': 'Snapshot ausente ou inválido.'}, status=400)
+
+    item_data = snapshot.get('item') or {}
+    insumo_data = snapshot.get('insumo') or {}
+    alocacoes_data = snapshot.get('alocacoes') or []
+    obra_id = item_data.get('obra_id')
+
+    if not obra_id:
+        return JsonResponse({'success': False, 'error': 'Obra inválida no snapshot.'}, status=400)
+
+    obra = get_object_or_404(Obra, id=obra_id)
+    obra_sessao_id = request.session.get('obra_id')
+    if not request.user.is_superuser:
+        if not obra_sessao_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Selecione uma obra no mapa antes de restaurar.',
+            }, status=403)
+        try:
+            if int(obra_sessao_id) != int(obra_id):
+                return JsonResponse({'success': False, 'error': 'Obra inválida para restauração.'}, status=403)
+        except (TypeError, ValueError):
+            return JsonResponse({'success': False, 'error': 'Obra da sessão inválida.'}, status=403)
+
+    ir = inactive_mapa_obra_write_json(obra)
+    if ir:
+        return ir
+
+    from datetime import datetime as dt
+
+    def _parse_date(val):
+        if not val:
+            return None
+        try:
+            return dt.strptime(val[:10], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
+    with transaction.atomic():
+        insumo = None
+        insumo_id = item_data.get('insumo_id')
+        if insumo_id:
+            insumo = Insumo.objects.filter(pk=insumo_id).first()
+        if not insumo and insumo_data.get('codigo_sienge'):
+            insumo = Insumo.objects.filter(codigo_sienge=insumo_data['codigo_sienge']).first()
+        if not insumo:
+            codigo = insumo_data.get('codigo_sienge') or f'SM-LEV-{uuid4().hex[:10].upper()}'
+            while Insumo.objects.filter(codigo_sienge=codigo).exists():
+                codigo = f'SM-LEV-{uuid4().hex[:10].upper()}'
+            insumo = Insumo.objects.create(
+                codigo_sienge=codigo,
+                descricao=insumo_data.get('descricao') or 'Item restaurado',
+                unidade=insumo_data.get('unidade') or 'UND',
+                ativo=True,
+            )
+
+        item = ItemMapa.objects.create(
+            obra_id=obra_id,
+            insumo=insumo,
+            categoria=item_data.get('categoria') or 'A CLASSIFICAR',
+            prioridade=item_data.get('prioridade') or 'MEDIA',
+            nao_aplica=bool(item_data.get('nao_aplica')),
+            descricao_override=item_data.get('descricao_override') or '',
+            local_aplicacao_id=item_data.get('local_aplicacao_id'),
+            responsavel=item_data.get('responsavel') or '',
+            prazo_necessidade=_parse_date(item_data.get('prazo_necessidade')),
+            quantidade_planejada=Decimal(str(item_data.get('quantidade_planejada') or '0')),
+            observacao_eng=item_data.get('observacao_eng') or '',
+            numero_sc=item_data.get('numero_sc') or '',
+            item_sc=item_data.get('item_sc') or '',
+            data_sc=_parse_date(item_data.get('data_sc')),
+            numero_pc=item_data.get('numero_pc') or '',
+            data_pc=_parse_date(item_data.get('data_pc')),
+            empresa_fornecedora=item_data.get('empresa_fornecedora') or '',
+            prazo_recebimento=_parse_date(item_data.get('prazo_recebimento')),
+            quantidade_recebida=Decimal(str(item_data.get('quantidade_recebida') or '0')),
+            saldo_a_entregar=Decimal(str(item_data.get('saldo_a_entregar') or '0')),
+            status_sienge_raw=item_data.get('status_sienge_raw') or '',
+            criado_por=request.user,
+        )
+
+        for aloc in alocacoes_data:
+            if not aloc.get('local_aplicacao_id'):
+                continue
+            AlocacaoRecebimento.objects.create(
+                obra_id=aloc.get('obra_id') or obra_id,
+                insumo_id=aloc.get('insumo_id') or insumo.id,
+                local_aplicacao_id=aloc['local_aplicacao_id'],
+                recebimento_id=aloc.get('recebimento_id'),
+                item_mapa=item,
+                quantidade_alocada=Decimal(str(aloc.get('quantidade_alocada') or '0')),
+                observacao=aloc.get('observacao') or '',
+                criado_por_id=aloc.get('criado_por_id') or request.user.id,
+            )
+
+        HistoricoAlteracao.registrar(
+            obra=obra,
+            usuario=request.user,
+            tipo='CRIACAO',
+            descricao=f'Item restaurado: "{item.descricao_override or insumo.descricao}"',
+            item_mapa=item,
+            campo_alterado='restauracao',
+            valor_anterior='',
+            valor_novo=str(item.id),
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
+
+    redirect_url = reverse('engenharia:mapa') + f'?obra={obra_id}&scroll_item={item.id}'
+    return JsonResponse({
+        'success': True,
+        'message': 'Item restaurado com sucesso.',
+        'item_id': item.id,
+        'redirect_url': redirect_url,
+        'row_html': render_mapa_item_row(request, item),
+        'mobile_card_html': render_mapa_item_mobile_card(request, item),
+    })
 
 
 @login_required
@@ -624,6 +861,8 @@ def item_duplicar(request, item_id):
         'message': 'Item duplicado com sucesso.',
         'item_id': novo.id,
         'redirect_url': redirect_url,
+        'row_html': render_mapa_item_row(request, novo),
+        'mobile_card_html': render_mapa_item_mobile_card(request, novo),
     })
 
 
@@ -2008,3 +2247,134 @@ def busca_rapida_mobile(request):
     
     except Exception as e:
         return JsonResponse({'items': [], 'error': str(e)})
+
+
+@login_required
+@require_group(GRUPOS.ENGENHARIA)
+@require_http_methods(["GET"])
+def mapa_engenharia_fragment(request):
+    """Retorna fragmentos HTML do mapa (tbody, cards mobile, KPIs, filtros) via AJAX."""
+    from mapa_obras.views import _user_can_access_obra
+    from suprimentos.views_engenharia import (
+        MAPA_ITENS_POR_PAGINA,
+        MAPA_ITENS_POR_PAGINA_OPCOES,
+        _attach_recebimentos_obra_cache,
+        _mapa_itens_queryset,
+        _mapa_order_by_queryset,
+        _mapa_stats_agregados_manual,
+        _ordenar_itens_mapa,
+        get_obra_da_sessao,
+    )
+    from suprimentos.services.mapa_engenharia_diagnostico import anexar_diagnostico_sienge_itens
+
+    obra_id = request.GET.get('obra')
+    if not obra_id:
+        obra_sessao = get_obra_da_sessao(request)
+        if obra_sessao:
+            obra_id = str(obra_sessao.id)
+
+    if obra_id:
+        try:
+            obra = Obra.objects.get(id=int(obra_id))
+            if not _user_can_access_obra(request, obra):
+                return JsonResponse({'success': False, 'error': 'Sem permissão para esta obra.'}, status=403)
+        except (Obra.DoesNotExist, ValueError):
+            obra_id = None
+
+    manual = mapa_suprimentos_manual()
+    filter_params = get_mapa_filter_params(request)
+    categoria = filter_params['categoria']
+    local_id = filter_params['local_id']
+    prioridade = filter_params['prioridade']
+    status_filtro = filter_params['status']
+    pendencia_filtro = filter_params['pendencia']
+    search = filter_params['search']
+    quick = filter_params['quick']
+    ordenar = request.GET.get('ordenar', 'descricao')
+    por_pagina_raw = request.GET.get('por_pagina', '')
+    page_size = MAPA_ITENS_POR_PAGINA
+    if por_pagina_raw.isdigit() and int(por_pagina_raw) in MAPA_ITENS_POR_PAGINA_OPCOES:
+        page_size = int(por_pagina_raw)
+
+    kpis = {'total': 0, 'atrasados': 0, 'levantamento': 0, 'parciais': 0, 'entregues': 0}
+
+    if not obra_id:
+        itens = ItemMapa.objects.none()
+        itens_lista_render = []
+        page_obj = Paginator(itens, page_size).get_page(1)
+    elif manual:
+        stats_obra = _mapa_stats_agregados_manual(obra_id)
+        kpis = stats_obra['kpis']
+        itens = _mapa_itens_queryset(obra_id)
+        itens = apply_mapa_engenharia_filters(itens, request, obra_id, manual)
+        itens = _mapa_order_by_queryset(itens, ordenar)
+        paginator = Paginator(itens, page_size)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        itens_lista_render = list(page_obj.object_list)
+    else:
+        itens = _mapa_itens_queryset(obra_id, prefetch_alocacoes=True)
+        itens = apply_mapa_engenharia_filters(itens, request, obra_id, manual)
+        itens_lista_completa = _ordenar_itens_mapa(list(itens), ordenar)
+        _attach_recebimentos_obra_cache(itens_lista_completa, obra_id)
+        anexar_diagnostico_sienge_itens(itens_lista_completa)
+        paginator = Paginator(itens_lista_completa, page_size)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        itens_lista_render = page_obj.object_list
+
+    locais = LocalObra.objects.filter(obra_id=obra_id).order_by('tipo', 'nome') if obra_id else LocalObra.objects.none()
+    categorias_opcoes = ItemMapa.CATEGORIA_CHOICES
+    categorias_opcoes_values = [v for v, _ in categorias_opcoes]
+
+    partial_ctx = {
+        'itens': itens_lista_render,
+        'locais': locais,
+        'categorias_opcoes': categorias_opcoes,
+        'categorias_opcoes_values': categorias_opcoes_values,
+        'mapa_suprimentos_manual': manual,
+        'kpis': kpis,
+        'filtros': {
+            'obra_id': str(obra_id) if obra_id else None,
+            'categoria': categoria,
+            'local_id': local_id,
+            'prioridade': prioridade,
+            'status': status_filtro,
+            'pendencia': pendencia_filtro,
+            'ordenar': ordenar,
+            'por_pagina': str(page_size),
+            'search': search,
+            'quick': quick,
+        },
+    }
+
+    tbody_html = render_to_string(
+        'suprimentos/partials/mapa_item_rows.html',
+        partial_ctx,
+        request=request,
+    )
+    mobile_cards_html = render_to_string(
+        'suprimentos/partials/mapa_mobile_cards.html',
+        partial_ctx,
+        request=request,
+    )
+    filtros_ativos_html = render_to_string(
+        'suprimentos/partials/mapa_filtros_ativos.html',
+        partial_ctx,
+        request=request,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'tbody_html': tbody_html,
+        'mobile_cards_html': mobile_cards_html,
+        'kpis': kpis,
+        'filtros_ativos_html': filtros_ativos_html,
+        'pagination': {
+            'page': page_obj.number,
+            'num_pages': page_obj.paginator.num_pages,
+            'count': page_obj.paginator.count,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next(),
+            'previous_page_number': page_obj.previous_page_number() if page_obj.has_previous() else None,
+            'next_page_number': page_obj.next_page_number() if page_obj.has_next() else None,
+        },
+    })

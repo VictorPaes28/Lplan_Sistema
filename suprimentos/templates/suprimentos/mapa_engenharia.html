@@ -4,7 +4,7 @@
 {% load suprimentos_filters %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/mapa_engenharia_ui.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'css/mapa_engenharia_ui.css' %}?v=3">
 <style>
 .mapa-contexto-import {
     font-size: 0.85rem;
@@ -49,6 +49,12 @@
                 <span class="kpi-label">Entregues</span>
             </div>
         </div>
+        {% if filtros.obra_id %}
+        <nav class="mapa-quick-filters" id="mapa-quick-filters" aria-label="Atalhos de filtro">
+            <button type="button" class="mapa-quick-chip{% if filtros.quick == 'MEUS_ITENS' %} is-active{% endif %}" data-quick-filter="MEUS_ITENS" title="Itens em que sou responsável">Meus itens</button>
+            <button type="button" class="mapa-quick-chip{% if filtros.quick == 'PRAZO_7_DIAS' %} is-active{% endif %}" data-quick-filter="PRAZO_7_DIAS" title="Prazo nos próximos 7 dias">Vence em 7 dias</button>
+        </nav>
+        {% endif %}
         <div class="mapa-toolbar-acoes">
             <button type="button" class="mapa-btn-primary" id="btnNovoLevantamento" aria-expanded="false">+ Levantamento</button>
             <button type="button" class="mapa-btn-toolbar" id="btnGerenciarLocais">Locais</button>
@@ -78,7 +84,8 @@
     {% endif %}
 
     {% if filtros.obra_id %}
-    {% if filtros.status or filtros.pendencia or filtros.local_id or filtros.categoria or filtros.prioridade or filtros.search %}
+    <div id="mapa-filtros-ativos-host">
+    {% if filtros.status or filtros.pendencia or filtros.local_id or filtros.categoria or filtros.prioridade or filtros.search or filtros.quick %}
     <div class="mapa-filtros-ativos" id="mapa-filtros-ativos">
         <span class="mapa-filtros-ativos-label">Ativos</span>
         {% if filtros.status %}<a href="#" class="mapa-chip-filtro" data-remove-param="status">{{ filtros.status }} ×</a>{% endif %}
@@ -87,8 +94,11 @@
         {% if filtros.categoria %}<a href="#" class="mapa-chip-filtro" data-remove-param="categoria">{{ filtros.categoria|truncatechars:20 }} ×</a>{% endif %}
         {% if filtros.prioridade %}<a href="#" class="mapa-chip-filtro" data-remove-param="prioridade">{{ filtros.prioridade }} ×</a>{% endif %}
         {% if filtros.search %}<a href="#" class="mapa-chip-filtro" data-remove-param="search">«{{ filtros.search|truncatechars:18 }}» ×</a>{% endif %}
+        {% if filtros.quick == 'MEUS_ITENS' %}<a href="#" class="mapa-chip-filtro" data-remove-param="quick">Meus itens ×</a>{% endif %}
+        {% if filtros.quick == 'PRAZO_7_DIAS' %}<a href="#" class="mapa-chip-filtro" data-remove-param="quick">Prazo 7 dias ×</a>{% endif %}
     </div>
     {% endif %}
+    </div>
     {% endif %}
 
     <div class="novo-levantamento-drawer collapse" id="novoLevantamentoBody">
@@ -208,6 +218,7 @@
     </div>
 
     <form id="filtro-form" class="mapa-filtros-form" method="get" action="{% url 'engenharia:mapa' %}">
+        <input type="hidden" name="quick" id="filtro-quick" value="{{ filtros.quick|default:'' }}">
         <input type="hidden" name="obra" value="{{ filtros.obra_id|default:'' }}">
         <div class="mapa-filtros-linha mapa-filtros-linha-prim">
             {% if exibir_seletor_frente %}
@@ -318,7 +329,7 @@
                 <span class="mapa-secao-label">Saída</span>
                 <button type="button" class="mapa-btn-toolbar" onclick="window.print()" title="Imprimir">Imprimir</button>
                 <a href="{% url 'engenharia:exportar_excel' %}?{{ request.GET.urlencode }}"
-                   class="mapa-btn-toolbar" title="Exportar Excel">Excel</a>
+                   class="mapa-btn-toolbar" id="mapa-export-excel" title="Exportar Excel (respeita filtros e colunas ocultas)">Excel</a>
             </div>
         </div>
     </form>
@@ -326,10 +337,11 @@
 
 <!-- Tabela -->
 {% if not filtros.obra_id %}
-<div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+<div class="alert alert-info d-flex align-items-center mb-3 mapa-empty-obra" role="alert">
     <i class="bi bi-info-circle-fill me-2"></i>
     <div>
-        <strong>Selecione uma obra</strong> no filtro acima para ver e editar os itens do mapa. Sem obra selecionada, a edição dos campos será bloqueada.
+        <strong>Selecione uma obra</strong> no filtro acima para ver e editar os itens do mapa.
+        <div class="mt-1"><small>Use o campo <strong>Obra</strong> no topo — ele receberá foco automaticamente.</small></div>
     </div>
 </div>
 {% endif %}
@@ -404,6 +416,7 @@
             <tr data-item-id="{{ item.id }}" 
                 class="{{ item.status_css }} categoria-{{ categoria_group.grouper|slugify }} linha-item-mapa{% if item.is_atrasado %} linha-atrasada{% endif %}"
                 data-status-etapa="{{ item.status_etapa }}"
+                data-alocado="{{ item.quantidade_alocada_local }}"
                 {% if item.is_atrasado %}data-atrasado="true"{% endif %}>
                 <!-- 1. CATEGORIA (Select - lista fechada LPLAN) -->
                 <td class="col-sticky-left zona-plan col-align-text">
@@ -642,9 +655,15 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="14" class="text-center py-4 text-muted">
-                    <p class="mb-1">Nenhum item encontrado.</p>
-                    <small>Selecione uma obra no filtro acima ou crie um novo levantamento para começar.</small>
+                <td colspan="14" class="text-center py-4 text-muted mapa-empty-items">
+                    <p class="mb-2">Nenhum item encontrado{% if filtros.obra_id %} com estes filtros{% endif %}.</p>
+                    {% if filtros.obra_id %}
+                    <button type="button" class="btn btn-sm btn-primary" id="btnEmptyNovoLevantamento">
+                        <i class="bi bi-plus-lg"></i> Novo levantamento
+                    </button>
+                    {% else %}
+                    <small>Selecione uma obra no filtro acima para começar.</small>
+                    {% endif %}
                 </td>
             </tr>
             {% endif %}
@@ -728,24 +747,47 @@
                 {% else %}
                 <span>{{ item.categoria|default:"—" }}</span>
                 {% endif %}
-                <div class="d-flex gap-1">
-                    <button type="button" class="btn btn-sm btn-outline-primary btn-alocar"
+                <div class="mapa-acoes-inline supply-card-acoes">
+                    <button type="button" class="btn btn-alocar btn-alocar-ghost"
                             data-item-id="{{ item.id }}"
                             data-saldo="{{ item.saldo_a_alocar_local }}"
                             data-planejado="{{ item.quantidade_planejada }}"
                             data-unidade="{{ item.insumo.unidade }}"
-                            data-alocado="{{ item.quantidade_alocada_local }}">
-                        {% if item.saldo_a_alocar_local > 0 %}Alocar{% else %}Revisar{% endif %}
+                            data-alocado="{{ item.quantidade_alocada_local }}"
+                            title="{% if item.saldo_a_alocar_local > 0 %}Alocar{% else %}Revisar alocações{% endif %}">
+                        {% if item.saldo_a_alocar_local > 0 %}<i class="bi bi-plus-lg"></i>{% else %}<i class="bi bi-sliders"></i>{% endif %}
                     </button>
-                    <button class="btn btn-sm btn-info" data-modal-target="modalDetalhe" data-item-id="{{ item.id }}">Detalhes</button>
+                    <button type="button" class="btn"
+                            data-modal-target="modalDetalhe"
+                            data-item-id="{{ item.id }}"
+                            title="Detalhes">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button type="button" class="btn"
+                            data-action="duplicate-item"
+                            data-item-id="{{ item.id }}"
+                            title="Duplicar">
+                        <i class="bi bi-copy"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger"
+                            data-action="delete-item"
+                            data-item-id="{{ item.id }}"
+                            title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
                 </div>
             </div>
         </article>
         {% endfor %}
         {% else %}
-        <div class="mobile-empty text-center text-muted py-5">
+        <div class="mobile-empty text-center text-muted py-5 mapa-empty-items">
             <i class="bi bi-inbox"></i>
-            <p class="mb-0">Nenhum item nesta página.</p>
+            <p class="mb-2">Nenhum item nesta página.</p>
+            {% if filtros.obra_id %}
+            <button type="button" class="btn btn-sm btn-primary" id="btnEmptyNovoLevantamentoMobile">
+                <i class="bi bi-plus-lg"></i> Novo levantamento
+            </button>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -1075,22 +1117,21 @@
 
 <!-- Modal Alocação Rápida -->
 <div class="modal fade" id="modalAlocar" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white py-2">
-                <h6 class="modal-title">
-                    <i class="bi bi-box-arrow-in-down"></i> Alocar Material
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content mapa-alocar-modal">
+            <div class="modal-header mapa-alocar-header py-2">
+                <h6 class="modal-title mb-0">
+                    <i class="bi bi-box-arrow-in-down"></i> Alocar no local
                 </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formAlocar">
-                <div class="modal-body">
+                <div class="modal-body mapa-alocar-body">
                     <input type="hidden" id="alocar_item_id" name="item_id">
                     
-                    <div class="alert alert-info py-2 small mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        Registre quanto foi aplicado/entregue <strong>neste local</strong> (até o planejado).
-                    </div>
+                    <p class="mapa-alocar-hint mb-2">
+                        Registre quanto foi aplicado <strong>neste local</strong> (até o planejado).
+                    </p>
                     
                     <!-- Alocações Existentes -->
                     <div class="mb-3" id="alocacoes_existentes" style="display: none;">
@@ -1146,9 +1187,37 @@
         </div>
     </div>
 </div>
+
+<!-- Atalhos de teclado -->
+<div class="modal fade" id="modalMapaAtalhos" tabindex="-1" aria-labelledby="modalMapaAtalhosLabel">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content mapa-atalhos-modal">
+            <div class="modal-header py-2">
+                <h6 class="modal-title mb-0" id="modalMapaAtalhosLabel"><i class="bi bi-keyboard"></i> Atalhos</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body py-2">
+                <dl class="mapa-atalhos-list mb-0">
+                    <dt>Enter</dt><dd>Salvar e ir ao próximo campo</dd>
+                    <dt>Esc</dt><dd>Cancelar edição inline</dd>
+                    <dt>?</dt><dd>Abrir este painel</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+window.__MAPA_ENG_CFG__ = {
+    fragmentUrl: "{% url 'suprimentos:mapa_engenharia_fragment' %}",
+    restoreUrl: "{% url 'suprimentos:item_restaurar' %}",
+    exportBase: "{% url 'engenharia:exportar_excel' %}",
+    scrollItem: "{{ filtros.scroll_item|default:''|escapejs }}"
+};
+</script>
+<script src="{% static 'js/mapa_engenharia_enhancements.js' %}?v=1"></script>
 {% if mapa_obra_somente_consulta %}
 <script>var LPLAN_MAPA_SOMENTE_CONSULTA = true;</script>
 {% else %}
@@ -1274,28 +1343,7 @@
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
         
-        // Scroll até item recém-criado/duplicado
-        (function scrollParaItem() {
-            var scrollId = new URLSearchParams(window.location.search).get('scroll_item') || '{{ filtros.scroll_item|default:"" }}';
-            if (!scrollId) return;
-            var alvo = document.querySelector('tr[data-item-id="' + scrollId + '"]')
-                || document.querySelector('.supply-card[data-item-id="' + scrollId + '"]');
-            if (alvo) {
-                setTimeout(function() {
-                    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    alvo.classList.add('scroll-highlight');
-                    setTimeout(function() { alvo.classList.remove('scroll-highlight'); }, 2800);
-                }, 200);
-            }
-            try {
-                var params = new URLSearchParams(window.location.search);
-                if (params.has('scroll_item')) {
-                    params.delete('scroll_item');
-                    var qs = params.toString();
-                    history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
-                }
-            } catch (e) {}
-        })();
+        // Scroll até item — tratado por mapa_engenharia_enhancements.js (deep link ?scroll_item=)
         
         // Verificar estado inicial de todos os campos editáveis
         document.querySelectorAll('[data-field], [data-update-url]').forEach(function(campo) {
@@ -1340,12 +1388,12 @@
             if (saldo > 0) {
                 const saldoFormatado = saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 saldoEl.innerHTML =
-                    '<div class="alert alert-success py-2 mb-2">' +
-                    '<strong><i class="bi bi-check-circle"></i> Disponível para alocar: ' + saldoFormatado + ' ' + unidade + '</strong>' +
+                    '<div class="mapa-alocar-saldo mapa-alocar-saldo--ok">' +
+                    '<strong><i class="bi bi-check-circle"></i> Disponível: ' + saldoFormatado + ' ' + unidade + '</strong>' +
                     '</div>';
             } else {
                 saldoEl.innerHTML =
-                    '<div class="alert alert-secondary py-2 mb-2">' +
+                    '<div class="mapa-alocar-saldo mapa-alocar-saldo--zero">' +
                     '<i class="bi bi-info-circle"></i> Saldo zerado — revise ou remova alocações existentes.' +
                     '</div>';
             }
@@ -1680,11 +1728,15 @@
                         if (typeof showMessage === 'function') {
                             showMessage(res.data.message || 'Levantamento criado.', 'success');
                         }
-                        if (res.data.redirect_url) {
+                        bsCollapse.hide();
+                        if (formNovoLevantamento) formNovoLevantamento.reset();
+                        if (typeof refreshMapaFragment === 'function' && res.data.item_id) {
+                            refreshMapaFragment({}, { scrollItemId: res.data.item_id, loadingMessage: 'Atualizando mapa…' });
+                        } else if (res.data.redirect_url) {
                             window.location.href = res.data.redirect_url;
-                            return;
+                        } else {
+                            window.location.reload();
                         }
-                        window.location.reload();
                     } else {
                         var err = (res.data && res.data.error) ? res.data.error : 'Erro ao criar levantamento.';
                         if (typeof showMessage === 'function') showMessage(err, 'error');

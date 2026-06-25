@@ -1,0 +1,22 @@
+<div class="mapa-kpi-segment" id="kpi-container">
+    <div class="kpi-card kpi-total kpi-clickable{% if not filtros.status %} kpi-active{% endif %}" data-kpi-status="" title="Ver todos">
+        <span class="kpi-valor">{{ kpis.total|default:0 }}</span>
+        <span class="kpi-label">Total</span>
+    </div>
+    <div class="kpi-card kpi-atrasados kpi-clickable{% if filtros.status == 'ATRASADO' %} kpi-active{% endif %}" data-kpi-status="ATRASADO" title="Atrasados">
+        <span class="kpi-valor">{{ kpis.atrasados|default:0 }}</span>
+        <span class="kpi-label">Atrasados</span>
+    </div>
+    <div class="kpi-card kpi-solicitados kpi-clickable{% if filtros.status == 'LEVANTAMENTO' %} kpi-active{% endif %}" data-kpi-status="LEVANTAMENTO" title="Levantamento">
+        <span class="kpi-valor">{{ kpis.levantamento|default:0 }}</span>
+        <span class="kpi-label">Levant.</span>
+    </div>
+    <div class="kpi-card kpi-parciais kpi-clickable{% if filtros.status == 'PARCIAL' %} kpi-active{% endif %}" data-kpi-status="PARCIAL" title="Parciais">
+        <span class="kpi-valor">{{ kpis.parciais|default:0 }}</span>
+        <span class="kpi-label">Parciais</span>
+    </div>
+    <div class="kpi-card kpi-entregues kpi-clickable{% if filtros.status == 'ENTREGUE' %} kpi-active{% endif %}" data-kpi-status="ENTREGUE" title="Entregues">
+        <span class="kpi-valor">{{ kpis.entregues|default:0 }}</span>
+        <span class="kpi-label">Entregues</span>
+    </div>
+</div>

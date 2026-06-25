@@ -1,0 +1,10 @@
+{% if itens %}
+{% for item in itens %}
+    {% include 'suprimentos/partials/mapa_mobile_card.html' %}
+{% endfor %}
+{% else %}
+<div class="mobile-empty text-center text-muted py-5">
+    <i class="bi bi-inbox"></i>
+    <p class="mb-0">Nenhum item nesta página.</p>
+</div>
+{% endif %}
