@@ -538,7 +538,13 @@ OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4.1')
 # Obras excluídas das consultas operacionais da IA WhatsApp (sede/escritório)
 WHATSAPP_IA_OBRAS_EXCLUIDAS = os.environ.get('WHATSAPP_IA_OBRAS_EXCLUIDAS', 'Sede')
 # Cache do briefing operacional (segundos) — contexto automático por usuário/dia
-WHATSAPP_IA_BRIEFING_CACHE_TTL = int(os.environ.get('WHATSAPP_IA_BRIEFING_CACHE_TTL', '300'))
+_briefing_ttl = (os.environ.get('WHATSAPP_IA_BRIEFING_CACHE_TTL', '300') or '300').strip()
+try:
+    WHATSAPP_IA_BRIEFING_CACHE_TTL = int(_briefing_ttl)
+except ValueError:
+    WHATSAPP_IA_BRIEFING_CACHE_TTL = 300
+# Meta Graph API — produção usa v25.0 (configurar no .env, sem editar código no servidor)
+WHATSAPP_API_VERSION = (os.environ.get('WHATSAPP_API_VERSION', 'v21.0') or 'v21.0').strip()
 # Usa SITE_URL do .env por padrão — não edite este arquivo no servidor; use .env ou settings_local.py
 WHATSAPP_BASE_URL = (os.environ.get('WHATSAPP_BASE_URL', '') or SITE_URL).rstrip('/')
 

@@ -13,12 +13,13 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from django.conf import settings
 from whatsapp_ia.ia_service import MSG_ERRO_PADRAO, chamar_openai_com_meta
 from whatsapp_ia.models import IaErroLog, IaMensagemLog, UsuarioWhatsApp
 
 logger = logging.getLogger(__name__)
 
-WHATSAPP_API_VERSION = 'v21.0'
+WHATSAPP_API_VERSION = getattr(settings, 'WHATSAPP_API_VERSION', 'v21.0')
 MSG_NAO_AUTORIZADO = (
     'Este número não está autorizado a consultar '
     'informações do sistema. Procure o administrador '
