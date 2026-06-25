@@ -1,0 +1,99 @@
+{% load static %}
+{% load core_tags %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resumo BI — {{ obra_selecionada.nome }}</title>
+  <link rel="stylesheet" href="{% static 'suprimentos/css/analise_obra.css' %}?v={{ lplan_static_version }}">
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; padding: 24px; color: #1a2233; background: #fff; }
+    .resumo-header { border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 20px; }
+    .resumo-title { font-size: 22px; font-weight: 800; }
+    .resumo-meta { font-size: 12px; color: #64748b; margin-top: 6px; }
+    .resumo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+    .resumo-kpi { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; }
+    .resumo-kpi-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 700; }
+    .resumo-kpi-val { font-size: 22px; font-weight: 800; font-family: "JetBrains Mono", monospace; margin-top: 4px; }
+    .resumo-section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin: 18px 0 8px; }
+    .resumo-list { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
+    .resumo-actions { margin-top: 24px; display: flex; gap: 10px; }
+    .resumo-btn { padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; border: none; background: #4f46e5; color: #fff; text-decoration: none; }
+    .resumo-btn--ghost { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+    @media print {
+      .resumo-actions { display: none; }
+      body { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+{% if analise_payload and obra_selecionada %}
+  <div class="resumo-header">
+    <div class="resumo-title">BI da Obra — {{ obra_selecionada.nome }}</div>
+    <div class="resumo-meta">
+      Código: {{ analise_payload.meta.obra_codigo|default:"—" }} ·
+      Período: {{ analise_payload.meta.periodo.inicio }} → {{ analise_payload.meta.periodo.fim }} ·
+      Gerado em {% now "d/m/Y H:i" %}
+    </div>
+  </div>
+
+  <div class="resumo-grid">
+    <div class="resumo-kpi">
+      <div class="resumo-kpi-label">Avanço físico</div>
+      <div class="resumo-kpi-val">{% firstof analise_payload.meta.kpis_hero.avanco_fisico_pct analise_payload.controle.kpis.percentual_medio "—" %}{% if analise_payload.controle.kpis.percentual_medio or analise_payload.meta.kpis_hero.avanco_fisico_pct %}%{% endif %}</div>
+    </div>
+    <div class="resumo-kpi">
+      <div class="resumo-kpi-label">Situação</div>
+      <div class="resumo-kpi-val" style="font-size:16px">{{ analise_payload.meta.situacao_executiva.rotulo|default:"—" }}</div>
+    </div>
+    <div class="resumo-kpi">
+      <div class="resumo-kpi-label">Restrições abertas</div>
+      <div class="resumo-kpi-val">{{ analise_payload.meta.kpis_hero.restricoes_abertas|default:"0" }}</div>
+    </div>
+    <div class="resumo-kpi">
+      <div class="resumo-kpi-label">Em aprovação</div>
+      <div class="resumo-kpi-val" style="font-size:16px">R$ {{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default:0|format_brl }}</div>
+    </div>
+  </div>
+
+  {% with bl=analise_payload.meta.baseline_planejamento %}
+  {% if bl.disponivel %}
+  <div class="resumo-section">
+    <h2>Planejado × real</h2>
+    <p style="font-size:13px;margin:0">{{ bl.mensagem }} · <strong>{{ bl.rotulo }}</strong></p>
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="resumo-section">
+    <h2>Ações prioritárias</h2>
+    <ul class="resumo-list">
+      {% for a in analise_payload.meta.acoes_prioritarias %}
+      <li>[{{ a.prioridade }}] {{ a.texto }}</li>
+      {% empty %}
+      <li>Nenhuma ação prioritária no recorte atual.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {% if analise_payload.meta.situacao_executiva.motivos %}
+  <div class="resumo-section">
+    <h2>Motivos da situação</h2>
+    <ul class="resumo-list">
+      {% for m in analise_payload.meta.situacao_executiva.motivos %}
+      <li>{{ m }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="resumo-actions">
+    <button type="button" class="resumo-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
+    <a href="{% url 'engenharia:analise_obra' %}?obra={{ obra_selecionada.id }}" class="resumo-btn resumo-btn--ghost">Voltar ao BI</a>
+  </div>
+{% else %}
+  <p>Selecione uma obra para gerar o resumo.</p>
+{% endif %}
+</body>
+</html>

@@ -113,6 +113,28 @@ def admin_central(request):
         }
     except Exception:
         pass
+
+    stats_bi_obra = {'obras_ativas': 0, 'ambientes': 0}
+    stats_ferramenta = {'ambientes': 0, 'obras': 0}
+    try:
+        from painel_operacional.models import AmbienteOperacional, VersaoEstado
+
+        ambientes_qs = AmbienteOperacional.objects.filter(ativo=True)
+        stats_ferramenta = {
+            'ambientes': ambientes_qs.count(),
+            'obras': ambientes_qs.values('obra_id').distinct().count(),
+        }
+        stats_bi_obra = {
+            'obras_ativas': Obra.objects.filter(ativa=True).count(),
+            'ambientes': ambientes_qs.filter(
+                versoes__estado=VersaoEstado.PUBLISHED,
+            ).distinct().count(),
+        }
+    except Exception:
+        stats_bi_obra = {
+            'obras_ativas': Obra.objects.filter(ativa=True).count(),
+            'ambientes': 0,
+        }
     
     # Grupos organizados por sistema com descricoes
     _grupo_descs = {
@@ -244,6 +266,8 @@ def admin_central(request):
         'stats_trackhub': stats_trackhub,
         'stats_impedimentos': stats_impedimentos,
         'stats_rh': stats_rh,
+        'stats_bi_obra': stats_bi_obra,
+        'stats_ferramenta': stats_ferramenta,
         'grupos_gestao': grupos_gestao,
         'grupos_diario': grupos_diario,
         'grupos_mapa': grupos_mapa,
@@ -270,7 +294,9 @@ def admin_central(request):
             'stats_workflow': stats_workflow,
             'stats_trackhub': stats_trackhub,
             'stats_impedimentos': stats_impedimentos,
-        'stats_rh': stats_rh,
+            'stats_rh': stats_rh,
+            'stats_bi_obra': stats_bi_obra,
+            'stats_ferramenta': stats_ferramenta,
         }
     )
 

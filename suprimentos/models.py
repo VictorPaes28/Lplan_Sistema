@@ -1416,3 +1416,37 @@ class ItemMapaServicoStatusRef(models.Model):
 
     def __str__(self):
         return f"{self.atividade} ({self.status_macro or 'sem status'})"
+
+
+class BiObraKpiSnapshot(models.Model):
+    """Série diária de KPIs do BI da Obra (sparklines e tendência)."""
+
+    obra = models.ForeignKey(
+        Obra,
+        on_delete=models.CASCADE,
+        related_name="bi_kpi_snapshots",
+    )
+    data = models.DateField(db_index=True)
+    avanco_fisico_pct = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True
+    )
+    restricoes_abertas = models.PositiveIntegerField(default=0)
+    pendentes_gestcontroll = models.PositiveIntegerField(default=0)
+    rdos_pendentes = models.PositiveIntegerField(default=0)
+    ocorrencias_dia = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["obra", "data"],
+                name="uniq_bi_kpi_snapshot_obra_data",
+            )
+        ]
+        verbose_name = "Snapshot KPI BI da Obra"
+        verbose_name_plural = "Snapshots KPI BI da Obra"
+
+    def __str__(self):
+        return f"BI snapshot {self.obra_id} @ {self.data}"

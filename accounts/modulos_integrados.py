@@ -119,6 +119,28 @@ MODULOS_INTEGRADOS: tuple[ModuloMeta, ...] = (
         'stats_rh',
         (('Colaboradores', 'colaboradores'), ('Alertas', 'alertas')),
     ),
+    ModuloMeta(
+        'bi_obra',
+        'BI da Obra',
+        'Visão executiva unificada por obra',
+        'biobra',
+        'fa-layer-group',
+        'icon-biobra',
+        'engenharia:analise_obra',
+        'stats_bi_obra',
+        (('Obras ativas', 'obras_ativas'), ('Ambientes publicados', 'ambientes')),
+    ),
+    ModuloMeta(
+        'ferramenta',
+        'Ferramenta de ambientes',
+        'Mapas de controle e painéis operacionais por obra',
+        'ferramenta',
+        'fa-magic',
+        'icon-ferramenta',
+        'engenharia:ferramenta_shell',
+        'stats_ferramenta',
+        (('Ambientes', 'ambientes'), ('Obras com ambiente', 'obras')),
+    ),
 )
 
 MODULO_BY_CODIGO = {m.codigo: m for m in MODULOS_INTEGRADOS}
@@ -214,6 +236,8 @@ def resolve_modulo_from_path(path: str) -> str | None:
     path = path if path.startswith('/') else f'/{path}'
 
     prefix_map = (
+        ('/engenharia/analise-obra', 'bi_obra'),
+        ('/engenharia/ferramenta', 'ferramenta'),
         ('/mapa-geo/', 'mapa_geo'),
         ('/gestao/', 'gestao'),
         ('/impedimentos/', 'impedimentos'),

@@ -140,7 +140,11 @@ def _representative_setor_bloco_from_votes(
 
 
 def _resolve_project_for_obra(obra: Obra) -> Project | None:
-    codes = {obra.codigo_sienge.strip()}
+    if getattr(obra, "project_id", None):
+        p = Project.objects.filter(pk=obra.project_id).first()
+        if p:
+            return p
+    codes = {(obra.codigo_sienge or "").strip()}
     raw = (obra.codigos_sienge_alternativos or "").strip()
     if raw:
         for part in re.split(r"[,;\n]+", raw):
@@ -346,13 +350,6 @@ def _apto_status_bucket(total_pct: float) -> str:
     if total_pct <= 0.0:
         return "nao_iniciado"
     return "em_andamento"
-
-
-def _activity_cell_ratio(value: object) -> float | None:
-    parsed = _parse_total_pct_cell(value)
-    if parsed is None:
-        return None
-    return max(0.0, min(1.0, parsed / 100.0))
 
 
 MENSAGEM_CONTROLE_SEM_MAPA = "Nenhum mapa de controle criado para esta obra"
@@ -588,7 +585,6 @@ class AnaliseObraFilters:
     tag_ocorrencia_id: str = ""
     busca_diario_texto: str = ""
     responsavel_texto: str = ""
-    visao: str = "geral"  # geral | detalhe
     front_id: str = ""
 
     def to_mapa_suprimentos_filters(self) -> MapaControleFilters:
@@ -1125,6 +1121,7 @@ class AnaliseObraService:
             rl = _resp_label(imp)
             vencidas_recentes.append(
                 {
+                    "id": imp.id,
                     "titulo": imp.titulo,
                     "dias_vencido": dias_vencido,
                     "prioridade": imp.get_prioridade_display(),
@@ -1243,6 +1240,7 @@ class AnaliseObraService:
                 continue
             mais_atrasadas.append(
                 {
+                    "id": pend.id,
                     "titulo": pend.titulo,
                     "dias_atraso": int((hoje - prazo).days),
                 }
@@ -1258,6 +1256,290 @@ class AnaliseObraService:
             "por_tipo": por_tipo,
             "responsaveis": responsaveis,
             "mais_atrasadas": mais_atrasadas,
+        }
+
+    def _build_rh(self) -> dict[str, Any]:
+        """Colaboradores e alertas de DP vinculados à obra GestControll da seleção."""
+        from recursos_humanos.models import Colaborador, ObraLocal
+        from recursos_humanos.services.alerts import gerar_alertas
+
+        empty: dict[str, Any] = {
+            "origem": "recursos_humanos",
+            "vinculo_obra": False,
+            "mensagem": "Sem vínculo de obra para cruzar colaboradores do RH.",
+            "kpis": {
+                "colaboradores_ativos": 0,
+                "em_admissao": 0,
+                "alertas_total": 0,
+                "alertas_criticos": 0,
+            },
+            "alertas_top": [],
+            "colaboradores_recentes": [],
+        }
+
+        go = self._gestao_obra
+        if not go:
+            return empty
+
+        obras_rh = ObraLocal.objects.filter(gestao_obra=go)
+        if not obras_rh.exists() and (go.nome or "").strip():
+            obras_rh = ObraLocal.objects.filter(nome__iexact=(go.nome or "").strip())
+        if not obras_rh.exists():
+            return {
+                **empty,
+                "mensagem": "Nenhuma obra de RH vinculada à obra GestControll desta seleção.",
+            }
+
+        colab_qs = (
+            Colaborador.objects.filter(obras__in=obras_rh)
+            .exclude(status=Colaborador.Status.DESLIGADO)
+            .distinct()
+        )
+        colab_ids = set(colab_qs.values_list("id", flat=True))
+        if not colab_ids:
+            return {
+                **empty,
+                "vinculo_obra": True,
+                "mensagem": "Obra de RH vinculada, mas sem colaboradores alocados.",
+            }
+
+        em_admissao = colab_qs.filter(status=Colaborador.Status.EM_ADMISSAO).count()
+        ativos = colab_qs.filter(status=Colaborador.Status.ATIVO).count()
+
+        alertas_obra = [a for a in gerar_alertas() if a.colaborador_id in colab_ids]
+        alertas_criticos = sum(1 for a in alertas_obra if a.urgencia in ("red", "critico", "urgente"))
+
+        def _urgencia_ordem(u: str) -> int:
+            if u in ("red", "critico", "urgente"):
+                return 0
+            if u in ("yellow", "atencao"):
+                return 1
+            return 2
+
+        alertas_obra.sort(key=lambda a: (_urgencia_ordem(a.urgencia), a.dias_restantes))
+        alertas_top = [
+            {
+                "id": a.id,
+                "colaborador_id": a.colaborador_id,
+                "colaborador_nome": a.colaborador_nome,
+                "tipo": a.tipo,
+                "detalhe": a.detalhe,
+                "urgencia": a.urgencia,
+                "prazo": a.prazo_exibicao or a.prazo,
+                "url": a.url,
+            }
+            for a in alertas_obra[:12]
+        ]
+
+        colaboradores_recentes = [
+            {
+                "id": c.id,
+                "nome": c.nome,
+                "cargo": c.cargo,
+                "status": c.get_status_display(),
+                "etapa_admissao": c.etapa_admissao if c.status == Colaborador.Status.EM_ADMISSAO else None,
+            }
+            for c in colab_qs.order_by("-atualizado_em", "nome")[:8]
+        ]
+
+        return {
+            "origem": "recursos_humanos",
+            "vinculo_obra": True,
+            "gestao_obra_id": go.id,
+            "kpis": {
+                "colaboradores_ativos": ativos,
+                "em_admissao": em_admissao,
+                "alertas_total": len(alertas_obra),
+                "alertas_criticos": alertas_criticos,
+            },
+            "alertas_top": alertas_top,
+            "colaboradores_recentes": colaboradores_recentes,
+        }
+
+    def _build_mapa_geo(self) -> dict[str, Any]:
+        """Indicadores do mapa geográfico (trechos, EAP, GPS dos RDOs)."""
+        from django.db.models import Count
+
+        from mapa_geo.enrichment import get_map_alerts
+        from mapa_geo.models import GeoFeature
+        from mapa_geo.services import get_map_summary
+
+        empty: dict[str, Any] = {
+            "origem": "mapa_geo",
+            "vinculo_projeto": False,
+            "mensagem": "Projeto do Diário não vinculado — mapa geográfico indisponível.",
+            "kpis": {},
+            "por_status": {},
+            "alertas": [],
+            "alertas_count": 0,
+        }
+
+        project = _resolve_project_for_obra(self.obra)
+        if not project:
+            return empty
+
+        try:
+            summary = get_map_summary(project)
+        except Exception:
+            summary = {}
+
+        if not summary.get("total"):
+            qs_empty = GeoFeature.objects.filter(project=project).exists()
+            if not qs_empty:
+                return {
+                    **empty,
+                    "vinculo_projeto": True,
+                    "projeto_id": project.id,
+                    "projeto_codigo": project.code,
+                    "mensagem": "Obra sem elementos importados no mapa geográfico.",
+                }
+
+        qs = GeoFeature.objects.filter(project=project, is_active=True)
+        por_status: dict[str, int] = {}
+        for row in qs.values("status").annotate(c=Count("id")):
+            key = (row["status"] or "planned").strip()
+            por_status[key] = int(row["c"] or 0)
+
+        alerts_payload: dict[str, Any] = {"count": 0, "items": []}
+        try:
+            alerts_payload = get_map_alerts(project)
+        except Exception:
+            pass
+
+        alertas_top = [
+            {
+                "tipo": item.get("type") or "",
+                "severidade": item.get("severity") or "medium",
+                "nome": item.get("name") or "",
+                "mensagem": item.get("message") or "",
+                "url": item.get("url") or "",
+            }
+            for item in (alerts_payload.get("items") or [])[:10]
+        ]
+
+        return {
+            "origem": "mapa_geo",
+            "vinculo_projeto": True,
+            "projeto_id": project.id,
+            "projeto_codigo": project.code,
+            "kpis": {
+                "total_elementos": int(summary.get("total") or 0),
+                "trechos": int(summary.get("segments") or 0),
+                "pontos": int(summary.get("points") or 0),
+                "areas": int(summary.get("areas") or 0),
+                "vinculados_eap": int(summary.get("eap_linked") or 0),
+                "marcadores_gps": int(summary.get("gps_markers") or 0),
+                "rdos_com_gps": int(summary.get("diaries_with_gps") or 0),
+                "progresso_geral_pct": round(float(summary.get("overall_progress_pct") or 0), 1),
+                "datas_timeline": int(summary.get("timeline_dates") or 0),
+            },
+            "import_label": summary.get("import_label") or "",
+            "last_diary_date": summary.get("last_diary_date"),
+            "por_status": por_status,
+            "alertas": alertas_top,
+            "alertas_count": int(alerts_payload.get("count") or len(alertas_top)),
+        }
+
+    def _build_workflow_central(self) -> dict[str, Any]:
+        """Processos da Central de Aprovações (workflow) para o projeto da obra."""
+        from django.db.models import Count
+
+        from workflow_aprovacao.models import (
+            ApprovalConfigBacklog,
+            ApprovalConfigBacklogStatus,
+            ApprovalProcess,
+            ProcessStatus,
+        )
+
+        empty: dict[str, Any] = {
+            "origem": "workflow_aprovacao",
+            "vinculo_projeto": False,
+            "mensagem": "Projeto não vinculado — Central de Aprovações indisponível.",
+            "kpis": {
+                "aguardando": 0,
+                "aprovados_periodo": 0,
+                "reprovados_periodo": 0,
+                "backlog_config": 0,
+            },
+            "por_categoria": [],
+            "processos_aguardando": [],
+        }
+
+        project = _resolve_project_for_obra(self.obra)
+        if not project:
+            return empty
+
+        tz = timezone.get_current_timezone()
+        start_dt = timezone.make_aware(datetime.combine(self.periodo.data_inicio, time.min), tz)
+        end_exclusive = timezone.make_aware(
+            datetime.combine(self.periodo.data_fim + timedelta(days=1), time.min),
+            tz,
+        )
+        now = timezone.now()
+
+        base = ApprovalProcess.objects.filter(project=project)
+        aguardando = base.filter(status=ProcessStatus.AWAITING_STEP).count()
+        aprovados_periodo = base.filter(
+            status=ProcessStatus.APPROVED,
+            updated_at__gte=start_dt,
+            updated_at__lt=end_exclusive,
+        ).count()
+        reprovados_periodo = base.filter(
+            status=ProcessStatus.REJECTED,
+            updated_at__gte=start_dt,
+            updated_at__lt=end_exclusive,
+        ).count()
+        backlog_config = ApprovalConfigBacklog.objects.filter(
+            project=project,
+            status=ApprovalConfigBacklogStatus.PENDING,
+        ).count()
+
+        por_categoria: list[dict[str, Any]] = []
+        for row in (
+            base.filter(status=ProcessStatus.AWAITING_STEP)
+            .values("category__name", "category__code")
+            .annotate(total=Count("id"))
+            .order_by("-total")[:8]
+        ):
+            por_categoria.append(
+                {
+                    "nome": row["category__name"] or row["category__code"] or "—",
+                    "codigo": row["category__code"] or "",
+                    "total": int(row["total"] or 0),
+                }
+            )
+
+        processos_aguardando: list[dict[str, Any]] = []
+        for proc in (
+            base.filter(status=ProcessStatus.AWAITING_STEP)
+            .select_related("category", "current_step")
+            .order_by("updated_at")[:12]
+        ):
+            ref = proc.updated_at or proc.created_at
+            dias = max(0, (now - ref).days) if ref else 0
+            processos_aguardando.append(
+                {
+                    "id": proc.id,
+                    "titulo": (proc.title or "").strip() or (proc.category.name if proc.category_id else "—"),
+                    "categoria": proc.category.name if proc.category_id else "",
+                    "dias_aguardando": dias,
+                    "origem": (proc.external_system or "manual").strip(),
+                }
+            )
+
+        return {
+            "origem": "workflow_aprovacao",
+            "vinculo_projeto": True,
+            "projeto_id": project.id,
+            "projeto_codigo": project.code,
+            "kpis": {
+                "aguardando": aguardando,
+                "aprovados_periodo": aprovados_periodo,
+                "reprovados_periodo": reprovados_periodo,
+                "backlog_config": backlog_config,
+            },
+            "por_categoria": por_categoria,
+            "processos_aguardando": processos_aguardando,
         }
 
     def build_filtros_payload(self) -> dict[str, Any]:
@@ -1316,10 +1598,12 @@ class AnaliseObraService:
         rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
         situacao = self._classify_situacao(controle, suprimentos, diario)
         gv = gestcontroll["kpis"]["pendentes_valor"]
+        pct_ctrl = (controle.get("kpis") or {}).get("percentual_medio")
         return {
             "obra_id": self.obra.id,
             "obra_nome": self.obra.nome,
             "obra_codigo": self.obra.codigo_sienge,
+            "gestao_obra_id": (go.id if (go := self._gestao_obra) else None),
             "projeto_diario_id": project.id if project else None,
             "projeto_diario_codigo": project.code if project else None,
             "projeto_diario_nome": project.name if project else None,
@@ -1331,18 +1615,28 @@ class AnaliseObraService:
             },
             "gerado_em": timezone.now().isoformat(),
             "situacao_executiva": situacao,
+            "ambiente_id": controle.get("ambiente_id"),
             "kpis_hero": {
+                "avanco_fisico_pct": pct_ctrl,
                 "valor_em_aprovacao": gv,
+                "pendentes_count": int((gestcontroll.get("kpis") or {}).get("pendentes_count") or 0),
                 "restricoes_abertas": restricoes["kpis"]["total_aberto"],
+                "restricoes_vencidas": int((restricoes.get("kpis") or {}).get("vencidas") or 0),
                 "rdos_pendentes": int(rdos.get("pendentes_rdos_count") or 0),
+                "suprimentos_atrasados": int((suprimentos.get("kpis") or {}).get("atrasados") or 0),
             },
-            "baseline_planejamento": {
-                "disponivel": False,
-                "mensagem": (
-                    "Curva planejada × real depende da fonte de baseline definida pelo produto; "
-                    "até lá o comparativo oficial de prazo não é exibido automaticamente."
-                ),
-            },
+            "sparklines": self._build_sparklines_hero(project, controle, restricoes, gestcontroll, diario),
+            "acoes_prioritarias": self._build_acoes_prioritarias(
+                controle, suprimentos, diario, gestcontroll, restricoes
+            ),
+            "hero_drawer": self._build_hero_drawer(
+                project=project,
+                controle=controle,
+                restricoes=restricoes,
+                gestcontroll=gestcontroll,
+                diario=diario,
+            ),
+            "baseline_planejamento": self._build_baseline_planejamento(project, controle),
         }
 
     def build_shell_payload(self) -> dict[str, Any]:
@@ -1353,15 +1647,16 @@ class AnaliseObraService:
         diario = self._build_diario(project, extended=False)
         gestcontroll = self._build_gestcontroll()
         restricoes = self._build_restricoes()
+        meta = self._build_meta_block(
+            project=project,
+            controle=controle,
+            suprimentos=suprimentos,
+            diario=diario,
+            gestcontroll=gestcontroll,
+            restricoes=restricoes,
+        )
         return {
-            "meta": self._build_meta_block(
-                project=project,
-                controle=controle,
-                suprimentos=suprimentos,
-                diario=diario,
-                gestcontroll=gestcontroll,
-                restricoes=restricoes,
-            ),
+            "meta": meta,
             "controle": controle,
             "filtros": self.build_filtros_payload(),
         }
@@ -1374,6 +1669,9 @@ class AnaliseObraService:
         gestcontroll = self._build_gestcontroll()
         restricoes = self._build_restricoes()
         trackhub = self._build_trackhub()
+        rh = self._build_rh()
+        mapa_geo = self._build_mapa_geo()
+        workflow_central = self._build_workflow_central()
         payload: dict[str, Any] = {
             "meta": self._build_meta_block(
                 project=project,
@@ -1390,6 +1688,9 @@ class AnaliseObraService:
             "gestcontroll": gestcontroll,
             "restricoes": restricoes,
             "trackhub": trackhub,
+            "rh": rh,
+            "mapa_geo": mapa_geo,
+            "workflow_central": workflow_central,
         }
         if include_optional:
             payload["heatmap"] = self._build_heatmap()
@@ -1445,149 +1746,13 @@ class AnaliseObraService:
             return {"gestcontroll": self._build_gestcontroll()}
         if s == "restricoes":
             return {"restricoes": self._build_restricoes()}
+        if s == "rh":
+            return {"rh": self._build_rh()}
+        if s == "mapa_geo":
+            return {"mapa_geo": self._build_mapa_geo()}
+        if s == "workflow_central":
+            return {"workflow_central": self._build_workflow_central()}
         return None
-
-    def build_drill_down(self, bloco: str, pavimento: str, setor: str | None = None) -> dict[str, Any]:
-        """Detalhe para drawer: recorte do controle + resumo de suprimentos por busca no local."""
-        bloco = (bloco or "").strip()
-        pavimento = (pavimento or "").strip()
-        setor = (setor or "").strip()
-
-        bundle = self._load_controle_bundle()
-        base_rows = bundle.get("rows", []) if bundle else []
-        scoped = []
-        for row in base_rows:
-            if bloco and (row.get("bloco") or "").strip() != bloco:
-                continue
-            if setor and (row.get("setor") or "").strip() != setor:
-                continue
-            if pavimento and (row.get("pavimento") or "").strip() != pavimento:
-                continue
-            scoped.append(row)
-
-        itens: list[dict[str, Any]] = []
-        for row in scoped:
-            total_pct = float(row.get("total_pct") or 0)
-            acts = row.get("atividades") if isinstance(row.get("atividades"), dict) else {}
-            for act_name, act_val in acts.items():
-                ratio = _activity_cell_ratio(act_val)
-                itens.append(
-                    {
-                        "atividade": act_name,
-                        "apto": row.get("apto"),
-                        "pavimento": row.get("pavimento"),
-                        "status_texto": str(act_val or ""),
-                        "status_percentual": ratio,
-                        "observacao": "",
-                    }
-                )
-            itens.append(
-                {
-                    "atividade": "Total unidade",
-                    "apto": row.get("apto"),
-                    "pavimento": row.get("pavimento"),
-                    "status_texto": f"{total_pct:.1f}%",
-                    "status_percentual": max(0.0, min(1.0, total_pct / 100.0)),
-                    "observacao": "",
-                }
-            )
-
-        ratios: list[float] = []
-        concluidos = em_andamento = nao_iniciados = sem_dado = 0
-        itens_com_ratio: list[tuple[dict[str, Any], float]] = []
-        for row in scoped:
-            cell_values = row.get("activity_pcts")
-            if not isinstance(cell_values, list) or not cell_values:
-                cell_values = _collect_activity_pcts_from_values(row.get("atividades"))
-            unit_avg = _avg_pct_from_activity_values(row.get("atividades"))
-            unit_ratio = max(0.0, min(1.0, unit_avg / 100.0))
-            preview_row = {
-                "atividade": "Total unidade",
-                "apto": row.get("apto"),
-                "pavimento": row.get("pavimento"),
-                "status_texto": f"{unit_avg:.1f}%",
-                "status_percentual": unit_ratio,
-                "observacao": "",
-            }
-            itens_com_ratio.append((preview_row, unit_ratio))
-            bucket = _apto_status_bucket(unit_avg)
-            if bucket == "concluido":
-                concluidos += 1
-            elif bucket == "nao_iniciado":
-                nao_iniciados += 1
-            else:
-                em_andamento += 1
-            for pct_val in cell_values:
-                ratios.append(max(0.0, min(1.0, float(pct_val) / 100.0)))
-
-        pct_local = round((sum(ratios) / len(ratios)) * 100, 1) if ratios else None
-        itens_com_ratio.sort(key=lambda x: x[1])
-        atividades_criticas = [
-            {
-                "atividade": row.get("atividade"),
-                "apto": row.get("apto"),
-                "status_texto": row.get("status_texto"),
-                "percentual": round(ratio * 100, 1),
-            }
-            for row, ratio in itens_com_ratio[:5]
-        ]
-        linhas_preview = itens[:12]
-
-        busca_local = f"{bloco} {pavimento}".strip()
-        sup_filters = MapaControleFilters(
-            categoria=self.filtros.categoria_suprimento,
-            local_id=self.filtros.local_suprimento_id,
-            prioridade=self.filtros.prioridade_suprimento,
-            status=self.filtros.status_suprimento,
-            search=busca_local or bloco,
-            limit=200,
-        )
-        sup_res = MapaControleService(obra=self.obra, filters=sup_filters).build_summary_payload()
-        sup_kpis = sup_res.get("kpis") or {}
-        ranking_locais = (sup_res.get("ranking") or {}).get("locais")[:8]
-        materiais_criticos = [{"local": x[0], "pendencias": x[1]} for x in ranking_locais[:5]]
-
-        atrasados = int(sup_kpis.get("atrasados") or 0)
-        score_exec = max(0.0, 100.0 - float(pct_local or 0.0))
-        score_sup = min(100.0, float(atrasados) * 6.0)
-        score = round(score_exec * 0.6 + score_sup * 0.4, 1)
-        if score >= 70:
-            prioridade = "urgente"
-            acao = "Atuar hoje no local: destravar material e alinhar frente com encarregado."
-        elif score >= 50:
-            prioridade = "alta"
-            acao = "Planejar ação no próximo turno com foco nas pendências de material."
-        elif score >= 30:
-            prioridade = "media"
-            acao = "Monitorar evolução diária e revisar novos bloqueios."
-        else:
-            prioridade = "baixa"
-            acao = "Manter acompanhamento de rotina."
-
-        return {
-            "origem": "drilldown",
-            "chave": {"bloco": bloco, "pavimento": pavimento},
-            "controle": {
-                "percentual_medio_local": pct_local,
-                "total_linhas": len(itens),
-                "linhas": itens,
-                "linhas_preview": linhas_preview,
-                "resumo_status": {
-                    "concluidos": concluidos,
-                    "em_andamento": em_andamento,
-                    "nao_iniciados": nao_iniciados,
-                    "sem_dado": sem_dado,
-                },
-                "atividades_criticas": atividades_criticas,
-            },
-            "suprimentos": {
-                "nota": "Resumo de suprimentos filtrado por termo de busca alinhado ao bloco/pavimento.",
-                "kpis": sup_kpis,
-                "ranking_locais": ranking_locais,
-                "materiais_criticos": materiais_criticos,
-            },
-            "resumo_executivo": {"prioridade": prioridade, "score": score, "acao": acao},
-        }
 
     def _build_suprimentos(self, *, include_extras: bool = False) -> dict[str, Any]:
         raw = self._get_mapa_summary()
@@ -2002,6 +2167,7 @@ class AnaliseObraService:
                         {
                             "data": dia,
                             "tem_rdo": True,
+                            "diary_id": primary.id,
                             "report_number": primary.report_number,
                             "status": primary.status,
                             "ocorrencias": occ_n,
@@ -2231,10 +2397,13 @@ class AnaliseObraService:
         for c in candidatos[:4]:
             local = c.get("local_norm") or "local crítico"
             pri = (c.get("prioridade") or "alta").upper()
+            bloco_mapa = (c.get("bloco_mapa") or "").strip()
             acoes_recomendadas.append(
                 {
                     "prioridade": pri,
                     "acao": f"Priorizar frente do {local}: alinhar execução e suprimentos no mesmo turno.",
+                    "ancora": "#bloco-1c",
+                    "bloco": bloco_mapa or None,
                 }
             )
         if p1 > 0:
@@ -2242,6 +2411,7 @@ class AnaliseObraService:
                 {
                     "prioridade": "URGENTE",
                     "acao": "Revisar ocorrências críticas de campo ainda hoje com responsável da obra e registrar plano de contenção.",
+                    "ancora": "#bloco-4",
                 }
             )
         if p2 > 0:
@@ -2249,6 +2419,7 @@ class AnaliseObraService:
                 {
                     "prioridade": "ALTA",
                     "acao": "Priorizar pendências de suprimentos com impacto direto na execução para evitar paralisação.",
+                    "ancora": "#bloco-5",
                 }
             )
         if not acoes_recomendadas:
@@ -2268,6 +2439,371 @@ class AnaliseObraService:
                 "Ocorrência do diário ≠ pendência de suprimento ≠ percentual de serviço; cada card indica a origem.",
                 "Indicadores de suprimento medem abastecimento; percentual de serviço mede execução física.",
             ],
+        }
+
+    def _build_sparklines_hero(
+        self,
+        project: Project | None,
+        controle: dict[str, Any],
+        restricoes: dict[str, Any],
+        gestcontroll: dict[str, Any],
+        diario: dict[str, Any],
+    ) -> dict[str, list[float | int]]:
+        """Série de 7 pontos (fim = data_fim do período) a partir de snapshots diários."""
+        from suprimentos.models import BiObraKpiSnapshot
+
+        fim = self.periodo.data_fim
+        inicio = fim - timedelta(days=6)
+        snaps = {
+            s.data: s
+            for s in BiObraKpiSnapshot.objects.filter(
+                obra=self.obra, data__gte=inicio, data__lte=fim
+            )
+        }
+
+        pct_atual = float((controle.get("kpis") or {}).get("percentual_medio") or 0)
+        restr_atual = int((restricoes.get("kpis") or {}).get("total_aberto") or 0)
+        pend_atual = int((gestcontroll.get("kpis") or {}).get("pendentes_count") or 0)
+        rdos_atual = int((diario.get("rdos_resumo") or {}).get("pendentes_rdos_count") or 0)
+
+        avanco_7d: list[float] = []
+        restr_7d: list[int] = []
+        aprov_7d: list[int] = []
+        rdos_7d: list[int] = []
+        ocorrencias_7d: list[int] = []
+
+        last_avanco = pct_atual
+        last_restr = restr_atual
+        last_pend = pend_atual
+        last_rdos = rdos_atual
+
+        for i in range(7):
+            dia = inicio + timedelta(days=i)
+            snap = snaps.get(dia)
+            if snap:
+                if snap.avanco_fisico_pct is not None:
+                    last_avanco = float(snap.avanco_fisico_pct)
+                if snap.restricoes_abertas is not None:
+                    last_restr = int(snap.restricoes_abertas)
+                last_pend = int(snap.pendentes_gestcontroll)
+                last_rdos = int(snap.rdos_pendentes)
+                ocorrencias_7d.append(int(snap.ocorrencias_dia))
+            else:
+                ocorrencias_7d.append(0)
+            avanco_7d.append(round(last_avanco, 1))
+            restr_7d.append(last_restr)
+            aprov_7d.append(last_pend)
+            rdos_7d.append(last_rdos)
+
+        if project and diario.get("vinculo_projeto") and not any(ocorrencias_7d):
+            diaries = ConstructionDiary.objects.filter(
+                project=project,
+                date__gte=inicio,
+                date__lte=fim,
+                status=DiaryStatus.APROVADO,
+            )
+            occ_by_date: Counter[date] = Counter()
+            for row in (
+                DiaryOccurrence.objects.filter(diary__in=diaries)
+                .values("diary__date")
+                .annotate(c=Count("id"))
+            ):
+                d = row.get("diary__date")
+                if d:
+                    occ_by_date[d] = int(row["c"] or 0)
+            for i in range(7):
+                dia = inicio + timedelta(days=i)
+                if not snaps.get(dia):
+                    ocorrencias_7d[i] = occ_by_date.get(dia, 0)
+                elif snaps[dia].ocorrencias_dia == 0 and occ_by_date.get(dia):
+                    ocorrencias_7d[i] = occ_by_date[dia]
+
+        return {
+            "avanco": avanco_7d,
+            "restricoes": restr_7d,
+            "aprovacao": aprov_7d,
+            "rdos": rdos_7d,
+            "ocorrencias": ocorrencias_7d,
+        }
+
+    def _record_kpi_snapshot(
+        self,
+        *,
+        project: Project | None,
+        controle: dict[str, Any],
+        restricoes: dict[str, Any],
+        gestcontroll: dict[str, Any],
+        diario: dict[str, Any],
+    ) -> None:
+        """Persiste KPIs do dia (idempotente por obra+data) para sparklines."""
+        from suprimentos.models import BiObraKpiSnapshot
+
+        hoje = timezone.localdate()
+        pct_raw = (controle.get("kpis") or {}).get("percentual_medio")
+        pct_val = Decimal(str(round(float(pct_raw), 2))) if pct_raw is not None else None
+
+        ocorrencias_hoje = 0
+        if project and diario.get("vinculo_projeto"):
+            ocorrencias_hoje = (
+                DiaryOccurrence.objects.filter(
+                    diary__project=project,
+                    diary__date=hoje,
+                    diary__status=DiaryStatus.APROVADO,
+                ).count()
+            )
+
+        BiObraKpiSnapshot.objects.update_or_create(
+            obra=self.obra,
+            data=hoje,
+            defaults={
+                "avanco_fisico_pct": pct_val,
+                "restricoes_abertas": int((restricoes.get("kpis") or {}).get("total_aberto") or 0),
+                "pendentes_gestcontroll": int(
+                    (gestcontroll.get("kpis") or {}).get("pendentes_count") or 0
+                ),
+                "rdos_pendentes": int(
+                    (diario.get("rdos_resumo") or {}).get("pendentes_rdos_count") or 0
+                ),
+                "ocorrencias_dia": ocorrencias_hoje,
+            },
+        )
+
+    def _build_baseline_planejamento(
+        self, project: Project | None, controle: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Comparativo avanço físico real × curva linear do prazo do projeto (Project)."""
+        unavailable: dict[str, Any] = {
+            "disponivel": False,
+            "mensagem": (
+                "Cadastre data de início e término no projeto do Diário para exibir "
+                "o comparativo planejado × real."
+            ),
+        }
+        if project is None:
+            return unavailable
+        data_inicio = getattr(project, "start_date", None)
+        data_fim = getattr(project, "end_date", None)
+        if not data_inicio or not data_fim or data_fim <= data_inicio:
+            return unavailable
+
+        pct_raw = (controle.get("kpis") or {}).get("percentual_medio")
+        pct_real = float(pct_raw) if pct_raw is not None else 0.0
+        hoje = timezone.localdate()
+        duracao_total = (data_fim - data_inicio).days
+        decorrido = max(0, min(duracao_total, (hoje - data_inicio).days))
+        pct_esperado = (decorrido / float(duracao_total)) * 100.0
+        desvio = pct_real - pct_esperado
+
+        if desvio < -20:
+            situacao = "atrasado"
+            rotulo = "Execução abaixo do previsto"
+        elif desvio < -5:
+            situacao = "atencao"
+            rotulo = "Levemente abaixo do previsto"
+        elif desvio > 10:
+            situacao = "adiantado"
+            rotulo = "À frente do previsto"
+        else:
+            situacao = "ok"
+            rotulo = "Alinhado ao prazo linear"
+
+        return {
+            "disponivel": True,
+            "pct_real": round(pct_real, 1),
+            "pct_esperado": round(pct_esperado, 1),
+            "desvio": round(desvio, 1),
+            "situacao": situacao,
+            "rotulo": rotulo,
+            "data_inicio": data_inicio.isoformat(),
+            "data_fim": data_fim.isoformat(),
+            "dias_decorridos": decorrido,
+            "dias_totais": duracao_total,
+            "mensagem": (
+                f"Curva linear: {pct_esperado:.1f}% esperado no tempo vs "
+                f"{pct_real:.1f}% de avanço físico no mapa."
+            ),
+        }
+
+    def _build_acoes_prioritarias(
+        self,
+        controle: dict[str, Any],
+        suprimentos: dict[str, Any],
+        diario: dict[str, Any],
+        gestcontroll: dict[str, Any],
+        restricoes: dict[str, Any],
+    ) -> list[dict[str, str]]:
+        """Até 5 ações sugeridas para a barra do hero (dados já carregados no shell)."""
+        acoes: list[dict[str, str]] = []
+        rk = restricoes.get("kpis") or {}
+        if int(rk.get("vencidas") or 0) > 0:
+            acoes.append(
+                {
+                    "prioridade": "URGENTE",
+                    "texto": f"{rk['vencidas']} restrição(ões) com prazo vencido",
+                    "ancora": "#bloco-3",
+                    "modulo": "restricoes",
+                }
+            )
+        sk = suprimentos.get("kpis") or {}
+        atrasados = int(sk.get("atrasados") or 0)
+        if atrasados >= 6:
+            acoes.append(
+                {
+                    "prioridade": "ALTA",
+                    "texto": f"{atrasados} itens de suprimento atrasados",
+                    "ancora": "#bloco-5",
+                    "modulo": "suprimentos",
+                }
+            )
+        gk = gestcontroll.get("kpis") or {}
+        pend = int(gk.get("pendentes_count") or 0)
+        if pend >= 3:
+            acoes.append(
+                {
+                    "prioridade": "ALTA",
+                    "texto": f"{pend} pedidos aguardando aprovação",
+                    "ancora": "#bloco-2",
+                    "modulo": "gestcontroll",
+                }
+            )
+        pr = diario.get("prioridades") or {}
+        p1 = int(pr.get("p1_critica") or 0)
+        if p1 > 0:
+            acoes.append(
+                {
+                    "prioridade": "URGENTE",
+                    "texto": f"{p1} ocorrência(s) crítica(s) no diário",
+                    "ancora": "#bloco-4",
+                    "modulo": "diario",
+                }
+            )
+        piores = controle.get("progresso_blocos") or []
+        if piores:
+            pior = piores[0]
+            pct = float(pior.get("percentual_medio") or 0)
+            if pct < 40:
+                rotulo = (pior.get("rotulo") or pior.get("bloco") or "bloco").strip()
+                acoes.append(
+                    {
+                        "prioridade": "MEDIA",
+                        "texto": f"Avanço baixo em {rotulo} ({pct:.0f}%)",
+                        "ancora": "#bloco-1",
+                        "modulo": "controle",
+                        "bloco": (pior.get("bloco") or "").strip() or None,
+                    }
+                )
+        return acoes[:5]
+
+    def _build_hero_drawer(
+        self,
+        *,
+        project: Project | None,
+        controle: dict[str, Any],
+        restricoes: dict[str, Any],
+        gestcontroll: dict[str, Any],
+        diario: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Payload seguro (JSON) para o drawer dos KPIs do hero."""
+        from django.urls import reverse
+
+        go = self._gestao_obra
+        gestao_id = go.id if go else None
+        obra_id = self.obra.id
+        project_obra_id = getattr(self.obra, "project_id", None)
+        kc = controle.get("kpis") or {}
+        rk = restricoes.get("kpis") or {}
+        gk = gestcontroll.get("kpis") or {}
+        rdos = diario.get("rdos_resumo") if isinstance(diario.get("rdos_resumo"), dict) else {}
+
+        pct_raw = kc.get("percentual_medio")
+        if pct_raw is not None:
+            pct_str = f"{float(pct_raw):.1f}%"
+        else:
+            pct_str = "—"
+
+        gv = float(gk.get("pendentes_valor") or 0)
+        valor_str = f"R$ {gv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        avanco_acoes: list[dict[str, str]] = [{"label": "Ver execução física", "url": "#bloco-1"}]
+        ambiente_id = controle.get("ambiente_id")
+        if ambiente_id:
+            avanco_acoes.append(
+                {
+                    "label": "Abrir Mapa de Controle",
+                    "url": (
+                        reverse("engenharia:ferramenta_editor_ambiente", args=[ambiente_id])
+                        + f"?obra={obra_id}"
+                    ),
+                }
+            )
+
+        impedimentos_url = (
+            reverse("impedimentos:list_impedimentos", args=[project_obra_id])
+            if project_obra_id
+            else reverse("impedimentos:select_obra")
+        )
+
+        gestao_list_url = reverse("gestao:list_workorders") + "?status=pendente"
+        if gestao_id:
+            gestao_list_url += f"&obra={gestao_id}"
+
+        rdos_acoes: list[dict[str, str]] = [{"label": "Ver diário", "url": "#bloco-4"}]
+        if project:
+            rdos_acoes.append(
+                {
+                    "label": "Listar RDOs",
+                    "url": reverse("report-list") + f"?project={project.id}",
+                }
+            )
+
+        diario_detalhe = (
+            f"Diário vinculado ao projeto {project.code}."
+            if project and diario.get("vinculo_projeto")
+            else "Diário sem vínculo — configure o código Sienge."
+        )
+
+        return {
+            "avanco": {
+                "titulo": "Avanço físico médio",
+                "valor": pct_str,
+                "subtitulo": "Média consolidada no Mapa de Controle publicado",
+                "detalhes": (
+                    f"{int(kc.get('concluidos') or 0)} concluídos · "
+                    f"{int(kc.get('em_andamento') or 0)} em andamento · "
+                    f"{int(kc.get('nao_iniciados') or 0)} não iniciados"
+                ),
+                "acoes": avanco_acoes,
+            },
+            "restricoes": {
+                "titulo": "Restrições abertas",
+                "valor": str(int(rk.get("total_aberto") or 0)),
+                "subtitulo": f"{int(rk.get('vencidas') or 0)} com prazo vencido",
+                "detalhes": "Impedimentos ativos nesta obra.",
+                "acoes": [
+                    {"label": "Ver restrições", "url": "#bloco-3"},
+                    {"label": "Abrir módulo", "url": impedimentos_url},
+                ],
+            },
+            "aprovacao": {
+                "titulo": "Valor em aprovação",
+                "valor": valor_str,
+                "subtitulo": f"{int(gk.get('pendentes_count') or 0)} pedidos aguardando",
+                "detalhes": "GestControll — fila de aprovação da obra.",
+                "acoes": [
+                    {"label": "Ver pedidos", "url": "#bloco-2"},
+                    {"label": "Fila pendente", "url": gestao_list_url},
+                ],
+            },
+            "rdos": {
+                "titulo": "RDOs pendentes",
+                "valor": str(int(rdos.get("pendentes_rdos_count") or 0)),
+                "subtitulo": (
+                    f"Período {self.periodo.data_inicio.isoformat()} → "
+                    f"{self.periodo.data_fim.isoformat()}"
+                ),
+                "detalhes": diario_detalhe,
+                "acoes": rdos_acoes,
+            },
         }
 
     def _classify_situacao(self, controle: dict, suprimentos: dict, diario: dict) -> dict[str, Any]:

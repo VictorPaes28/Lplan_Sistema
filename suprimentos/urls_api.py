@@ -25,7 +25,6 @@ urlpatterns = [
     path('busca-mobile/', views_api.busca_rapida_mobile, name='busca_mobile'),
     path('dashboard2/alocar/', views_api.dashboard2_alocar, name='dashboard2_alocar'),
     path('analise-obra/', views_analise_obra.analise_obra_api, name='analise_obra_api'),
-    path('analise-obra/drilldown/', views_analise_obra.analise_obra_drilldown_api, name='analise_obra_drilldown_api'),
     path('ferramenta/ambientes/', views_painel_operacional.api_listar_ambientes, name='po_api_listar_ambientes'),
     path(
         'ferramenta/ambientes/<int:ambiente_id>/',

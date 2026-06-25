@@ -1,4 +1,4 @@
-{% load static %}
+﻿{% load static %}
 {% load core_tags %}
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="dark">
@@ -12,707 +12,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">{% endif %}
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-:root { --transition: 0.3s cubic-bezier(.4,0,.2,1); }
-
-[data-theme="dark"] {
-  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f7f8fc;
-  --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12);
-  --text:#1a2233; --text2:#5a6478; --text3:#9ca3b0;
-  --card-bg:#ffffff;
-  --green:#16a34a; --green-bg:rgba(22,163,74,0.08);
-  --yellow:#d97706; --yellow-bg:rgba(217,119,6,0.08);
-  --red:#dc2626; --red-bg:rgba(220,38,38,0.08);
-  --blue:#2563eb; --blue-bg:rgba(37,99,235,0.08);
-  --accent:#4f46e5; --accent-bg:rgba(79,70,229,0.08);
-  --bi-bg:#0f1117; --bi-bg2:#161b26; --bi-bg3:#1e2535;
-  --bi-border:rgba(255,255,255,0.07); --bi-border2:rgba(255,255,255,0.13);
-  --bi-text:#e8eaf0; --bi-text2:#8892a4; --bi-text3:#545e72;
-  --bi-card:#161b26;
-  --bi-green:#22c55e; --bi-green-bg:rgba(34,197,94,0.12);
-  --bi-yellow:#f59e0b; --bi-yellow-bg:rgba(245,158,11,0.12);
-  --bi-red:#ef4444; --bi-red-bg:rgba(239,68,68,0.12);
-  --bi-blue:#3b82f6; --bi-blue-bg:rgba(59,130,246,0.12);
-  --bi-accent:#6366f1; --bi-accent-bg:rgba(99,102,241,0.12);
-  --header-bg: #0d1018;
-  --header-border: rgba(255,255,255,0.07);
-  --header-text: #e8eaf0;
-  --header-text2: #8892a4;
-  --header-btn-hover: rgba(255,255,255,0.06);
-  --header-user-border: rgba(255,255,255,0.10);
-  --header-user-bg: #161b26;
-}
-
-[data-theme="light"] {
-  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f7f8fc;
-  --border:rgba(0,0,0,0.07); --border2:rgba(0,0,0,0.12);
-  --text:#1a2233; --text2:#5a6478; --text3:#9ca3b0;
-  --card-bg:#ffffff;
-  --green:#16a34a; --green-bg:rgba(22,163,74,0.08);
-  --yellow:#d97706; --yellow-bg:rgba(217,119,6,0.08);
-  --red:#dc2626; --red-bg:rgba(220,38,38,0.08);
-  --blue:#2563eb; --blue-bg:rgba(37,99,235,0.08);
-  --accent:#4f46e5; --accent-bg:rgba(79,70,229,0.08);
-  --bi-bg:#f0f2f7; --bi-bg2:#ffffff; --bi-bg3:#f7f8fc;
-  --bi-border:rgba(0,0,0,0.07); --bi-border2:rgba(0,0,0,0.12);
-  --bi-text:#1a2233; --bi-text2:#5a6478; --bi-text3:#9ca3b0;
-  --bi-card:#ffffff;
-  --bi-green:#16a34a; --bi-green-bg:rgba(22,163,74,0.08);
-  --bi-yellow:#d97706; --bi-yellow-bg:rgba(217,119,6,0.08);
-  --bi-red:#dc2626; --bi-red-bg:rgba(220,38,38,0.08);
-  --bi-blue:#2563eb; --bi-blue-bg:rgba(37,99,235,0.08);
-  --bi-accent:#4f46e5; --bi-accent-bg:rgba(79,70,229,0.08);
-  --header-bg: #ffffff;
-  --header-border: rgba(0,0,0,0.08);
-  --header-text: #374151;
-  --header-text2: #6b7280;
-  --header-btn-hover: #f3f4f6;
-  --header-user-border: #e5e7eb;
-  --header-user-bg: #ffffff;
-}
-
-/* Top bar escuro (classes reais: .top-bar-container, .back-link-layer, #user-menu-button) */
-[data-theme="dark"] .top-bar-container,
-[data-theme="dark"] .topbar,
-[data-theme="dark"] header,
-[data-theme="dark"] .header,
-[data-theme="dark"] nav.top-bar {
-  background-color: #0d1018 !important;
-  border-bottom-color: rgba(255,255,255,0.07) !important;
-  color: #e8eaf0 !important;
-}
-[data-theme="dark"] .top-bar-container *,
-[data-theme="dark"] .header *,
-[data-theme="dark"] header * {
-  color: #e8eaf0 !important;
-  border-color: rgba(255,255,255,0.10) !important;
-}
-[data-theme="dark"] .top-bar-container button,
-[data-theme="dark"] .header button,
-[data-theme="dark"] .back-btn,
-[data-theme="dark"] a.back-btn,
-[data-theme="dark"] a.back-link-layer {
-  background-color: rgba(255,255,255,0.06) !important;
-  color: #e8eaf0 !important;
-}
-[data-theme="dark"] a.back-link-layer:hover {
-  background-color: rgba(255,255,255,0.10) !important;
-  color: #f8fafc !important;
-}
-[data-theme="dark"] .top-bar-title,
-[data-theme="dark"] .page-title {
-  color: #e8eaf0 !important;
-}
-[data-theme="dark"] .top-bar-subtitle,
-[data-theme="dark"] .top-bar-subtitle span {
-  color: rgba(232,234,240,0.65) !important;
-}
-[data-theme="dark"] .back-link-layer .back-link-layer-icon {
-  color: #e8eaf0 !important;
-}
-[data-theme="dark"] .notif-bell-link {
-  color: rgba(232,234,240,0.85) !important;
-  background-color: transparent !important;
-}
-[data-theme="dark"] .notif-bell-link:hover {
-  color: #93c5fd !important;
-  background: rgba(255,255,255,0.06) !important;
-}
-[data-theme="dark"] .notif-count-badge {
-  color: #fff !important;
-}
-[data-theme="dark"] #user-menu-dropdown,
-[data-theme="dark"] #user-menu-dropdown * {
-  color: #1e293b !important;
-  border-color: #e5e7eb !important;
-}
-[data-theme="dark"] #user-menu-dropdown {
-  background-color: #fff !important;
-}
-[data-theme="dark"] #user-menu-button {
-  background-color: rgba(255,255,255,0.06) !important;
-  border: 1px solid rgba(255,255,255,0.10) !important;
-}
-[data-theme="dark"] #user-menu-button:hover {
-  background-color: rgba(255,255,255,0.10) !important;
-}
-[data-theme="dark"] #user-menu-chevron {
-  color: rgba(232,234,240,0.7) !important;
-}
-
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;transition:background var(--transition)}
-
-/* Garantir que o conteúdo ocupe 100% independente do tamanho da tela */
-html, body {
-  width: 100%;
-  max-width: 100% !important;
-  overflow-x: hidden;
-}
-
-.page-wrapper,
-.bi-area,
-.bi-main {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-/* Remover qualquer max-width herdado do projeto */
-.main-content,
-.main-content-wrapper,
-.container,
-.container-fluid {
-  max-width: 100% !important;
-  width: 100% !important;
-}
-
-/* Garantir que os grids também se expandam */
-.grid-2, .grid-3, .grid-4 {
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* Garantir largura total do container do BI */
-.bi-area {
-  flex: 1;
-  background: var(--bi-bg);
-  transition: background var(--transition);
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-
-.bi-main {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  padding: 20px 24px 60px !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-
-/* Remover qualquer max-width do page-wrapper que limite o conteúdo */
-.page-wrapper {
-  width: calc(100% - var(--sidebar-w, 162px)) !important;
-  max-width: none !important;
-  overflow-x: hidden !important;
-  box-sizing: border-box !important;
-}
-[data-theme="dark"] .main-content-wrapper,
-[data-theme="light"] .main-content-wrapper,
-.main-content-wrapper {
-  max-width: 100% !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  margin-right: 0 !important;
-}
-@media (min-width: 768px) {
-  .main-content-wrapper {
-    margin-left: 5.25rem !important;
-    width: calc(100% - 5.25rem) !important;
-    padding-bottom: 0 !important;
-  }
-}
-.main-content.main-content--bi-obra > *:not(.top-bar-container) {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  padding-bottom: 0 !important;
-}
-@media (min-width: 768px) {
-  .main-content.main-content--bi-obra > .top-bar-container:first-child {
-    padding-left: 1.5rem !important;
-    padding-right: 1.5rem !important;
-    margin-bottom: 0 !important;
-  }
-}
-
-.analise-loading-skeleton {
-  padding: 28px 16px;
-  text-align: center;
-  color: var(--bi-text3);
-  font-size: 12.5px;
-  background: var(--bi-card);
-  border: 1px solid var(--bi-border);
-  border-radius: 12px;
-  margin-bottom: 12px;
-}
-
-.index-toggle-btn {
-  position: fixed;
-  top: 64px;
-  right: 14px;
-  z-index: 401;
-  width: auto;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: var(--bi-card);
-  border: 1px solid var(--bi-border2);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-  transition: all .2s;
-  color: var(--bi-text2);
-}
-.index-toggle-btn:hover { border-color: var(--bi-accent); background: var(--bi-accent-bg); color: var(--bi-accent); }
-.index-toggle-btn.is-open { border-color: var(--bi-accent); background: var(--bi-accent-bg); color: var(--bi-accent); }
-.index-toggle-btn svg { width: 14px; height: 14px; color: currentColor; }
-.index-toggle-btn span { font-size: 11.5px; font-weight: 700; letter-spacing: .2px; }
-
-.bi-index {
-  position: fixed; top: 56px; right: 0; z-index: 350;
-  width: 230px; height: calc(100vh - 56px);
-  overflow-y: auto; padding: 16px 14px;
-  border-left: 1px solid var(--bi-border);
-  background: var(--bi-bg2);
-  transform: translateX(calc(100% + 12px));
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .24s ease, visibility 0s linear .24s, background var(--transition);
-  box-shadow: -6px 0 24px rgba(0,0,0,0.15);
-}
-.bi-index.open {
-  transform: translateX(0);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition-delay: 0s;
-}
-.bi-index::-webkit-scrollbar { width: 3px; }
-.bi-index::-webkit-scrollbar-thumb { background: var(--bi-border2); border-radius: 99px; }
-.index-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--bi-border);
-}
-.index-title { font-size: 11px; font-weight: 700; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .6px; }
-.index-close {
-  width: 22px; height: 22px; border-radius: 5px;
-  background: transparent; border: none; cursor: pointer;
-  color: var(--bi-text3); font-size: 15px; display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-}
-.index-close:hover { color: var(--bi-text); background: var(--bi-bg3); }
-.index-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 8px; cursor: pointer;
-  text-decoration: none; color: var(--bi-text2);
-  font-size: 12.5px; font-weight: 500; transition: all .15s; margin-bottom: 3px;
-}
-.index-item:hover { background: var(--bi-bg3); color: var(--bi-text); }
-.index-item.active { background: var(--bi-accent-bg); color: var(--bi-accent); font-weight: 700; }
-.index-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; transition: transform .15s; }
-.index-item.active .index-dot { transform: scale(1.35); }
-
-.filters-bar {
-  background: var(--bi-card);
-  border: 1px solid var(--bi-border);
-  border-radius: 12px;
-  margin: 0 20px 14px;
-  padding: 12px;
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  transition: background var(--transition);
-}
-.filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 128px; }
-.filter-field--obra { min-width: min(360px, 100%); flex: 1 1 320px; }
-.filter-label { font-size: 10px; color: var(--bi-text3); font-weight: 700; text-transform: uppercase; letter-spacing: .55px; }
-.filter-select {
-  height: 34px;
-  padding: 0 11px;
-  border-radius: 9px;
-  border: 1px solid var(--bi-border2);
-  background: var(--bi-bg3);
-  color: var(--bi-text);
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color .2s, box-shadow .2s;
-}
-.filter-select:focus { outline: none; border-color: var(--bi-accent); box-shadow: 0 0 0 2px var(--bi-accent-bg); }
-.btn-apply {
-  height: 34px;
-  padding: 0 16px;
-  border-radius: 9px;
-  background: var(--bi-accent); color: #fff;
-  border: none;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity .2s, transform .15s ease;
-}
-.btn-apply:hover { opacity: .9; transform: translateY(-1px); }
-
-@media (max-width: 900px) {
-  .index-toggle-btn {
-    top: 68px;
-    right: 12px;
-    z-index: 400;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    padding: 0;
-  }
-  .index-toggle-btn span { display: none; }
-  .filters-bar {
-    margin-left: 12px;
-    margin-right: 12px;
-    padding: 10px;
-  }
-  .filter-field,
-  .filter-field--obra {
-    min-width: 100%;
-    flex: 1 1 100%;
-  }
-}
-
-.hero {
-  background: var(--bi-card); border: 1px solid var(--bi-border);
-  border-radius: 14px; padding: 24px; margin-bottom: 18px;
-  display: grid; grid-template-columns: 1fr auto;
-  gap: 20px; align-items: start;
-  position: relative; overflow: hidden; transition: background var(--transition);
-}
-.hero::before {
-  content: ''; position: absolute; top:0; left:0; right:0; height: 2px;
-  background: linear-gradient(90deg, var(--bi-accent), var(--bi-blue), var(--bi-green));
-}
-.hero-label { font-size: 10px; font-weight: 700; color: var(--bi-text3); letter-spacing: .7px; text-transform: uppercase; margin-bottom: 3px; }
-.hero-title { font-size: 24px; font-weight: 800; color: var(--bi-text); letter-spacing: -.5px; }
-.hero-code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--bi-text3); margin-top: 3px; }
-.hero-period { font-size: 11px; color: var(--bi-text2); margin-top: 6px; }
-
-.sem-badge { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 9px; font-size: 12.5px; font-weight: 700; }
-.sem-badge.green  { background: var(--bi-green-bg);  color: var(--bi-green);  border: 1px solid var(--bi-green); }
-.sem-badge.yellow { background: var(--bi-yellow-bg); color: var(--bi-yellow); border: 1px solid var(--bi-yellow); }
-.sem-badge.red    { background: var(--bi-red-bg);    color: var(--bi-red);    border: 1px solid var(--bi-red); }
-.sem-dot { width: 7px; height: 7px; border-radius: 50%; }
-.sem-dot.yellow { background: var(--bi-yellow); box-shadow: 0 0 7px var(--bi-yellow); }
-.sem-dot.red    { background: var(--bi-red);    box-shadow: 0 0 7px var(--bi-red); animation: pulse 1.5s infinite; }
-.sem-dot.green  { background: var(--bi-green);  box-shadow: 0 0 7px var(--bi-green); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-.hero-kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 18px; grid-column: 1/-1; }
-.hkpi { background: var(--bi-bg3); border: 1px solid var(--bi-border); border-radius: 11px; padding: 14px 16px; transition: background var(--transition); }
-.hkpi-source { font-size: 9px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--bi-text3); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
-.hkpi-source::before { content: ''; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.hkpi-source.obra::before         { background: var(--bi-accent); }
-.hkpi-source.restricoes::before   { background: var(--bi-red); }
-.hkpi-source.gestcontroll::before { background: var(--bi-yellow); }
-.hkpi-source.diario::before       { background: var(--bi-blue); }
-.hkpi-value { font-size: 26px; font-weight: 800; color: var(--bi-text); font-family: 'JetBrains Mono', monospace; letter-spacing: -1px; line-height: 1.1; }
-.hkpi-label { font-size: 11px; color: var(--bi-text2); margin-top: 3px; font-weight: 500; }
-
-.sec-header { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 12px; scroll-margin-top: 76px; }
-.sec-title { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 700; color: var(--bi-text); text-transform: uppercase; letter-spacing: .5px; }
-.sec-num { width: 20px; height: 20px; border-radius: 5px; background: var(--bi-accent-bg); color: var(--bi-accent); font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.sec-right { display: flex; align-items: center; gap: 8px; }
-.sec-source { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--bi-border2); color: var(--bi-text3); }
-
-/* Forçar os grids a respeitarem o layout definido */
-.grid-2,
-.grid-3,
-.grid-4 {
-  display: grid !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-.grid-2 { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
-.grid-3 { grid-template-columns: repeat(3, 1fr) !important; gap: 12px !important; }
-.grid-4 { grid-template-columns: repeat(4, 1fr) !important; gap: 12px !important; }
-
-/* Garantir que os cards não colem nas bordas */
-.card {
-  background: var(--bi-card);
-  border: 1px solid var(--bi-border);
-  border-radius: 12px;
-  padding: 18px;
-  transition: background var(--transition), border-color .2s;
-  min-width: 0 !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-.card:hover { border-color: var(--bi-border2); }
-.card-title { font-size: 10.5px; font-weight: 700; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-.card-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: .4px; }
-.tag-obra  { background: var(--bi-accent-bg); color: var(--bi-accent); }
-.tag-gest  { background: var(--bi-blue-bg);   color: var(--bi-blue); }
-.tag-campo { background: var(--bi-green-bg);  color: var(--bi-green); }
-.tag-mat   { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
-.tag-rest  { background: var(--bi-red-bg);    color: var(--bi-red); }
-
-.big-num { font-size: 32px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--bi-text); letter-spacing: -1px; line-height: 1.1; }
-.big-num.green  { color: var(--bi-green); }
-.big-num.yellow { color: var(--bi-yellow); }
-.big-num.red    { color: var(--bi-red); }
-.big-sub { font-size: 11.5px; color: var(--bi-text2); margin-top: 3px; }
-
-.prog-wrap { margin-top: 9px; }
-.prog-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--bi-text2); margin-bottom: 4px; }
-.prog-bar { height: 5px; background: var(--bi-bg3); border-radius: 99px; overflow: hidden; }
-.prog-fill { height: 100%; border-radius: 99px; transition: width .8s cubic-bezier(.4,0,.2,1); }
-.prog-fill.green  { background: var(--bi-green); }
-.prog-fill.yellow { background: var(--bi-yellow); }
-.prog-fill.red    { background: var(--bi-red); }
-.prog-fill.blue   { background: var(--bi-blue); }
-.prog-fill.accent { background: var(--bi-accent); }
-
-.stat-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--bi-border); font-size: 12.5px; }
-.stat-row:last-child { border-bottom: none; }
-.stat-row-label { color: var(--bi-text2); font-weight: 500; display: flex; align-items: center; gap: 7px; }
-.stat-row-value { font-weight: 700; color: var(--bi-text); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
-.stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.chip { padding: 3px 10px; border-radius: 99px; font-size: 10.5px; font-weight: 700; }
-.chip-red    { background: var(--bi-red-bg);    color: var(--bi-red); }
-.chip-yellow { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
-.chip-blue   { background: var(--bi-blue-bg);   color: var(--bi-blue); }
-.chip-green  { background: var(--bi-green-bg);  color: var(--bi-green); }
-.chip-gray   { background: var(--bi-bg3);       color: var(--bi-text2); }
-
-.nav-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: var(--bi-accent); text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--bi-accent-bg); background: var(--bi-accent-bg); transition: all .2s; margin-top: 10px; }
-.nav-link:hover { background: var(--bi-accent); color: #fff; }
-.nav-link svg { width: 11px; height: 11px; }
-
-.funnel { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.funnel-item { display: flex; align-items: center; gap: 8px; }
-.funnel-label { font-size: 11px; color: var(--bi-text2); width: 130px; flex-shrink: 0; }
-.funnel-bar-wrap { flex: 1; height: 20px; background: var(--bi-bg3); border-radius: 5px; overflow: hidden; }
-.funnel-bar { height: 100%; border-radius: 5px; display: flex; align-items: center; padding-left: 7px; transition: width .8s; min-width: 28px; }
-.funnel-num { font-size: 10.5px; font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
-.funnel-bar.f1 { background: var(--bi-red);    width: 75%; }
-.funnel-bar.f2 { background: var(--bi-yellow); width: 55%; }
-.funnel-bar.f3 { background: var(--bi-blue);   width: 35%; }
-.funnel-bar.f4 { background: var(--bi-green);  width: 20%; }
-
-.tl-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bi-border); font-size: 12px; }
-.tl-item:last-child { border-bottom: none; }
-.tl-date { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--bi-text3); width: 70px; flex-shrink: 0; padding-top: 1px; }
-.tl-content { flex: 1; color: var(--bi-text); }
-.tl-meta { color: var(--bi-text3); font-size: 10.5px; margin-top: 2px; }
-
-.rdo-bar { display: flex; height: 7px; border-radius: 99px; overflow: hidden; margin: 10px 0 5px; gap: 2px; }
-.rdo-seg { height: 100%; border-radius: 2px; }
-
-.pedido-row { display: flex; align-items: center; gap: 8px; padding: 9px 6px; border-bottom: 1px solid var(--bi-border); font-size: 12px; cursor: pointer; border-radius: 6px; transition: background .15s; }
-.pedido-row:last-of-type { border-bottom: none; }
-.pedido-row:hover { background: var(--bi-bg3); }
-.pedido-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--bi-text3); width: 90px; flex-shrink: 0; }
-.pedido-credor { flex: 1; color: var(--bi-text); font-weight: 500; }
-.pedido-valor { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--bi-text2); min-width: 80px; text-align: right; }
-.pedido-badge { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
-.pedido-badge.pend { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
-.pedido-badge.repr { background: var(--bi-red-bg);    color: var(--bi-red); }
-.pedido-arrow { color: var(--bi-accent); font-size: 14px; opacity: .4; transition: opacity .15s; }
-.pedido-row:hover .pedido-arrow { opacity: 1; }
-
-.resp-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--bi-border); }
-.resp-row:last-child { border-bottom: none; }
-.resp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bi-accent-bg); color: var(--bi-accent); font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.resp-name { font-size: 12.5px; font-weight: 600; color: var(--bi-text); }
-.resp-sub  { font-size: 10px; color: var(--bi-text3); margin-top: 1px; }
-.resp-stats { display: flex; gap: 8px; align-items: center; margin-left: auto; }
-.resp-stat { text-align: center; }
-.resp-stat-val { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--bi-text); }
-.resp-stat-val.green { color: var(--bi-green); }
-.resp-stat-val.red   { color: var(--bi-red); }
-.resp-stat-label { font-size: 8.5px; color: var(--bi-text3); text-transform: uppercase; letter-spacing: .3px; }
-.resp-divider { width: 1px; height: 28px; background: var(--bi-border); }
-.tempo-badge { display: inline-flex; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
-.tempo-badge.fast { background: var(--bi-green-bg); color: var(--bi-green); }
-.tempo-badge.mid  { background: var(--bi-yellow-bg); color: var(--bi-yellow); }
-.tempo-badge.slow { background: var(--bi-red-bg);    color: var(--bi-red); }
-
-@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-.card,.hero { animation: fadeUp .35s both; }
-.card:nth-child(2){animation-delay:.06s}
-.card:nth-child(3){animation-delay:.12s}
-.card:nth-child(4){animation-delay:.18s}
-
-/* Mobile: coluna única, cards 100%, texto contido, menu visível */
-@media (max-width: 768px) {
-  .main-content-wrapper {
-    padding-top: 4rem !important;
-    margin-left: 0 !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-  }
-
-  .page-wrapper {
-    width: 100% !important;
-    max-width: 100vw !important;
-    margin-left: 0 !important;
-  }
-
-  .bi-main {
-    padding: 12px 12px 48px !important;
-  }
-
-  .grid-2,
-  .grid-3,
-  .grid-4,
-  .hero-kpis {
-    grid-template-columns: 1fr !important;
-  }
-
-  .hero {
-    grid-template-columns: 1fr !important;
-    padding: 14px 16px;
-    gap: 14px;
-  }
-
-  .card {
-    padding: 12px 14px;
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .card-title {
-    flex-wrap: wrap;
-    gap: 6px;
-    overflow-wrap: anywhere;
-  }
-
-  .card > *,
-  .stat-row-label,
-  .pedido-credor,
-  .tl-content,
-  .resp-name {
-    min-width: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .stat-row {
-    gap: 8px;
-    align-items: flex-start;
-  }
-
-  .stat-row-value {
-    flex-shrink: 0;
-    text-align: right;
-  }
-
-  .sec-header {
-    flex-wrap: wrap;
-    gap: 6px 8px;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  /* Linha 1: número + título (100% largura, esquerda) */
-  .sec-title,
-  .sec-left {
-    flex: 1 1 100%;
-    width: 100%;
-    min-width: 0;
-  }
-
-  /* Linha 2: tag fonte + Abrir X (100% largura, direita) */
-  .sec-right {
-    flex: 1 1 100%;
-    width: 100%;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    align-items: center;
-    margin-left: 0;
-  }
-
-  .sec-right .sec-source {
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .sec-right .nav-link {
-    margin-top: 0 !important;
-    white-space: nowrap;
-    font-size: 11px !important;
-    padding: 5px 10px !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-  }
-
-  .funnel-item {
-    flex-wrap: wrap;
-  }
-
-  .funnel-label {
-    width: 100%;
-    flex-shrink: 1;
-  }
-
-  .pedido-row {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .pedido-code,
-  .pedido-valor {
-    min-width: 0;
-    width: auto;
-  }
-
-  .tl-item {
-    flex-wrap: wrap;
-  }
-
-  .tl-date {
-    width: auto;
-  }
-
-  #mobile-app-header .mobile-menu-btn {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 44px !important;
-    height: 44px !important;
-    padding: 0 !important;
-    color: #fff !important;
-    background: rgba(255, 255, 255, 0.12) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 8px !important;
-  }
-
-  #mobile-app-header .mobile-menu-btn .mobile-menu-icon {
-    color: #fff !important;
-    flex-shrink: 0;
-  }
-
-  /* Ver mais (botões dentro dos cards) */
-  .card button.nav-link {
-    font-size: 10px !important;
-    padding: 3px 8px !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-  }
-
-  /* Ações dos cards (Abrir X, Ver fila, Ver vencidas, etc.) */
-  .card a.nav-link {
-    font-size: 10px !important;
-    padding: 4px 10px !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-  }
-
-}
-  </style>
+  <link rel="stylesheet" href="{% static 'suprimentos/css/analise_obra.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'suprimentos/css/analise_obra_ux.css' %}?v={{ lplan_static_version }}">
 </head>
 <body class="bg-slate-50">
 <div id="lplan-nav-progress" class="lplan-nav-progress" hidden aria-hidden="true"></div>
@@ -1045,11 +346,14 @@ html, body {
       </button>
       <a href="#hero"    class="index-item active"><div class="index-dot" style="background:var(--bi-text3)"></div>Visão geral</a>
       <a href="#bloco-1" class="index-item"><div class="index-dot" style="background:var(--bi-accent)"></div>Execução física</a>
+      <a href="#bloco-1b" class="index-item"><div class="index-dot" style="background:var(--bi-accent)"></div>Mapa de risco</a>
       <a href="#bloco-2" class="index-item"><div class="index-dot" style="background:var(--bi-blue)"></div>Pedidos & Aprovações</a>
       <a href="#bloco-3" class="index-item"><div class="index-dot" style="background:var(--bi-red)"></div>Restrições</a>
       <a href="#bloco-4" class="index-item"><div class="index-dot" style="background:var(--bi-green)"></div>Diário de obras</a>
       <a href="#bloco-5" class="index-item"><div class="index-dot" style="background:var(--bi-yellow)"></div>Suprimentos</a>
       <a href="#bloco-6" class="index-item"><div class="index-dot" style="background:var(--bi-blue)"></div>Pendências</a>
+      <a href="#bloco-7" class="index-item"><div class="index-dot" style="background:#a855f7"></div>Recursos Humanos</a>
+      <a href="#bloco-8" class="index-item"><div class="index-dot" style="background:#14b8a6"></div>Mapa Geográfico</a>
     </div>
 
     <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filters-bar">
@@ -1073,7 +377,117 @@ html, body {
         <input id="filtro-data-fim" type="date" name="data_fim" class="filter-select" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
       </div>
       <button type="submit" class="btn-apply">Aplicar</button>
+      <button type="button" class="btn-filtros-mais" id="btn-filtros-mais" onclick="toggleFiltrosAvancados()" aria-expanded="{% if filtros_avancados_ativos %}true{% else %}false{% endif %}">
+        Mais filtros{% if filtros_avancados_ativos %} · ativos{% endif %}
+      </button>
+      {% if analise_payload %}
+      <a href="{% url 'engenharia:analise_obra_resumo' %}?obra={{ obra_selecionada.id }}{% if filtros_get.data_inicio %}&amp;data_inicio={{ filtros_get.data_inicio }}{% endif %}{% if filtros_get.data_fim %}&amp;data_fim={{ filtros_get.data_fim }}{% endif %}" class="btn-export-resumo" target="_blank" rel="noopener">Resumo PDF</a>
+      {% endif %}
     </form>
+
+    {% if analise_payload %}
+    <div id="filtros-avancados" class="filtros-avancados{% if filtros_avancados_ativos %} is-open{% endif %}">
+      <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filtros-avancados-grid">
+        <input type="hidden" name="obra" value="{{ obra_selecionada.id }}">
+        {% if filtros_get.front %}<input type="hidden" name="front" value="{{ filtros_get.front }}">{% endif %}
+        <input type="hidden" name="data_inicio" value="{{ filtros_get.data_inicio }}">
+        <input type="hidden" name="data_fim" value="{{ filtros_get.data_fim }}">
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-setor">Setor</label>
+          <select id="filtro-setor" name="setor" class="filter-select">
+            <option value="">Todos</option>
+            {% for o in analise_payload.filtros.opcoes.setores %}<option value="{{ o.id }}" {% if filtros_get.setor == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-bloco">Bloco</label>
+          <select id="filtro-bloco" name="bloco" class="filter-select">
+            <option value="">Todos</option>
+            {% for o in analise_payload.filtros.opcoes.blocos %}<option value="{{ o.id }}" {% if filtros_get.bloco == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-pavimento">Pavimento</label>
+          <select id="filtro-pavimento" name="pavimento" class="filter-select">
+            <option value="">Todos</option>
+            {% for o in analise_payload.filtros.opcoes.pavimentos %}<option value="{{ o.id }}" {% if filtros_get.pavimento == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-apto">Unidade</label>
+          <select id="filtro-apto" name="apto" class="filter-select">
+            <option value="">Todas</option>
+            {% for o in analise_payload.filtros.opcoes.aptos %}<option value="{{ o.id }}" {% if filtros_get.apto == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-atividade">Atividade</label>
+          <select id="filtro-atividade" name="atividade" class="filter-select">
+            <option value="">Todas</option>
+            {% for o in analise_payload.filtros.opcoes.atividades %}<option value="{{ o.id }}" {% if filtros_get.atividade == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-status-servico">Status execução</label>
+          <select id="filtro-status-servico" name="status_servico" class="filter-select">
+            {% for o in analise_payload.filtros.opcoes.status_servico %}<option value="{{ o.id }}" {% if filtros_get.status_servico == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-status-sup">Status suprimento</label>
+          <select id="filtro-status-sup" name="status_suprimento" class="filter-select">
+            <option value="">Todos</option>
+            {% for o in analise_payload.filtros.opcoes.suprimentos.status %}<option value="{{ o.id }}" {% if filtros_get.status_suprimento == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-categoria-sup">Categoria material</label>
+          <select id="filtro-categoria-sup" name="categoria_suprimento" class="filter-select">
+            <option value="">Todas</option>
+            {% for c in analise_payload.filtros.opcoes.suprimentos.categorias %}<option value="{{ c }}" {% if filtros_get.categoria_suprimento == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-prioridade-sup">Prioridade material</label>
+          <select id="filtro-prioridade-sup" name="prioridade_suprimento" class="filter-select">
+            <option value="">Todas</option>
+            {% for o in analise_payload.filtros.opcoes.suprimentos.prioridades %}<option value="{{ o.id }}" {% if filtros_get.prioridade_suprimento == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-local-sup">Local material</label>
+          <select id="filtro-local-sup" name="local_suprimento_id" class="filter-select">
+            <option value="">Todos</option>
+            {% for o in analise_payload.filtros.opcoes.suprimentos.locais %}<option value="{{ o.id }}" {% if filtros_get.local_suprimento_id == o.id|stringformat:"i" or filtros_get.local_suprimento_id == o.id %}selected{% endif %}>{{ o.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label class="filter-label" for="filtro-tag-ocorrencia">Tag ocorrência</label>
+          <select id="filtro-tag-ocorrencia" name="tag_ocorrencia_id" class="filter-select">
+            <option value="">Todas</option>
+            {% for t in analise_payload.filtros.opcoes.tags_ocorrencia %}<option value="{{ t.id }}" {% if filtros_get.tag_ocorrencia_id == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="filter-field filter-field--wide">
+          <label class="filter-label" for="filtro-busca-sup">Busca material</label>
+          <input id="filtro-busca-sup" type="search" name="busca_suprimento" class="filter-select" value="{{ filtros_get.busca_suprimento }}" placeholder="Código ou descrição">
+        </div>
+        <div class="filter-field filter-field--wide">
+          <label class="filter-label" for="filtro-busca-diario">Busca no diário</label>
+          <input id="filtro-busca-diario" type="search" name="busca_diario_texto" class="filter-select" value="{{ filtros_get.busca_diario_texto }}" placeholder="Texto da ocorrência">
+        </div>
+        <div class="filter-field filter-field--wide">
+          <label class="filter-label" for="filtro-responsavel">Responsável (diário)</label>
+          <input id="filtro-responsavel" type="search" name="responsavel_texto" class="filter-select" value="{{ filtros_get.responsavel_texto }}" placeholder="Nome do responsável">
+        </div>
+        <div class="filtros-avancados-actions">
+          <button type="submit" class="btn-apply">Aplicar filtros</button>
+          <a href="{% url 'engenharia:analise_obra' %}?obra={{ obra_selecionada.id }}" class="btn-limpar-filtros">Limpar avançados</a>
+        </div>
+        <p class="filtros-avancados-hint">Frente de obra afeta <strong>Diário</strong> e <strong>Restrições</strong>. Filtros de mapa e suprimentos recortam execução física e materiais na mesma obra.</p>
+      </form>
+    </div>
+    {% endif %}
 
     <div class="bi-main">
 
@@ -1082,22 +496,42 @@ html, body {
         <div>
           <div class="hero-label">Obra selecionada</div>
           <div class="hero-title">{{ obra_selecionada.nome }}</div>
-          <div class="hero-code">Código Sienge: {{ analise_payload.meta.gestao_obra_id|default:analise_payload.meta.obra_codigo|default:"—" }}{% if analise_payload.meta.projeto_diario_codigo %} · Diário: {{ analise_payload.meta.projeto_diario_codigo }}{% endif %}</div>
+          <div class="hero-code">Código Sienge: {{ analise_payload.meta.obra_codigo|default:"—" }}{% if analise_payload.meta.projeto_diario_codigo %} · Diário: {{ analise_payload.meta.projeto_diario_codigo }}{% endif %}</div>
           <div class="hero-period">Período: {{ analise_payload.meta.periodo.inicio }} → {{ analise_payload.meta.periodo.fim }} ({{ analise_payload.meta.periodo.dias }} dias)</div>
         </div>
-        <div>
+        <div class="bi-sit-wrap">
           <div style="font-size:9px;font-weight:700;color:var(--bi-text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;text-align:right">Situação</div>
           {% with sit=analise_payload.meta.situacao_executiva.nivel %}
-          <div class="sem-badge {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}"><div class="sem-dot {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}"></div>{% if sit == 'ok' %}Obra OK{% elif sit == 'atencao' %}Obra em atenção{% else %}Obra em risco{% endif %}</div>
+          <button type="button" id="bi-sit-badge" class="sem-badge sem-badge--action {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}" title="Clique para ver motivos{% if sit != 'ok' %} · segundo clique vai ao cruzamento{% endif %}"><div class="sem-dot {% if sit == 'ok' %}green{% elif sit == 'atencao' %}yellow{% else %}red{% endif %}"></div>{% if sit == 'ok' %}Obra OK{% elif sit == 'atencao' %}Obra em atenção{% else %}Obra em risco{% endif %}</button>
+          <div id="bi-sit-popover" class="bi-sit-popover" role="dialog" aria-label="Motivos da situação">
+            <div class="bi-sit-popover-title">Motivos da síntese</div>
+            <ul></ul>
+          </div>
           {% endwith %}
+          <div class="hero-situacao-hint" title="Combina avanço físico, atrasos de material e ocorrências do diário (aprovados).">Síntese automática — não substitui cronograma contratual.</div>
         </div>
         <div class="hero-kpis">
-          <div class="hkpi"><div class="hkpi-source obra">Mapa de Controle</div><div class="hkpi-value">{% firstof analise_payload.meta.kpis_hero.avanco_fisico_pct analise_payload.controle.kpis.percentual_medio "—" %}{% if analise_payload.controle.kpis.percentual_medio or analise_payload.meta.kpis_hero.avanco_fisico_pct %}%{% endif %}</div><div class="hkpi-label">Avanço físico médio</div></div>
-          <div class="hkpi"><div class="hkpi-source restricoes">Restrições</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.restricoes_abertas|default_if_none:"—" }}</div><div class="hkpi-label">Restrições abertas</div></div>
-          <div class="hkpi"><div class="hkpi-source gestcontroll">GestControll</div><div class="hkpi-value">R$&nbsp;{{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default_if_none:0|format_brl }}</div><div class="hkpi-label">Em aprovação</div></div>
-          <div class="hkpi"><div class="hkpi-source diario">Diário de Obras</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.rdos_pendentes|default_if_none:"—" }}</div><div class="hkpi-label">RDOs pendentes</div></div>
+          <a href="#bloco-1" class="hkpi hkpi--action hkpi--tip" data-kpi-drawer="avanco" data-spark="avanco" title="Média de % de execução física no mapa de controle publicado (ambiente operacional). Clique para detalhes."><div class="hkpi-source obra">Mapa de Controle</div><div class="hkpi-value">{% firstof analise_payload.meta.kpis_hero.avanco_fisico_pct analise_payload.controle.kpis.percentual_medio "—" %}{% if analise_payload.controle.kpis.percentual_medio or analise_payload.meta.kpis_hero.avanco_fisico_pct %}%{% endif %}</div><div class="hkpi-label">Avanço físico médio</div></a>
+          <a href="#bloco-3" class="hkpi hkpi--action hkpi--tip" data-kpi-drawer="restricoes" data-spark="restricoes" title="Restrições (impedimentos) em aberto nesta obra/frente."><div class="hkpi-source restricoes">Restrições</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.restricoes_abertas|default_if_none:"—" }}</div><div class="hkpi-label">Restrições abertas</div></a>
+          <a href="#bloco-2" class="hkpi hkpi--action hkpi--tip" data-kpi-drawer="aprovacao" data-spark="aprovacao" title="Soma do valor estimado dos pedidos GestControll aguardando aprovação."><div class="hkpi-source gestcontroll">GestControll</div><div class="hkpi-value">R$&nbsp;{{ analise_payload.meta.kpis_hero.valor_em_aprovacao|default_if_none:0|format_brl }}</div><div class="hkpi-label">Em aprovação</div></a>
+          <a href="#bloco-4" class="hkpi hkpi--action hkpi--tip" data-kpi-drawer="rdos" data-spark="rdos" title="RDOs do diário com status pendente de aprovação no período filtrado."><div class="hkpi-source diario">Diário de Obras</div><div class="hkpi-value">{{ analise_payload.meta.kpis_hero.rdos_pendentes|default_if_none:"—" }}</div><div class="hkpi-label">RDOs pendentes</div></a>
         </div>
       </div>
+      <div id="bi-priority-bar" class="bi-priority-bar"></div>
+      {% with bl=analise_payload.meta.baseline_planejamento %}
+      {% if bl.disponivel %}
+      <div class="bi-baseline-card bi-baseline-card--{{ bl.situacao }}" id="bi-baseline">
+        <div class="bi-baseline-title">Planejado × real <span class="card-tag tag-obra">PRAZO</span></div>
+        <div class="bi-baseline-metrics">
+          <div><span class="bi-baseline-num">{{ bl.pct_real }}%</span><span class="bi-baseline-lbl">físico real</span></div>
+          <div class="bi-baseline-vs">vs</div>
+          <div><span class="bi-baseline-num">{{ bl.pct_esperado }}%</span><span class="bi-baseline-lbl">esperado no tempo</span></div>
+          <div class="bi-baseline-desvio {% if bl.desvio < -5 %}neg{% elif bl.desvio > 5 %}pos{% endif %}">{{ bl.desvio|floatformat:1 }} pp</div>
+        </div>
+        <div class="bi-baseline-sub">{{ bl.rotulo }} · {{ bl.data_inicio }} → {{ bl.data_fim }} ({{ bl.dias_decorridos }}/{{ bl.dias_totais }} dias)</div>
+      </div>
+      {% endif %}
+      {% endwith %}
 {% else %}
       <div id="hero" style="text-align:center;padding:40px;color:var(--bi-text3);background:var(--bi-card);border:1px solid var(--bi-border);border-radius:14px;margin-bottom:18px">
         Selecione uma obra para visualizar o BI
@@ -1110,7 +544,7 @@ html, body {
         <div style="font-size:16px">⚠️</div>
         <div>
           <div style="font-size:12.5px;color:var(--bi-text);font-weight:500">Diário sem vínculo de projeto</div>
-          <div style="font-size:10.5px;color:var(--bi-text2);margin-top:3px">O código Sienge desta obra não foi encontrado no Diário de Obras. <a href="/admin/" style="color:var(--bi-accent)">Configurar →</a></div>
+          <div style="font-size:10.5px;color:var(--bi-text2);margin-top:3px">O código Sienge desta obra não foi encontrado no Diário de Obras. {% if analise_payload.meta.projeto_diario_id %}<a href="{% url 'project-edit' analise_payload.meta.projeto_diario_id %}" style="color:var(--bi-accent)">Vincular projeto →</a>{% else %}<a href="{% url 'central_project_list' %}" style="color:var(--bi-accent)">Configurar projetos →</a>{% endif %}</div>
         </div>
       </div>
 {% endif %}
@@ -1150,7 +584,7 @@ html, body {
           <div id="blocos-resumo">
             {% for bloco in analise_payload.controle.progresso_blocos|slice:":5" %}
             {% with p=bloco.percentual_medio|default:0 %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}&amp;bloco={{ bloco.bloco|default:bloco.rotulo|urlencode }}" class="stat-row stat-row--link"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></a>
             {% endwith %}
             {% empty %}
             <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
@@ -1159,7 +593,7 @@ html, body {
           <div id="blocos-expandido" style="display:none;overflow:hidden;transition:all .3s;">
             {% for bloco in analise_payload.controle.progresso_blocos|slice:"5:" %}
             {% with p=bloco.percentual_medio|default:0 %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}&amp;bloco={{ bloco.bloco|default:bloco.rotulo|urlencode }}" class="stat-row stat-row--link"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ bloco.rotulo|default:bloco.bloco|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></a>
             {% endwith %}
             {% endfor %}
           </div>
@@ -1175,7 +609,7 @@ html, body {
           <div id="atividades-resumo">
             {% for ativ in analise_payload.controle.atividades_mais_criticas|slice:":5" %}
             {% with p=ativ.percentual_medio|default:0 %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}&amp;atividade={{ ativ.atividade|urlencode }}" class="stat-row stat-row--link"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></a>
             {% endwith %}
             {% empty %}
             <div class="stat-row"><div class="stat-row-label">Sem dados</div><div class="stat-row-value">—</div></div>
@@ -1184,7 +618,7 @@ html, body {
           <div id="atividades-expandido" style="display:none;overflow:hidden;transition:all .3s;">
             {% for ativ in analise_payload.controle.atividades_mais_criticas|slice:"5:" %}
             {% with p=ativ.percentual_medio|default:0 %}
-            <div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></div>
+            <a href="{% url 'engenharia:mapa_controle' %}?obra={{ obra_selecionada.id }}&amp;atividade={{ ativ.atividade|urlencode }}" class="stat-row stat-row--link"><div class="stat-row-label"><div class="stat-dot" style="background:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}"></div>{{ ativ.atividade|default:"—" }}</div><div class="stat-row-value" style="color:{% if p < 30 %}var(--bi-red){% elif p < 60 %}var(--bi-yellow){% elif p < 80 %}var(--bi-blue){% else %}var(--bi-green){% endif %}">{{ p|floatformat:1 }}%</div></a>
             {% endwith %}
             {% endfor %}
           </div>
@@ -1198,6 +632,21 @@ html, body {
         {% endif %}
       </div>
 
+      {% if obra_selecionada %}
+      <div class="bi-subsec" id="bloco-1b">
+        <div class="bi-subsec-title">Mapa de criticidade · bloco × pavimento <span class="card-tag tag-obra">OBRA</span></div>
+        <div class="analise-secao-lazy" data-secao="heatmap" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+          <div class="analise-loading-skeleton">Carregando mapa de criticidade…</div>
+        </div>
+      </div>
+      <div class="bi-subsec" id="bloco-1c">
+        <div class="bi-subsec-title">Locais com risco · execução × suprimento <span class="card-tag tag-mat">CRUZAMENTO</span></div>
+        <div class="analise-secao-lazy" data-secao="cruzamento" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+          <div class="analise-loading-skeleton">Carregando cruzamento…</div>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="sec-header" id="bloco-2">
         <div class="sec-title"><div class="sec-num">2</div>Pedidos & Aprovações</div>
         <div class="sec-right"><div class="sec-source">GestControll · Central</div><a href="{% url 'gestao:list_workorders' %}" class="nav-link">Abrir GestControll <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
@@ -1205,6 +654,12 @@ html, body {
       {% if obra_selecionada %}
       <div class="analise-secao-lazy" data-secao="gestcontroll" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
         <div class="analise-loading-skeleton">Carregando pedidos e aprovações…</div>
+      </div>
+      <div class="bi-subsec" id="bloco-2b">
+        <div class="bi-subsec-title">Central de Aprovações <span class="card-tag tag-gest">WORKFLOW</span></div>
+        <div class="analise-secao-lazy" data-secao="workflow_central" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+          <div class="analise-loading-skeleton">Carregando fila da Central…</div>
+        </div>
       </div>
       {% endif %}
 
@@ -1253,445 +708,90 @@ html, body {
       </div>
       {% endif %}
 
+      <div class="sec-header" id="bloco-7">
+        <div class="sec-title"><div class="sec-num">7</div>Recursos Humanos</div>
+        <div class="sec-right">
+          <div class="sec-source">DP / RH</div>
+          <a href="{% url 'recursos_humanos:colaboradores' %}" class="nav-link">Abrir RH <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+      </div>
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="rh" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
+        <div class="analise-loading-skeleton">Carregando colaboradores e alertas…</div>
+      </div>
+      {% endif %}
+
+      <div class="sec-header" id="bloco-8">
+        <div class="sec-title"><div class="sec-num">8</div>Mapa Geográfico</div>
+        <div class="sec-right">
+          <div class="sec-source">Terreno · EAP · GPS</div>
+          <a href="{% url 'mapa_geo:mapa' %}{% if obra_selecionada.project_id %}?project={{ obra_selecionada.project_id }}{% elif analise_payload and analise_payload.meta.projeto_diario_id %}?project={{ analise_payload.meta.projeto_diario_id }}{% endif %}" class="nav-link">Abrir mapa <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>
+      </div>
+      {% if obra_selecionada %}
+      <div class="analise-secao-lazy" data-secao="mapa_geo" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}" data-projeto-diario-id="{% if analise_payload %}{{ analise_payload.meta.projeto_diario_id|default:'' }}{% endif %}">
+        <div class="analise-loading-skeleton">Carregando mapa geográfico…</div>
+      </div>
+      {% endif %}
+
     </div>
   </div>
         </main>
     </div>
 
-<script>
-(function() {
-  const saved = localStorage.getItem('lplan-bi-theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  window.addEventListener('DOMContentLoaded', function() {
-    if (typeof updateThemeUI === 'function') updateThemeUI(saved);
-  });
-})();
+<div id="bi-drawer-backdrop" class="bi-drawer-backdrop" aria-hidden="true">
+  <div class="bi-drawer" role="dialog" aria-labelledby="bi-drawer-title">
+    <div class="bi-drawer-header">
+      <div id="bi-drawer-title" class="bi-drawer-title">Detalhe</div>
+      <button type="button" id="bi-drawer-close" class="bi-drawer-close" aria-label="Fechar">×</button>
+    </div>
+    <div id="bi-drawer-body" class="bi-drawer-body"></div>
+  </div>
+</div>
 
-function updateThemeUI(theme) {
-  const box = document.getElementById('theme-icon-box');
-  const svg = document.getElementById('theme-svg');
-  const pill = document.getElementById('theme-pill');
-  const knob = document.getElementById('theme-knob');
-  const label = document.getElementById('theme-label');
-  const sub = document.getElementById('theme-sub');
-  if (theme === 'light') {
-    if (box) box.style.background = 'rgba(99,102,241,0.18)';
-    if (svg) {
-      svg.setAttribute('stroke', '#818cf8');
-      svg.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-    }
-    if (pill) pill.style.background = '#6366f1';
-    if (knob) { knob.style.transform = 'translateX(14px)'; knob.style.background = '#fff'; }
-    if (label) label.textContent = 'Modo escuro';
-    if (sub) sub.textContent = 'Tema atual: claro';
-  } else {
-    if (box) box.style.background = 'rgba(245,158,11,0.18)';
-    if (svg) {
-      svg.setAttribute('stroke', '#f59e0b');
-      svg.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-    }
-    if (pill) pill.style.background = 'rgba(255,255,255,0.15)';
-    if (knob) { knob.style.transform = 'translateX(0)'; knob.style.background = 'rgba(255,255,255,0.45)'; }
-    if (label) label.textContent = 'Modo claro';
-    if (sub) sub.textContent = 'Tema atual: escuro';
-  }
-}
-
-function toggleTheme() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const next = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('lplan-bi-theme', next);
-  updateThemeUI(next);
-}
-
-function setIndexOpenState(open) {
-  const panel = document.getElementById('bi-index');
-  const btn = document.querySelector('.index-toggle-btn');
-  if (!panel) return;
-  panel.classList.toggle('open', !!open);
-  if (btn) {
-    btn.classList.toggle('is-open', !!open);
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-}
-
-function toggleIndex() {
-  const panel = document.getElementById('bi-index');
-  if (!panel) return;
-  setIndexOpenState(!panel.classList.contains('open'));
-}
-
-function toggleDias() {
-  const expandido = document.getElementById('dias-expandido');
-  const btn = document.getElementById('btn-ver-mais-dias');
-  const icon = document.getElementById('icon-ver-mais-dias');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function toggleBlocos() {
-  const expandido = document.getElementById('blocos-expandido');
-  const btn = document.getElementById('btn-ver-mais-blocos');
-  const icon = document.getElementById('icon-ver-mais-blocos');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function toggleAtividades() {
-  const expandido = document.getElementById('atividades-expandido');
-  const btn = document.getElementById('btn-ver-mais-atividades');
-  const icon = document.getElementById('icon-ver-mais-atividades');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function toggleTipos() {
-  const expandido = document.getElementById('tipos-expandido');
-  const btn = document.getElementById('btn-ver-mais-tipos');
-  const icon = document.getElementById('icon-ver-mais-tipos');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function toggleResponsaveis() {
-  const expandido = document.getElementById('responsaveis-expandido');
-  const btn = document.getElementById('btn-ver-mais-responsaveis');
-  const icon = document.getElementById('icon-ver-mais-responsaveis');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function toggleAtrasadas() {
-  const expandido = document.getElementById('atrasadas-expandido');
-  const btn = document.getElementById('btn-ver-mais-atrasadas');
-  const icon = document.getElementById('icon-ver-mais-atrasadas');
-  if (!expandido || !btn || !icon) return;
-  const aberto = expandido.style.display !== 'none';
-
-  if (aberto) {
-    expandido.style.display = 'none';
-    btn.childNodes[0].textContent = 'Ver mais ';
-    icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
-  } else {
-    expandido.style.display = 'block';
-    btn.childNodes[0].textContent = 'Ver menos ';
-    icon.innerHTML = '<polyline points="18 15 12 9 6 15"/>';
-  }
-}
-
-function trocarObra(select) {
-  const obraId = select.value;
-  // Redirecionar para a mesma URL mas com a nova obra e sem datas
-  // (sem datas o servidor vai usar o padrão: data_inicio da obra e hoje)
-  const url = new URL(window.location.href);
-  url.searchParams.set('obra', obraId);
-  url.searchParams.delete('front');
-  url.searchParams.delete('data_inicio');
-  url.searchParams.delete('data_fim');
-  window.location.href = url.toString();
-}
-
-document.addEventListener('click', function(e) {
-  const panel = document.getElementById('bi-index');
-  const btn = document.querySelector('.index-toggle-btn');
-  if (panel && panel.classList.contains('open') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
-    setIndexOpenState(false);
-  }
-});
-
-const biSections = [
-  { id: 'hero',    idx: 0 },
-  { id: 'bloco-1', idx: 1 },
-  { id: 'bloco-2', idx: 2 },
-  { id: 'bloco-3', idx: 3 },
-  { id: 'bloco-4', idx: 4 },
-  { id: 'bloco-5', idx: 5 },
-  { id: 'bloco-6', idx: 6 },
-];
-
-function updateActive() {
-  const scrollTop = window.scrollY || document.documentElement.scrollTop;
-  const windowH = window.innerHeight;
-  let current = 0;
-
-  biSections.forEach(function(s) {
-    const el = document.getElementById(s.id);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top;
-    // Marca como ativa a última seção cujo topo já passou de 30% da tela
-    if (top < windowH * 0.35) {
-      current = s.idx;
-    }
-  });
-
-  document.querySelectorAll('.index-item').forEach(function(item, i) {
-    item.classList.toggle('active', i === current);
-  });
-}
-
-// Usar IntersectionObserver para detectar seção visível ao rolar
-const observerOptions = {
-  root: null,
-  rootMargin: '-30% 0px -60% 0px',
-  threshold: 0
-};
-
-const sectionObserver = new IntersectionObserver(function(entries) {
-  entries.forEach(function(entry) {
-    if (entry.isIntersecting) {
-      const id = entry.target.id;
-      const idx = biSections.findIndex(s => s.id === id);
-      if (idx !== -1) {
-        document.querySelectorAll('.index-item').forEach(function(item, i) {
-          item.classList.toggle('active', i === idx);
-        });
-      }
-    }
-  });
-}, observerOptions);
-
-biSections.forEach(function(s) {
-  const el = document.getElementById(s.id);
-  if (el) sectionObserver.observe(el);
-});
-
-window.addEventListener('load', updateActive);
-document.addEventListener('DOMContentLoaded', updateActive);
-
-// Ao clicar num item do índice, manter painel aberto e atualizar estado ativo após scroll
-document.querySelectorAll('.index-item').forEach(function(item) {
-  item.addEventListener('click', function() {
-    setTimeout(updateActive, 400);
-  });
-});
-
-(function() {
-  'use strict';
-  function initSidebar() {
-    var sidebar = document.getElementById('sidebar');
-    var overlay = document.getElementById('mobile-sidebar-overlay');
-    var toggleBtn = document.getElementById('mobile-sidebar-toggle');
-    var mainWrapper = document.querySelector('.main-content-wrapper');
-    var desktopDefaultCollapsed = sidebar && sidebar.dataset.defaultCollapsed === '1';
-    if (!sidebar) return;
-
-    function setDesktopSidebarCollapsed(collapsed) {
-      var isDesktop = window.innerWidth >= 768;
-      if (!isDesktop) return;
-      document.body.classList.toggle('sidebar-collapsed', !!collapsed);
-      sidebar.classList.toggle('is-collapsed', !!collapsed);
-      if (mainWrapper) {
-        if (desktopDefaultCollapsed) {
-          mainWrapper.classList.add('sidebar-wrapper-collapsed');
-          mainWrapper.style.marginLeft = '5.25rem';
-          mainWrapper.style.width = 'calc(100% - 5.25rem)';
-        } else {
-          mainWrapper.classList.toggle('sidebar-wrapper-collapsed', !!collapsed);
-          mainWrapper.style.marginLeft = collapsed ? '5.25rem' : '16rem';
-          mainWrapper.style.width = collapsed ? 'calc(100% - 5.25rem)' : 'calc(100% - 16rem)';
-        }
-      }
-      document.querySelectorAll('#sidebar .sidebar-link').forEach(function (link) {
-        var label = (link.textContent || '').trim().replace(/\s+/g, ' ');
-        if (label) link.setAttribute('title', label);
-      });
-    }
-
-    function closeSidebar() {
-      if (window.innerWidth < 768) {
-        sidebar.style.transform = 'translateX(-100%)';
-        if (overlay) overlay.style.display = 'none';
-      }
-    }
-    function updateSidebar() {
-      var isDesktop = window.innerWidth >= 768;
-      if (isDesktop) {
-        if (overlay) overlay.style.display = 'none';
-        setDesktopSidebarCollapsed(desktopDefaultCollapsed);
-      } else {
-        document.body.classList.remove('sidebar-collapsed');
-        sidebar.classList.remove('is-collapsed');
-        if (mainWrapper) {
-          mainWrapper.classList.remove('sidebar-wrapper-collapsed');
-          mainWrapper.style.marginLeft = '';
-          mainWrapper.style.width = '';
-        }
-        var ct = window.getComputedStyle(sidebar).transform;
-        var open = ct === 'none' || ct.indexOf('matrix(1, 0, 0, 1, 0, 0)') !== -1 || sidebar.style.transform === 'translateX(0)';
-        if (!open) sidebar.style.transform = 'translateX(-100%)';
-      }
-    }
-    updateSidebar();
-    window.addEventListener('pageshow', updateSidebar);
-    window.addEventListener('resize', function() {
-      setTimeout(updateSidebar, 100);
-    });
-    if (toggleBtn && overlay) {
-      toggleBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (window.innerWidth < 768) {
-          var ct = sidebar.style.transform || window.getComputedStyle(sidebar).transform;
-          var isOpen = ct === 'none' || ct === '' || ct.indexOf('translateX(0)') !== -1 || ct.indexOf('matrix(1, 0, 0, 1, 0, 0)') !== -1;
-          if (isOpen) closeSidebar();
-          else {
-            sidebar.style.transform = 'translateX(0)';
-            overlay.style.display = 'block';
-          }
-        }
-      });
-      overlay.addEventListener('click', closeSidebar);
-    }
-
-    if (desktopDefaultCollapsed) {
-      var hoverOpenTimer = null;
-      var hoverCloseTimer = null;
-      sidebar.addEventListener('mouseenter', function() {
-        if (window.innerWidth < 768) return;
-        if (hoverOpenTimer) clearTimeout(hoverOpenTimer);
-        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
-        hoverOpenTimer = setTimeout(function () {
-          setDesktopSidebarCollapsed(false);
-          hoverOpenTimer = null;
-        }, 130);
-      });
-      sidebar.addEventListener('mouseleave', function() {
-        if (window.innerWidth < 768) return;
-        if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
-        if (hoverCloseTimer) clearTimeout(hoverCloseTimer);
-        hoverCloseTimer = setTimeout(function () {
-          setDesktopSidebarCollapsed(true);
-          hoverCloseTimer = null;
-        }, 170);
-      });
-      sidebar.addEventListener('focusin', function() {
-        if (window.innerWidth < 768) return;
-        if (hoverOpenTimer) { clearTimeout(hoverOpenTimer); hoverOpenTimer = null; }
-        if (hoverCloseTimer) { clearTimeout(hoverCloseTimer); hoverCloseTimer = null; }
-        setDesktopSidebarCollapsed(false);
-      });
-      sidebar.addEventListener('focusout', function() {
-        if (window.innerWidth < 768) return;
-        setTimeout(function () {
-          if (!sidebar.contains(document.activeElement)) {
-            setDesktopSidebarCollapsed(true);
-          }
-        }, 0);
-      });
-    }
-  }
-  function initUserMenu() {
-    var container = document.getElementById('user-menu-container');
-    var button = document.getElementById('user-menu-button');
-    var dropdown = document.getElementById('user-menu-dropdown');
-    var chevron = document.getElementById('user-menu-chevron');
-    if (!container || !button || !dropdown) return;
-    var isOpen = false;
-    function toggleDropdown(e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      isOpen = !isOpen;
-      if (isOpen) {
-        dropdown.style.display = 'block';
-        dropdown.style.visibility = 'visible';
-        dropdown.style.opacity = '1';
-        button.setAttribute('aria-expanded', 'true');
-        if (chevron) chevron.style.transform = 'rotate(180deg)';
-      } else {
-        dropdown.style.display = 'none';
-        dropdown.style.visibility = 'hidden';
-        dropdown.style.opacity = '0';
-        button.setAttribute('aria-expanded', 'false');
-        if (chevron) chevron.style.transform = 'rotate(0deg)';
-      }
-    }
-    button.addEventListener('click', toggleDropdown);
-    document.addEventListener('click', function(e) {
-      if (isOpen && container && !container.contains(e.target)) {
-        isOpen = false;
-        dropdown.style.display = 'none';
-        dropdown.style.visibility = 'hidden';
-        dropdown.style.opacity = '0';
-        button.setAttribute('aria-expanded', 'false');
-        if (chevron) chevron.style.transform = 'rotate(0deg)';
-      }
-    });
-  }
-  function initShell() {
-    initSidebar();
-    initUserMenu();
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initShell);
-  } else {
-    initShell();
-  }
-})();
-</script>
+<script src="{% static 'suprimentos/js/analise_obra_shell.js' %}?v={{ lplan_static_version }}"></script>
 {% if obra_selecionada %}
+{% if analise_payload %}
+{{ analise_payload.meta.sparklines|json_script:"ao-sparklines" }}
+{{ analise_payload.meta.acoes_prioritarias|json_script:"ao-acoes-prioritarias" }}
+{{ analise_payload.meta.situacao_executiva|json_script:"ao-situacao" }}
+{{ analise_payload.meta.hero_drawer|json_script:"ao-hero-drawer" }}
+{% endif %}
 <script>
 window.__ANALISE_API_URL__ = "{% url 'suprimentos:analise_obra_api' %}";
 window.__AO_OBRA_ID__ = "{{ obra_selecionada.id }}";
 window.__AO_URLS__ = {
-  gestao_list_pendente: "{% url 'gestao:list_workorders' %}?status=pendente",
-  gestao_list_reprovado: "{% url 'gestao:list_workorders' %}?status=reprovado",
+  gestao_list_pendente: "{% url 'gestao:list_workorders' %}?status=pendente{% if analise_payload and analise_payload.meta.gestao_obra_id %}&obra={{ analise_payload.meta.gestao_obra_id }}{% endif %}",
+  gestao_list_reprovado: "{% url 'gestao:list_workorders' %}?status=reprovado{% if analise_payload and analise_payload.meta.gestao_obra_id %}&obra={{ analise_payload.meta.gestao_obra_id }}{% endif %}",
   gestao_detail_prefix: "{% url 'gestao:detail_workorder' 999999 %}".replace("999999", ""),
   report_list: "{% url 'report-list' %}",
+  diary_detail_prefix: "{% url 'diary-detail' 999999 %}".replace("999999", ""),
   trackhub_fila: "{% url 'trackhub:fila' %}",
+  trackhub_pendencia_prefix: "{% url 'trackhub:pendencia_detalhe' 999999 %}".replace("999999", ""),
+  rh_colaboradores: "{% url 'recursos_humanos:colaboradores' %}",
+  rh_alertas: "{% url 'recursos_humanos:alertas' %}",
+  workflow_pending: "{% url 'workflow_aprovacao:pending' %}",
+  workflow_process_prefix: "{% url 'workflow_aprovacao:process_detail' 999999 %}".replace("999999", ""),
+  mapa_geo_home: "{% url 'mapa_geo:mapa' %}",
+  mapa_geo_relatorio: "{% url 'mapa_geo:relatorio' %}",
+  mapa_engenharia: "{% url 'engenharia:mapa' %}",
+  mapa_controle: "{% url 'engenharia:mapa_controle' %}",
   impedimentos_select: "{% url 'impedimentos:select_obra' %}",
   impedimentos_list: "{% if obra_selecionada.project_id %}{% url 'impedimentos:list_impedimentos' obra_selecionada.project_id %}{% else %}{% url 'impedimentos:select_obra' %}{% endif %}"
 };
+(function () {
+  var el;
+  el = document.getElementById("ao-sparklines");
+  if (el) window.__AO_SPARKLINES__ = JSON.parse(el.textContent);
+  el = document.getElementById("ao-acoes-prioritarias");
+  if (el) window.__AO_ACOES_PRIORITARIAS__ = JSON.parse(el.textContent);
+  el = document.getElementById("ao-situacao");
+  if (el) window.__AO_SITUACAO__ = JSON.parse(el.textContent);
+  el = document.getElementById("ao-hero-drawer");
+  if (el) window.__AO_HERO_DRAWER__ = JSON.parse(el.textContent);
+})();
 </script>
+<script src="{% static 'suprimentos/js/analise_obra_ux.js' %}?v={{ lplan_static_version }}"></script>
 <script src="{% static 'suprimentos/js/analise_obra.js' %}?v={{ lplan_static_version }}"></script>
 {% endif %}
 </body>
