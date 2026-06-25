@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
 from accounts.decorators import login_required
-from accounts.groups import GRUPOS
+from accounts.groups import usuario_tem_acesso_mapa_geografico
 from core.frontend_views import _get_projects_for_user, _user_can_access_project, _with_no_cache_html, get_selected_project
 from core.models import Project
 
@@ -54,8 +54,7 @@ def _user_can_edit_geo(request) -> bool:
     user = request.user
     if user.is_staff or user.is_superuser:
         return True
-    groups = set(user.groups.values_list('name', flat=True))
-    return GRUPOS.GERENTES in groups
+    return usuario_tem_acesso_mapa_geografico(user)
 
 
 def _json_body(request) -> dict:

@@ -58,6 +58,7 @@ class _Grupos:
     RECURSOS_HUMANOS = 'Recursos Humanos'
     # ──────────────────────────────────────────────
     GERENTES = 'Diário de Obra'
+    MAPA_GEOGRAFICO = 'Mapa Geográfico'
 
     # ──────────────────────────────────────────────
     # Central de Aprovações (workflow genérico)
@@ -101,7 +102,12 @@ class _Grupos:
             self.TRACKHUB_APROVADOR,
             self.TRACKHUB_SOLICITANTE,
             self.RECURSOS_HUMANOS,
-            self.GERENTES, self.ENGENHARIA, self.MAPA_CONTROLE, self.BI_DA_OBRA, self.FERRAMENTA_OPERACIONAL,
+            self.GERENTES,
+            self.MAPA_GEOGRAFICO,
+            self.ENGENHARIA,
+            self.MAPA_CONTROLE,
+            self.BI_DA_OBRA,
+            self.FERRAMENTA_OPERACIONAL,
             self.CENTRAL_APROVACOES_ADMIN,
             self.CENTRAL_APROVACOES_APROVADOR,
             self.CENTRAL_APROVACOES_EXTERNO,
@@ -119,6 +125,16 @@ ADMINISTRADOR_GLOBAL_GROUP_NAMES = (
     GRUPOS.CENTRAL_APROVACOES_ADMIN,
 )
 _ADMIN_GLOBAL_FSET = frozenset(ADMINISTRADOR_GLOBAL_GROUP_NAMES)
+
+
+def usuario_tem_acesso_mapa_geografico(user) -> bool:
+    """Mapa Geográfico: grupo dedicado ou Diário de Obra (legado)."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_superuser or user.is_staff:
+        return True
+    gs = set(user.groups.values_list('name', flat=True))
+    return GRUPOS.MAPA_GEOGRAFICO in gs or GRUPOS.GERENTES in gs
 
 
 def usuario_tem_administracao_global_na_plataforma(user) -> bool:
@@ -154,6 +170,7 @@ GRUPO_LABEL_ATRIBUICAO_UI = {
     GRUPOS.TRACKHUB_SOLICITANTE: 'TrackHub — solicitante',
     GRUPOS.RECURSOS_HUMANOS: 'Acesso ao DP / Recursos Humanos',
     GRUPOS.GERENTES: 'Acesso ao Diário de Obra',
+    GRUPOS.MAPA_GEOGRAFICO: 'Acesso ao Mapa Geográfico',
     GRUPOS.ENGENHARIA: 'Acesso ao Mapa de Suprimentos',
     GRUPOS.MAPA_CONTROLE: 'Acesso ao Mapa de Controle',
     GRUPOS.BI_DA_OBRA: 'Acesso ao BI da Obra',
@@ -227,6 +244,19 @@ GROUP_UI_SECTIONS = [
                 'title': '',
                 'subtitle': '',
                 'names': [GRUPOS.GERENTES],
+            },
+        ],
+    },
+    {
+        'id': 'mod_mapa_geografico',
+        'title': 'Mapa Geográfico',
+        'description': 'Trechos e pontos no terreno, evolução por data e GPS dos RDOs.',
+        'modules': [
+            {
+                'id': 'mapa_geo_credencial',
+                'title': '',
+                'subtitle': '',
+                'names': [GRUPOS.MAPA_GEOGRAFICO],
             },
         ],
     },

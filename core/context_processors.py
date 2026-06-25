@@ -17,13 +17,13 @@ def _get_system_access(user):
     """Flags usados no seletor de sistema e na sidebar (exceto granularidade engenharia via _engenharia_groups)."""
     if not user or not user.is_authenticated:
         return False, False, False, False, False, False, False, False, False
-    from accounts.groups import GRUPOS, usuario_tem_administracao_global_na_plataforma
+    from accounts.groups import GRUPOS, usuario_tem_acesso_mapa_geografico, usuario_tem_administracao_global_na_plataforma
     from accounts.painel_sistema_access import user_is_painel_sistema_admin
 
     user_groups = set(user.groups.values_list('name', flat=True))
     adminish = user.is_superuser or user.is_staff
     has_diario = adminish or GRUPOS.GERENTES in user_groups
-    has_mapa_geo = has_diario
+    has_mapa_geo = adminish or usuario_tem_acesso_mapa_geografico(user)
     has_gestao = adminish or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )

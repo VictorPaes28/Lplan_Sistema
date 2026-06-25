@@ -668,8 +668,10 @@ def select_system_view(request):
 
     adm = user.is_superuser or user.is_staff
     plat_admin = usuario_tem_administracao_global_na_plataforma(user)
+    from accounts.groups import usuario_tem_acesso_mapa_geografico
+
     has_diario = adm or GRUPOS.GERENTES in user_groups
-    has_mapa_geo = has_diario
+    has_mapa_geo = adm or usuario_tem_acesso_mapa_geografico(user)
     has_gestao = adm or bool(
         user_groups & {GRUPOS.ADMINISTRADOR, GRUPOS.RESPONSAVEL_EMPRESA, GRUPOS.APROVADOR, GRUPOS.SOLICITANTE}
     )
