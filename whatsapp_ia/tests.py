@@ -24,11 +24,21 @@ from whatsapp_ia.models import IaMensagemLog
 from whatsapp_ia.prompts import montar_system_prompt
 from whatsapp_ia.ia_functions import (
     _CAMPOS_SENSIVEIS_RH,
+    _classificar_volume_suprimentos,
+    _get_escopo_obras,
+    _get_escopo_trackhub,
+    _situacao_rdo_periodo,
     comparar_progresso_mapa_datas,
     consultar_colaboradores_ativos,
     consultar_documentos_vencendo,
+    consultar_frequencia_rdos,
+    consultar_pendencias_trackhub,
+    consultar_pendencias_por_responsavel,
     consultar_resumo_mapa_obra,
     consultar_resumo_rh,
+    consultar_situacao_geral_obras,
+    consultar_situacao_rdo_obra,
+    consultar_usuarios,
     executar_funcao,
     listar_elementos_mapa_obra,
     panorama_mapas_obras,
@@ -403,3 +413,212 @@ class HistoricoConversaWhatsAppTests(TestCase):
         self.assertEqual(msgs[1]['content'], 'antes')
         self.assertEqual(msgs[2]['role'], 'assistant')
         self.assertEqual(msgs[-1], {'role': 'user', 'content': 'agora'})
+
+
+class RdoTrackHubWhatsAppTests(TestCase):
+    def setUp(self):
+        self.wa = _criar_usuario_wa(suffix='50')
+        self.project, self.obra = _criar_obra_com_project(
+            nome='Obra RDO Teste',
+            codigo='OBR-RDO',
+        )
+        self.obra_sede = Obra.objects.create(
+            codigo_sienge='SEDE',
+            nome='Sede',
+            ativa=True,
+        )
+        self.user_resp = User.objects.create_user(
+            'cleiton', password='test', first_name='Cleiton',
+        )
+
+    def test_classificar_volume_suprimentos_baixo(self):
+        vol = _classificar_volume_suprimentos(5)
+        self.assertEqual(vol['classificacao'], 'baixo')
+        self.assertIn('não é alto volume', vol['descricao'])
+
+    def test_classificar_volume_sem_cadastro_alerta(self):
+        vol = _classificar_volume_suprimentos(0)
+        self.assertTrue(vol['alerta_sem_cadastro'])
+
+    def test_escopo_trackhub_inclui_sede(self):
+        th = list(_get_escopo_trackhub(self.wa).values_list('nome', flat=True))
+        oper = list(_get_escopo_obras(self.wa).values_list('nome', flat=True))
+        self.assertIn('Sede', th)
+        self.assertNotIn('Sede', oper)
+
+    def test_situacao_rdo_periodo_breakdown(self):
+        from core.models import ConstructionDiary, DiaryNoReportDay
+
+        hoje = timezone.localdate()
+        ConstructionDiary.objects.create(
+            project=self.project,
+            date=hoje - timedelta(days=1),
+            status='AP',
+        )
+        ConstructionDiary.objects.create(
+            project=self.project,
+            date=hoje - timedelta(days=2),
+            status='AG',
+        )
+        ConstructionDiary.objects.create(
+            project=self.project,
+            date=hoje - timedelta(days=3),
+            status='SP',
+        )
+        DiaryNoReportDay.objects.create(
+            project=self.project,
+            date=hoje - timedelta(days=4),
+            reason='FE',
+        )
+
+        sit = _situacao_rdo_periodo(self.project, front_id='todas', dias_analise=90)
+        self.assertEqual(sit['total_rdos'], 3)
+        self.assertEqual(sit['aprovados'], 1)
+        self.assertEqual(sit['pendentes_aprovacao'], 1)
+        self.assertEqual(sit['rascunhos'], 1)
+        self.assertEqual(sit['dias_com_falta'], 1)
+
+    def test_consultar_situacao_rdo_obra_alerta(self):
+        from core.models import ConstructionDiary
+
+        hoje = timezone.localdate()
+        ConstructionDiary.objects.create(
+            project=self.project,
+            date=hoje - timedelta(days=10),
+            status='AP',
+        )
+
+        resultado = json.loads(
+            consultar_situacao_rdo_obra(
+                obra_nome='Obra RDO Teste',
+                usuario_wa=self.wa,
+            )
+        )
+        self.assertEqual(resultado['obra'], 'Obra RDO Teste')
+        seg = resultado['segmentos'][0]
+        self.assertTrue(seg.get('sem_rdo_recente'))
+        self.assertIn('alerta', seg)
+
+    def test_trackhub_contagem_inclui_sede_e_vencidas(self):
+        from trackhub.models import Pendencia
+
+        hoje = timezone.localdate()
+        Pendencia.objects.create(
+            obra=self.obra,
+            titulo='Pendência obra',
+            prazo=hoje - timedelta(days=5),
+            status='aberta',
+            responsavel_interno=self.user_resp,
+        )
+        Pendencia.objects.create(
+            obra=self.obra_sede,
+            titulo='Pendência sede vencida',
+            prazo=hoje - timedelta(days=3),
+            status='aberta',
+        )
+        Pendencia.objects.create(
+            obra=self.obra_sede,
+            titulo='Pendência sede aberta',
+            prazo=hoje + timedelta(days=5),
+            status='aberta',
+        )
+
+        resultado = json.loads(consultar_pendencias_trackhub(usuario_wa=self.wa))
+        self.assertTrue(resultado['inclui_sede'])
+        self.assertEqual(resultado['totais']['vencidas'], 2)
+        self.assertEqual(resultado['totais']['abertas'], 3)
+
+        nomes = {o['obra'] for o in resultado['obras']}
+        self.assertIn('Sede', nomes)
+        self.assertIn('Obra RDO Teste', nomes)
+
+        sede = next(o for o in resultado['obras'] if o['obra'] == 'Sede')
+        self.assertEqual(sede['total_abertas'], 2)
+        self.assertEqual(sede['vencidas'], 1)
+
+    def test_trackhub_responsaveis_atrasados(self):
+        from trackhub.models import Pendencia
+
+        hoje = timezone.localdate()
+        Pendencia.objects.create(
+            obra=self.obra,
+            titulo='Atrasada Cleiton',
+            prazo=hoje - timedelta(days=12),
+            status='aberta',
+            responsavel_interno=self.user_resp,
+        )
+
+        resultado = json.loads(
+            consultar_pendencias_trackhub(
+                obra_nome='Obra RDO Teste',
+                usuario_wa=self.wa,
+            )
+        )
+        obra = resultado['obras'][0]
+        self.assertGreater(len(obra['responsaveis_atrasados']), 0)
+        self.assertEqual(obra['responsaveis_atrasados'][0]['maior_atraso_dias'], 12)
+
+    def test_consultar_usuarios_sem_campo_texto_responsavel(self):
+        from core.models import ProjectMember
+
+        self.project.responsible = 'Cleiton Silva'
+        self.project.save(update_fields=['responsible'])
+
+        ProjectMember.objects.create(project=self.project, user=self.user_resp)
+
+        resultado = json.loads(
+            consultar_usuarios(usuario_nome='Cleiton', usuario_wa=self.wa)
+        )
+        perfil = resultado['usuarios'][0]
+        self.assertIn('Obra RDO Teste', perfil['obras_vinculadas_usuario'])
+        self.assertIn('pedidos_aguardando_aprovacao_deste_usuario', perfil)
+        self.assertNotIn('obras_como_responsavel', perfil)
+
+    def test_pendencias_por_responsavel_separa_papel(self):
+        from trackhub.models import EtapaPendencia, Pendencia
+
+        hoje = timezone.localdate()
+        pend = Pendencia.objects.create(
+            obra=self.obra,
+            titulo='Pendência com etapa',
+            prazo=hoje - timedelta(days=2),
+            status='aberta',
+            responsavel_interno=self.user_resp,
+        )
+        EtapaPendencia.objects.create(
+            pendencia=pend,
+            ordem=1,
+            titulo='Etapa 1',
+            status='pendente',
+            prazo=hoje - timedelta(days=1),
+            responsavel_interno=self.user_resp,
+        )
+
+        resultado = json.loads(
+            consultar_pendencias_por_responsavel(
+                responsavel_nome='Cleiton',
+                usuario_wa=self.wa,
+            )
+        )
+        self.assertIn('como_responsavel_pendencia', resultado)
+        self.assertIn('como_responsavel_etapa', resultado)
+        self.assertGreater(resultado['total_como_responsavel_pendencia'], 0)
+        self.assertGreater(resultado['total_como_responsavel_etapa'], 0)
+
+    def test_situacao_geral_obras_modulos(self):
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        self.assertEqual(
+            resultado['modulos'],
+            ['rdos', 'pedidos', 'restricoes', 'suprimentos', 'mapa_controle', 'trackhub'],
+        )
+        self.assertIn('detalhe', resultado['rdos'])
+        self.assertIn('detalhe', resultado['trackhub'])
+
+    def test_frequencia_rdos_inclui_situacao_periodo(self):
+        resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))
+        obra = next(
+            o for o in resultado['obras'] if o['obra'] == 'Obra RDO Teste'
+        )
+        seg = obra['segmentos'][0]
+        self.assertIn('situacao_periodo', seg)
+        self.assertIn('total_rdos', seg['situacao_periodo'])

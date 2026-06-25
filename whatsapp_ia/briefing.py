@@ -14,6 +14,7 @@ from whatsapp_ia.ia_functions import (
     _dias_em_aberto_pedido,
     _frentes_ativas_project,
     _get_escopo_obras,
+    _get_escopo_trackhub,
     _metricas_rdo_frequencia,
     _pedido_prazo_vencido,
     _project_ids_escopo,
@@ -175,7 +176,7 @@ def _restricoes_escopo(usuario_wa) -> dict:
 def _pendencias_vencidas_escopo(usuario_wa, hoje) -> dict:
     from trackhub.models import Pendencia
 
-    escopo = _get_escopo_obras(usuario_wa)
+    escopo = _get_escopo_trackhub(usuario_wa)
     qs = Pendencia.objects.filter(
         obra__in=escopo,
         prazo__isnull=False,
