@@ -4196,6 +4196,7 @@ select.imp-categorias-select {
     border: 1px solid #e2e8f0;
     border-radius: 0.75rem;
     padding: 0.85rem 0.65rem 0.75rem;
+    overflow-x: hidden;
 }
 
 .imp-cat-sidebar__title {
@@ -4342,6 +4343,7 @@ select.imp-categorias-select {
     .imp-cat-shell:hover .imp-cat-row-wrap,
     .imp-cat-shell:focus-within .imp-cat-row-wrap {
         justify-content: flex-start;
+        gap: 0.15rem;
     }
 
     .imp-cat-shell:hover .imp-cat-row-wrap .imp-cat-row,
@@ -4412,11 +4414,19 @@ select.imp-categorias-select {
     margin: 0.15rem 0;
 }
 
+.imp-cat-list__item {
+    overflow: hidden;
+    border-radius: 0.5rem;
+}
+
 .imp-cat-row-wrap {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     border-radius: 0.5rem;
+    overflow: hidden;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .imp-cat-row-wrap .imp-cat-row {
@@ -4427,17 +4437,17 @@ select.imp-categorias-select {
 
 .imp-cat-remove {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border: none;
-    border-radius: 0.4rem;
+    border-radius: 0.35rem;
     background: transparent;
     color: #94a3b8;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;

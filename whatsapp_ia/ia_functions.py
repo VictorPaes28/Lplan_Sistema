@@ -2076,6 +2076,33 @@ def _restricoes_por_obra_escopo(usuario_wa) -> dict:
     }
 
 
+def _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=None):
+    sit = situacao or seg.get('situacao_periodo') or seg.get('situacao') or {}
+    nivel = None
+    tipo = None
+    if seg.get('sem_rdo_recente'):
+        seg['alerta'] = (
+            f'Último RDO há {seg["dias_desde_ultimo"]} dias '
+            f'(limite: {dias_sem_rdo_alerta} dias)'
+        )
+        nivel = 'atencao'
+        tipo = 'sem_rdo_recente'
+    if seg.get('nunca_teve_rdo'):
+        seg['alerta'] = 'Obra nunca registrou RDO'
+        nivel = 'atencao'
+        tipo = 'nunca_teve_rdo'
+    if sit.get('total_ag_criticos', 0) > 0:
+        seg['alerta_ag_critico'] = (
+            f'{sit["total_ag_criticos"]} RDO(s) aguardando aprovação '
+            f'há mais de {dias_sem_rdo_alerta} dias'
+        )
+        nivel = 'critico'
+        tipo = 'ag_critico'
+    if nivel:
+        seg['nivel'] = nivel
+        seg['tipo'] = tipo
+
+
 def _obra_tem_alerta_rdo(obra_rdo: dict) -> bool:
     for seg in obra_rdo.get('segmentos', []):
         if seg.get('alerta') or seg.get('alerta_ag_critico'):
@@ -2517,31 +2544,38 @@ def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
                 'quantidade_unidades': kpis_amb['total_unidades'],
             })
 
-        pct_medio = None
-        if mapas:
-            pcts = [
-                m['percentual_conclusao']
-                for m in mapas
-                if m['percentual_conclusao'] is not None
-            ]
-            if pcts:
-                pct_medio = round(sum(pcts) / len(pcts), 1)
-
-        resultado.append({
+        item = {
             'obra': obra.nome,
             'tem_mapa_controle': len(mapas) > 0,
             'total_mapas': len(mapas),
             'mapas': mapas,
-            'percentual_conclusao_medio': pct_medio,
-        })
-    resultado.sort(
-        key=lambda x: (
-            not x['tem_mapa_controle'],
-            -(x['percentual_conclusao_medio'] or 0),
-        ),
-    )
+        }
+        if len(mapas) == 1:
+            item['percentual_conclusao'] = mapas[0]['percentual_conclusao']
+        elif len(mapas) > 1:
+            item['nota'] = (
+                'Obra com múltiplos mapas — liste cada um com nome, '
+                '% e data; não calcule média.'
+            )
+        resultado.append(item)
+
+    def _ordem_mapa_obra(obra_item):
+        if not obra_item['tem_mapa_controle']:
+            return (True, 0)
+        pcts = [
+            m['percentual_conclusao']
+            for m in obra_item['mapas']
+            if m['percentual_conclusao'] is not None
+        ]
+        return (False, -(max(pcts) if pcts else 0))
+
+    resultado.sort(key=_ordem_mapa_obra)
     return json.dumps({
         'total_obras': len(resultado),
+        'nota': (
+            'Com múltiplos mapas por obra, informe nome, percentual e '
+            'data de cada um — nunca agregue num único percentual.'
+        ),
         'obras': resultado,
     }, ensure_ascii=False)
 
@@ -2850,11 +2884,14 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
     freq = payload['rdo_frequencia']
     if freq.get('sem_rdo_recente'):
         payload['alerta_rdo'] = (
-            f'Último RDO há {freq["dias_desde_ultimo"]} dias '
-            f'(limite: 7 dias) — ATENÇÃO'
+            f'Último RDO há {freq["dias_desde_ultimo"]} dias (limite: 7 dias)'
         )
+        payload['alerta_rdo_nivel'] = 'atencao'
+        payload['alerta_rdo_tipo'] = 'sem_rdo_recente'
     elif freq.get('nunca_teve_rdo'):
-        payload['alerta_rdo'] = 'Obra nunca registrou RDO — ATENÇÃO'
+        payload['alerta_rdo'] = 'Obra nunca registrou RDO'
+        payload['alerta_rdo_nivel'] = 'atencao'
+        payload['alerta_rdo_tipo'] = 'nunca_teve_rdo'
     if frentes_resumo:
         payload['tem_frentes_ativas'] = True
         payload['frentes'] = frentes_resumo
@@ -5174,19 +5211,10 @@ def consultar_frequencia_rdos(
             })
 
         for seg in bloco['segmentos']:
-            if seg.get('sem_rdo_recente'):
-                seg['alerta'] = (
-                    f'Último RDO há {seg["dias_desde_ultimo"]} dias '
-                    f'(limite: {dias_sem_rdo_alerta}) — OBRIGATÓRIO ALERTAR'
-                )
-            if seg.get('nunca_teve_rdo'):
-                seg['alerta'] = 'Nunca teve RDO — OBRIGATÓRIO ALERTAR'
-            sit = seg.get('situacao_periodo', {})
-            if sit.get('total_ag_criticos', 0) > 0:
-                seg['alerta_ag_critico'] = (
-                    f'{sit["total_ag_criticos"]} RDO(s) aguardando aprovação '
-                    f'há mais de {dias_sem_rdo_alerta} dias — SITUAÇÃO CRÍTICA'
-                )
+            _anotar_alertas_rdo_segmento(
+                seg,
+                dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+            )
 
         resultado_obras.append(bloco)
 
@@ -5230,15 +5258,7 @@ def consultar_situacao_rdo_obra(
                 project, front_id=front_id, dias_analise=dias_analise,
             )
             seg = {'frente': nome, 'frente_id': front_id, **freq, 'situacao': sit}
-            if freq.get('sem_rdo_recente'):
-                seg['alerta'] = (
-                    f'Último RDO há {freq["dias_desde_ultimo"]} dias — ALERTA'
-                )
-            if sit.get('total_ag_criticos', 0) > 0:
-                seg['alerta_critico'] = (
-                    f'{sit["total_ag_criticos"]} RDO(s) pendentes de aprovação '
-                    f'há mais de 7 dias'
-                )
+            _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=sit)
             segmentos.append(seg)
     else:
         freq = _metricas_rdo_frequencia(
@@ -5248,15 +5268,7 @@ def consultar_situacao_rdo_obra(
             project, front_id='todas', dias_analise=dias_analise,
         )
         seg = {'frente': 'Obra', **freq, 'situacao': sit}
-        if freq.get('sem_rdo_recente'):
-            seg['alerta'] = (
-                f'Último RDO há {freq["dias_desde_ultimo"]} dias — ALERTA'
-            )
-        if sit.get('total_ag_criticos', 0) > 0:
-            seg['alerta_critico'] = (
-                f'{sit["total_ag_criticos"]} RDO(s) pendentes de aprovação '
-                f'há mais de 7 dias'
-            )
+        _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=sit)
         segmentos.append(seg)
 
     return json.dumps({
@@ -5366,7 +5378,24 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
             'alerta': suprimentos.get('alerta'),
             'detalhe': suprimentos,
         },
-        'mapa_controle': mapa,
+        'mapa_controle': {
+            'nota': mapa.get('nota'),
+            'obras': [
+                {
+                    'obra': o['obra'],
+                    'total_mapas': o['total_mapas'],
+                    'tem_mapa_controle': o['tem_mapa_controle'],
+                    'mapas': o['mapas'],
+                    **(
+                        {'percentual_conclusao': o['percentual_conclusao']}
+                        if o.get('percentual_conclusao') is not None else {}
+                    ),
+                    **({'nota': o['nota']} if o.get('nota') else {}),
+                }
+                for o in mapa.get('obras', [])
+            ],
+            'detalhe': mapa,
+        },
         'trackhub': {
             'data_referencia': str(hoje),
             'inclui_sede': True,

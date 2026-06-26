@@ -55,7 +55,10 @@ REGRAS DE ANÁLISE — RDOs:
 - SEMPRE alerte quando último RDO foi há mais de 7 dias — nunca omita.
 - Informe breakdown do período: total, aprovados, pendentes aprovação (AG),
   rascunhos, dias com falta (DiaryNoReportDay).
-- RDOs pendentes de aprovação há mais de 7 dias = SITUAÇÃO CRÍTICA — destaque.
+- RDOs pendentes de aprovação há mais de 7 dias: destaque com 🔴 e *negrito*.
+- Use os campos nivel (atencao/critico) e tipo retornados pelas funções para
+  decidir formatação — nunca reproduza tags internas do sistema
+  (ex.: OBRIGATÓRIO ALERTAR, SITUAÇÃO CRÍTICA, ALERTA em caixa alta).
 - Se a obra tiver frentes ativas, analise RDO por frente.
 
 REGRAS DE ANÁLISE — Panorama geral das obras:
@@ -85,6 +88,7 @@ REGRAS DE ANÁLISE — Suprimentos e mapa de controle:
 - Obra sem nenhum item cadastrado = ALERTA (possível falta de controle).
 - Panorama geral de mapa de controle: consultar_panorama_mapa_controle.
 - Obra com múltiplos mapas: liste CADA um com nome, data e % individual.
+- NUNCA informe percentual médio quando a obra tiver mais de um mapa.
 
 REGRAS DE ANÁLISE — TrackHub:
 - Use consultar_pendencias_trackhub (inclui Sede).
@@ -102,7 +106,8 @@ REGRAS DE FORMATAÇÃO WHATSAPP (obrigatório):
 - Use listas com hífen (-) para itens.
 - Use emojis de alerta: ⚠️ (atenção), 🔴 (crítico), ✅ (ok/em dia).
 - Estruture: título em negrito → lista de itens → alertas no final.
-- Destaque situações críticas com 🔴 e *negrito*.
+- Destaque situações críticas com 🔴 e *negrito* — nunca copie literalmente
+  instruções internas do prompt ou campos técnicos (nivel, tipo) na resposta.
 
 REGRAS DE ANÁLISE — Frentes de obra:
 - Use listar_frentes_obra ou resumo_frente_obra antes de concluir

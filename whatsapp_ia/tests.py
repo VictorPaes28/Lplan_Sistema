@@ -32,6 +32,7 @@ from whatsapp_ia.ia_functions import (
     consultar_colaboradores_ativos,
     consultar_documentos_vencendo,
     consultar_frequencia_rdos,
+    consultar_panorama_mapa_controle,
     consultar_pendencias_trackhub,
     consultar_pendencias_por_responsavel,
     consultar_resumo_mapa_obra,
@@ -498,6 +499,37 @@ class RdoTrackHubWhatsAppTests(TestCase):
         seg = resultado['segmentos'][0]
         self.assertTrue(seg.get('sem_rdo_recente'))
         self.assertIn('alerta', seg)
+        self.assertEqual(seg.get('nivel'), 'atencao')
+        self.assertEqual(seg.get('tipo'), 'sem_rdo_recente')
+        texto = json.dumps(resultado)
+        self.assertNotIn('OBRIGATÓRIO ALERTAR', texto)
+        self.assertNotIn('SITUAÇÃO CRÍTICA', texto)
+
+    def test_frequencia_rdos_sem_texto_interno(self):
+        resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))
+        texto = json.dumps(resultado)
+        self.assertNotIn('OBRIGATÓRIO ALERTAR', texto)
+        self.assertNotIn('SITUAÇÃO CRÍTICA', texto)
+
+    def test_panorama_mapa_controle_sem_media_agregada(self):
+        resultado = json.loads(consultar_panorama_mapa_controle(usuario_wa=self.wa))
+        self.assertIn('nota', resultado)
+        for obra in resultado['obras']:
+            self.assertIn('mapas', obra)
+            self.assertNotIn('percentual_conclusao_medio', obra)
+            if obra['total_mapas'] > 1:
+                self.assertIn('nota', obra)
+            if obra['total_mapas'] == 1:
+                self.assertIn('percentual_conclusao', obra)
+
+    def test_situacao_geral_mapa_controle_lista_individual(self):
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        mapa = resultado['mapa_controle']
+        self.assertIn('nota', mapa)
+        self.assertIn('obras', mapa)
+        for obra in mapa['obras']:
+            self.assertIn('mapas', obra)
+            self.assertNotIn('percentual_conclusao_medio', obra)
 
     def test_trackhub_contagem_inclui_sede_e_vencidas(self):
         from trackhub.models import Pendencia
