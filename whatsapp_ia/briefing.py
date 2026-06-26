@@ -19,6 +19,7 @@ from whatsapp_ia.ia_functions import (
     _pedido_prazo_vencido,
     _project_ids_escopo,
     _queryset_workorders_escopo,
+    _restricoes_totais_obra,
 )
 
 DIAS_RDO_ALERTA = 7
@@ -34,35 +35,6 @@ def _briefing_cache_key(usuario_wa) -> str:
 
 def _briefing_cache_ttl() -> int:
     return int(getattr(settings, 'WHATSAPP_IA_BRIEFING_CACHE_TTL', 300))
-
-
-def _restricoes_totais_obra(obra_gestao) -> dict:
-    from impedimentos.models import Impedimento, StatusImpedimento
-
-    if not obra_gestao:
-        return {'total_abertas': 0, 'vencidas': 0, 'criticas_altas': 0}
-
-    status_final = StatusImpedimento.objects.filter(
-        obra=obra_gestao,
-    ).order_by('-ordem').first()
-    qs = Impedimento.objects.filter(
-        obra=obra_gestao,
-        parent__isnull=True,
-    )
-    if status_final:
-        qs = qs.exclude(status_id=status_final.id)
-
-    hoje = timezone.localdate()
-    return {
-        'total_abertas': qs.count(),
-        'vencidas': qs.filter(
-            prazo__isnull=False,
-            prazo__lt=hoje,
-        ).count(),
-        'criticas_altas': qs.filter(
-            prioridade__in=['ALTA', 'CRITICA'],
-        ).count(),
-    }
 
 
 def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> list[dict]:

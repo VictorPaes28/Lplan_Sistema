@@ -609,10 +609,68 @@ class RdoTrackHubWhatsAppTests(TestCase):
         resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
         self.assertEqual(
             resultado['modulos'],
-            ['rdos', 'pedidos', 'restricoes', 'suprimentos', 'mapa_controle', 'trackhub'],
+            [
+                'rdos', 'pedidos', 'restricoes', 'suprimentos',
+                'mapa_controle', 'trackhub',
+            ],
         )
         self.assertIn('detalhe', resultado['rdos'])
-        self.assertIn('detalhe', resultado['trackhub'])
+        self.assertIn('resumo_obras_ok', resultado)
+        self.assertIn('obras', resultado['trackhub'])
+        self.assertTrue(resultado['trackhub']['inclui_sede'])
+
+    def test_situacao_geral_restricoes_por_obra_completas(self):
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        restricoes = resultado['restricoes']
+        self.assertIn('total_abertas', restricoes)
+        self.assertIn('total_vencidas', restricoes)
+        self.assertIn('total_criticas_altas', restricoes)
+        self.assertIn('obras', restricoes)
+        for obra in restricoes['obras']:
+            self.assertIn('abertas', obra)
+            self.assertIn('vencidas', obra)
+            self.assertIn('criticas_altas', obra)
+
+    def test_situacao_geral_trackhub_inclui_sede(self):
+        from trackhub.models import Pendencia
+
+        hoje = timezone.localdate()
+        Pendencia.objects.create(
+            obra=self.obra_sede,
+            titulo='Pendência sede panorama',
+            prazo=hoje - timedelta(days=2),
+            status='aberta',
+        )
+
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        nomes = {o['obra'] for o in resultado['trackhub']['obras']}
+        self.assertIn('Sede', nomes)
+        sede = next(o for o in resultado['trackhub']['obras'] if o['obra'] == 'Sede')
+        self.assertGreaterEqual(sede['total_abertas'], 1)
+
+    def test_situacao_geral_resumo_todas_com_alerta(self):
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        resumo = resultado['resumo_obras_ok']
+        self.assertTrue(resumo['todas_obras_com_alerta'])
+        self.assertEqual(resumo['total_sem_alertas'], 0)
+        self.assertIn('⚠️ Todas as obras', resumo['mensagem'])
+        self.assertNotIn('✅', resumo['mensagem'])
+
+    def test_situacao_geral_resumo_obras_sem_alerta(self):
+        from unittest.mock import patch
+
+        with patch(
+            'whatsapp_ia.ia_functions._obras_com_alerta_panorama',
+            return_value=set(),
+        ):
+            resultado = json.loads(
+                consultar_situacao_geral_obras(usuario_wa=self.wa),
+            )
+        resumo = resultado['resumo_obras_ok']
+        self.assertFalse(resumo['todas_obras_com_alerta'])
+        self.assertGreater(resumo['total_sem_alertas'], 0)
+        self.assertIn('✅', resumo['mensagem'])
+        self.assertNotIn('⚠️ Todas as obras', resumo['mensagem'])
 
     def test_frequencia_rdos_inclui_situacao_periodo(self):
         resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))

@@ -2012,6 +2012,112 @@ def _contar_restricoes_abertas(obra_gestao, front_id=None):
     }
 
 
+def _restricoes_totais_obra(obra_gestao) -> dict:
+    from impedimentos.models import Impedimento, StatusImpedimento
+
+    if not obra_gestao:
+        return {'total_abertas': 0, 'vencidas': 0, 'criticas_altas': 0}
+
+    status_final = StatusImpedimento.objects.filter(
+        obra=obra_gestao,
+    ).order_by('-ordem').first()
+    qs = Impedimento.objects.filter(
+        obra=obra_gestao,
+        parent__isnull=True,
+    )
+    if status_final:
+        qs = qs.exclude(status_id=status_final.id)
+
+    hoje = timezone.localdate()
+    return {
+        'total_abertas': qs.count(),
+        'vencidas': qs.filter(
+            prazo__isnull=False,
+            prazo__lt=hoje,
+        ).count(),
+        'criticas_altas': qs.filter(
+            prioridade__in=['ALTA', 'CRITICA'],
+        ).count(),
+    }
+
+
+def _restricoes_por_obra_escopo(usuario_wa) -> dict:
+    from gestao_aprovacao.models import Obra as ObraGestao
+
+    escopo_ids = list(_get_escopo_obras(usuario_wa).values_list('id', flat=True))
+    obras_gestao = ObraGestao.objects.filter(
+        ativo=True,
+        project__obra_mapa__id__in=escopo_ids,
+    ).order_by('nome')
+
+    total_abertas = 0
+    total_vencidas = 0
+    total_criticas_altas = 0
+    por_obra = []
+
+    for obra_g in obras_gestao:
+        stats = _restricoes_totais_obra(obra_g)
+        total_abertas += stats['total_abertas']
+        total_vencidas += stats['vencidas']
+        total_criticas_altas += stats['criticas_altas']
+        por_obra.append({
+            'obra': obra_g.nome,
+            'abertas': stats['total_abertas'],
+            'vencidas': stats['vencidas'],
+            'criticas_altas': stats['criticas_altas'],
+        })
+
+    por_obra.sort(key=lambda x: (-x['abertas'], x['obra']))
+    return {
+        'total_abertas': total_abertas,
+        'total_vencidas': total_vencidas,
+        'total_criticas_altas': total_criticas_altas,
+        'obras': por_obra,
+    }
+
+
+def _obra_tem_alerta_rdo(obra_rdo: dict) -> bool:
+    for seg in obra_rdo.get('segmentos', []):
+        if seg.get('alerta') or seg.get('alerta_ag_critico'):
+            return True
+        if seg.get('sem_rdo_recente') or seg.get('nunca_teve_rdo'):
+            return True
+    return False
+
+
+def _obras_com_alerta_panorama(
+    rdo: dict,
+    pedidos: dict,
+    restricoes: dict,
+    suprimentos: dict,
+    mapa: dict,
+    trackhub_obras: list,
+    obras_escopo: list,
+) -> set:
+    com_alerta = set()
+    for obra in rdo.get('obras', []):
+        if _obra_tem_alerta_rdo(obra):
+            com_alerta.add(obra['obra'])
+    for obra in pedidos.get('obras', []):
+        if obra.get('atrasados', 0) > 0 or obra.get('prazo_vencido', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in restricoes.get('obras', []):
+        if obra.get('abertas', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in suprimentos.get('obras', []):
+        if obra.get('alerta_sem_cadastro') or obra.get('atrasados', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in mapa.get('obras', []):
+        if not obra.get('tem_mapa_controle'):
+            com_alerta.add(obra['obra'])
+    trackhub_map = {t['obra']: t for t in trackhub_obras}
+    for nome in obras_escopo:
+        th = trackhub_map.get(nome)
+        if th and th.get('vencidas', 0) > 0:
+            com_alerta.add(nome)
+    return com_alerta
+
+
 def _serializar_pedido_pendente(workorder, hoje=None):
     hoje = hoje or timezone.localdate()
     dias = _dias_em_aberto_pedido(workorder, hoje)
@@ -5165,14 +5271,58 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
     Panorama consolidado: RDO + pedidos + restrições + suprimentos +
     mapa de controle + TrackHub (inclui Sede).
     """
+    hoje = timezone.localdate()
     rdo = json.loads(consultar_frequencia_rdos(usuario_wa=usuario_wa))
     pedidos = json.loads(
         consultar_situacao_pedidos_obras(usuario_wa=usuario_wa),
     )
-    restricoes = json.loads(consultar_restricoes_criticas(usuario_wa=usuario_wa))
+    restricoes = _restricoes_por_obra_escopo(usuario_wa)
     suprimentos = json.loads(consultar_panorama_suprimentos(usuario_wa=usuario_wa))
     mapa = json.loads(consultar_panorama_mapa_controle(usuario_wa=usuario_wa))
-    trackhub = json.loads(consultar_pendencias_trackhub(usuario_wa=usuario_wa))
+
+    obras_th = list(_get_escopo_trackhub(usuario_wa).order_by('nome'))
+    trackhub_obras = []
+    total_abertas_th = 0
+    total_vencidas_th = 0
+    for obra in obras_th:
+        item = _agregar_pendencias_obra(obra, hoje)
+        trackhub_obras.append(item)
+        total_abertas_th += item['total_abertas']
+        total_vencidas_th += item['vencidas']
+    trackhub_obras.sort(
+        key=lambda x: (-x['vencidas'], -x['total_abertas'], x['obra']),
+    )
+
+    obras_escopo = list(
+        _get_escopo_obras(usuario_wa).order_by('nome').values_list('nome', flat=True),
+    )
+    com_alerta = _obras_com_alerta_panorama(
+        rdo,
+        pedidos,
+        restricoes,
+        suprimentos,
+        mapa,
+        trackhub_obras,
+        obras_escopo,
+    )
+    obras_sem_alertas = [n for n in obras_escopo if n not in com_alerta]
+    todas_obras_com_alerta = bool(obras_escopo) and not obras_sem_alertas
+
+    resumo_obras_ok = {
+        'total_obras_escopo': len(obras_escopo),
+        'obras_sem_alertas': obras_sem_alertas,
+        'total_sem_alertas': len(obras_sem_alertas),
+        'todas_obras_com_alerta': todas_obras_com_alerta,
+    }
+    if todas_obras_com_alerta:
+        resumo_obras_ok['mensagem'] = (
+            '⚠️ Todas as obras apresentam pelo menos um alerta em algum módulo'
+        )
+    elif obras_sem_alertas:
+        resumo_obras_ok['mensagem'] = (
+            f'✅ {len(obras_sem_alertas)} obra(s) sem alerta em nenhum módulo: '
+            + ', '.join(obras_sem_alertas)
+        )
 
     obras_com_alerta_rdo = []
     for obra in rdo.get('obras', []):
@@ -5185,7 +5335,11 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
                 })
 
     return json.dumps({
-        'modulos': ['rdos', 'pedidos', 'restricoes', 'suprimentos', 'mapa_controle', 'trackhub'],
+        'modulos': [
+            'rdos', 'pedidos', 'restricoes', 'suprimentos',
+            'mapa_controle', 'trackhub',
+        ],
+        'resumo_obras_ok': resumo_obras_ok,
         'rdos': {
             'total_obras': rdo.get('total_obras', 0),
             'obras_com_alerta': obras_com_alerta_rdo,
@@ -5197,7 +5351,16 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
             'top_criticos': pedidos.get('top_pedidos_criticos', [])[:8],
             'detalhe': pedidos,
         },
-        'restricoes': restricoes,
+        'restricoes': {
+            'total_abertas': restricoes['total_abertas'],
+            'total_vencidas': restricoes['total_vencidas'],
+            'total_criticas_altas': restricoes['total_criticas_altas'],
+            'nota': (
+                'Para cada obra informe abertas, vencidas e críticas/altas — '
+                'nunca só criticidade sem vencidas.'
+            ),
+            'obras': restricoes['obras'],
+        },
         'suprimentos': {
             'obras_sem_itens': suprimentos.get('obras_sem_itens', []),
             'alerta': suprimentos.get('alerta'),
@@ -5205,9 +5368,15 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
         },
         'mapa_controle': mapa,
         'trackhub': {
-            'totais': trackhub.get('totais', {}),
-            'inclui_sede': trackhub.get('inclui_sede', True),
-            'detalhe': trackhub,
+            'data_referencia': str(hoje),
+            'inclui_sede': True,
+            'nota': 'Escopo TrackHub inclui Sede/escritório.',
+            'totais': {
+                'obras': len(trackhub_obras),
+                'abertas': total_abertas_th,
+                'vencidas': total_vencidas_th,
+            },
+            'obras': trackhub_obras,
         },
     }, ensure_ascii=False)
 
