@@ -214,8 +214,8 @@ TOOLS = [
             'name': 'consultar_situacao_geral_obras',
             'description': (
                 'Panorama operacional consolidado de TODAS as obras: RDOs, '
-                'pedidos (GestControll), restrições críticas, suprimentos, '
-                'mapa de controle e TrackHub (inclui Sede). '
+                'pedidos (GestControll), restrições, suprimentos, '
+                'mapa de controle, mapa geográfico e TrackHub (inclui Sede). '
                 'Use SEMPRE quando o usuário pedir situação geral das obras.'
             ),
             'parameters': {
@@ -1860,7 +1860,7 @@ def _classificar_volume_suprimentos(total_itens):
     if total_itens == 0:
         return {
             'descricao': (
-                'Nenhum item cadastrado — pode indicar falta de controle ⚠️'
+                'Nenhum item cadastrado — pode indicar falta de controle'
             ),
             '_meta': _meta_ia(classificacao='sem_cadastro', sem_itens=True),
         }
@@ -2110,22 +2110,25 @@ def _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=None):
     tipo = None
     if meta.get('sem_rdo_recente'):
         dias = seg.get('dias_desde_ultimo')
-        seg['alerta'] = (
-            f'Último RDO há {dias} dias — acima do prazo recomendado ⚠️'
-        )
+        seg['alerta'] = f'Último RDO há {dias} dias sem registro recente'
         nivel = 'atencao'
         tipo = 'sem_rdo_recente'
     if meta.get('nunca_teve_rdo'):
-        seg['alerta'] = 'Obra nunca registrou RDO ⚠️'
+        seg['alerta'] = 'Obra nunca registrou RDO'
         nivel = 'atencao'
         tipo = 'nunca_teve_rdo'
+    ag_criticos = sit.get('rdos_ag_criticos') or []
     if sit.get('total_ag_criticos', 0) > 0:
-        seg['alerta_ag_critico'] = (
+        max_dias = max(
+            (r.get('dias_em_aberto') or 0 for r in ag_criticos),
+            default=0,
+        )
+        seg['alerta_ag_atrasado'] = (
             f'{sit["total_ag_criticos"]} RDO(s) aguardando aprovação '
-            f'há muito tempo 🔴'
+            f'— o mais antigo há {max_dias} dias'
         )
         nivel = 'critico'
-        tipo = 'ag_critico'
+        tipo = 'ag_atrasado'
     if nivel:
         meta['nivel'] = nivel
         meta['tipo'] = tipo
@@ -2133,7 +2136,7 @@ def _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=None):
 
 def _obra_tem_alerta_rdo(obra_rdo: dict) -> bool:
     for seg in obra_rdo.get('segmentos', []):
-        if seg.get('alerta') or seg.get('alerta_ag_critico'):
+        if seg.get('alerta') or seg.get('alerta_ag_atrasado'):
             return True
         seg_meta = seg.get('_meta', {})
         if seg_meta.get('sem_rdo_recente') or seg_meta.get('nunca_teve_rdo'):
@@ -2255,7 +2258,7 @@ def _agregar_pedidos_obra(
             {'frente': nome, **dados}
             for nome, dados in sorted(por_frente.items())
         ],
-        'pedidos_criticos': criticos[:10],
+        'pedidos_atrasados': criticos[:10],
     }
 
 
@@ -2541,7 +2544,7 @@ def consultar_panorama_suprimentos(usuario_wa=None) -> str:
     aviso = None
     if obras_sem_itens:
         aviso = (
-            f'{len(obras_sem_itens)} obra(s) sem nenhum item cadastrado ⚠️'
+            f'{len(obras_sem_itens)} obra(s) sem nenhum item cadastrado'
         )
     return json.dumps({
         'total_obras': len(resultado),
@@ -2947,15 +2950,14 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
     freq_meta = freq.get('_meta', {})
     if freq_meta.get('sem_rdo_recente'):
         payload['alerta_rdo'] = (
-            f'Último RDO há {freq["dias_desde_ultimo"]} dias — '
-            f'acima do prazo recomendado ⚠️'
+            f'Último RDO há {freq["dias_desde_ultimo"]} dias sem registro recente'
         )
         payload['_meta'] = _meta_ia(
             alerta_rdo_nivel='atencao',
             alerta_rdo_tipo='sem_rdo_recente',
         )
     elif freq_meta.get('nunca_teve_rdo'):
-        payload['alerta_rdo'] = 'Obra nunca registrou RDO ⚠️'
+        payload['alerta_rdo'] = 'Obra nunca registrou RDO'
         payload['_meta'] = _meta_ia(
             alerta_rdo_nivel='atencao',
             alerta_rdo_tipo='nunca_teve_rdo',
@@ -4869,6 +4871,42 @@ def comparar_progresso_mapa_datas(
     }, ensure_ascii=False)
 
 
+def _panorama_mapa_geografico_escopo(usuario_wa):
+    """Resumo do mapa geográfico por obra para panorama geral."""
+    if not _pode_consultar_mapa_geo(usuario_wa):
+        return {'disponivel': False}
+
+    from mapa_geo.services import get_map_summary
+
+    project_ids = _project_ids_escopo(usuario_wa)
+    projects = Project.objects.filter(
+        is_active=True,
+        id__in=project_ids,
+    ).order_by('name')
+
+    obras = []
+    for project in projects[:_LIMITE_LISTA]:
+        summary = get_map_summary(project)
+        total = summary['total']
+        item = {
+            'obra': project.name,
+            'tem_elementos': total > 0,
+            'total_elementos': total,
+            'pontos': summary['points'],
+            'marcadores_gps_rdo': summary['gps_markers'],
+            'tem_marcadores_gps': summary['gps_markers'] > 0,
+        }
+        if total == 0:
+            item['descricao'] = 'sem dados geográficos cadastrados'
+        obras.append(item)
+
+    return {
+        'disponivel': True,
+        'total_obras': len(obras),
+        'obras': obras,
+    }
+
+
 def panorama_mapas_obras(usuario_wa=None) -> str:
     if not _pode_consultar_mapa_geo(usuario_wa):
         return _ERRO_SEM_PERMISSAO
@@ -5325,7 +5363,7 @@ def consultar_situacao_rdo_obra(
 def consultar_situacao_geral_obras(usuario_wa=None) -> str:
     """
     Panorama consolidado: RDO + pedidos + restrições + suprimentos +
-    mapa de controle + TrackHub (inclui Sede).
+    mapa de controle + mapa geográfico + TrackHub (inclui Sede).
     """
     hoje = timezone.localdate()
     rdo = json.loads(consultar_frequencia_rdos(usuario_wa=usuario_wa))
@@ -5335,6 +5373,7 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
     restricoes = _restricoes_por_obra_escopo(usuario_wa)
     suprimentos = json.loads(consultar_panorama_suprimentos(usuario_wa=usuario_wa))
     mapa = json.loads(consultar_panorama_mapa_controle(usuario_wa=usuario_wa))
+    mapa_geo = _panorama_mapa_geografico_escopo(usuario_wa)
 
     obras_th = list(_get_escopo_trackhub(usuario_wa).order_by('nome'))
     trackhub_obras = []
@@ -5372,28 +5411,30 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
     }
     if todas_obras_com_alerta:
         resumo_obras_ok['mensagem'] = (
-            '⚠️ Todas as obras apresentam pelo menos um alerta em algum módulo'
+            'Todas as obras apresentam pelo menos um alerta em algum módulo'
         )
     elif obras_sem_alertas:
         resumo_obras_ok['mensagem'] = (
-            f'✅ {len(obras_sem_alertas)} obra(s) sem alerta em nenhum módulo: '
+            f'{len(obras_sem_alertas)} obra(s) sem alerta em nenhum módulo: '
             + ', '.join(obras_sem_alertas)
         )
 
     obras_com_alerta_rdo = []
     for obra in rdo.get('obras', []):
         for seg in obra.get('segmentos', []):
-            if seg.get('alerta') or seg.get('alerta_ag_critico'):
+            if seg.get('alerta') or seg.get('alerta_ag_atrasado'):
                 obras_com_alerta_rdo.append({
                     'obra': obra['obra'],
                     'frente': seg.get('frente'),
-                    'alerta': seg.get('alerta') or seg.get('alerta_ag_critico'),
+                    'alerta': (
+                        seg.get('alerta') or seg.get('alerta_ag_atrasado')
+                    ),
                 })
 
     return json.dumps({
         'modulos': [
             'rdos', 'pedidos', 'restricoes', 'suprimentos',
-            'mapa_controle', 'trackhub',
+            'mapa_controle', 'mapa_geografico', 'trackhub',
         ],
         'resumo_obras_ok': resumo_obras_ok,
         'rdos': {
@@ -5404,7 +5445,9 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
         'pedidos': {
             'total_obras': pedidos.get('total_obras', 0),
             'total_pedidos_atrasados': pedidos.get('total_pedidos_atrasados', 0),
-            'top_criticos': pedidos.get('top_pedidos_criticos', [])[:8],
+            'pedidos_mais_atrasados': pedidos.get(
+                'pedidos_mais_atrasados', [],
+            )[:8],
             'detalhe': pedidos,
         },
         'restricoes': {
@@ -5438,6 +5481,7 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
             ],
             'detalhe': mapa,
         },
+        'mapa_geografico': mapa_geo,
         'trackhub': {
             'data_referencia': str(hoje),
             'inclui_sede': True,
@@ -5501,10 +5545,10 @@ def consultar_situacao_pedidos_obras(
             **ag,
         }
         obras_resultado.append(item)
-        for critico in ag['pedidos_criticos']:
-            critico_com_obra = dict(critico)
-            critico_com_obra['obra'] = obra_g.nome
-            todos_criticos.append(critico_com_obra)
+        for pedido_atrasado in ag['pedidos_atrasados']:
+            pedido_com_obra = dict(pedido_atrasado)
+            pedido_com_obra['obra'] = obra_g.nome
+            todos_criticos.append(pedido_com_obra)
 
     todos_criticos.sort(
         key=lambda x: (x.get('prazo_vencido', False), x.get('dias_em_aberto', 0)),
@@ -5514,7 +5558,7 @@ def consultar_situacao_pedidos_obras(
     payload = {
         'total_obras': len(obras_resultado),
         'obras': obras_resultado,
-        'top_pedidos_criticos': todos_criticos[:15],
+        'pedidos_mais_atrasados': todos_criticos[:15],
     }
 
     if not (obra_id or obra_nome):

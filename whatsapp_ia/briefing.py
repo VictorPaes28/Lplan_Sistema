@@ -224,7 +224,7 @@ def _compute_briefing(usuario_wa) -> dict:
                 'total': len(rdos_atrasados),
                 'obras': rdos_atrasados[:TOP_OBRAS_RESTRICOES],
             },
-            'pedidos_criticos': {
+            'pedidos_atrasados': {
                 'total': len(pedidos_criticos),
                 'top': pedidos_criticos[:TOP_PEDIDOS_CRITICOS],
             },

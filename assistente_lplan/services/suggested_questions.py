@@ -66,7 +66,6 @@ def build_assistant_home_context(request) -> dict:
     if project:
         code = project.code
         nome_curto = (project.name or code)[:48]
-        # Ordem pensada para uso real: (1) decisão / risco, (2) campo ou aprovações conforme perfil,
         # (3) materiais, (4) registro diário, (5) pedidos amplos quando couber.
         # JS envia selected_project_id; citar outra obra na pergunta prevalece sobre o painel.
 
@@ -200,6 +199,58 @@ def build_assistant_home_context(request) -> dict:
     suggestion_groups_primary = groups[:3]
     suggestion_groups_more = groups[3:]
 
+    from assistente_lplan.services.queries import panorama_queries
+
+    sidebar_obras = panorama_queries.obras_sidebar(request.user, scope, perm)
+    quick_cards = panorama_queries.quick_status_cards(request.user, scope, perm)
+
+    module_shortcuts = []
+    if scope.role == "admin" or scope.project_ids:
+        module_shortcuts.append({"id": "rdo", "label": "Diario (RDO)", "question": "Quais obras estao sem RDO esta semana?"})
+        module_shortcuts.append({"id": "pedidos", "label": "GestControll", "question": "Pedidos parados ha mais de 30 dias"})
+    if perm.can_view_restricoes(scope):
+        module_shortcuts.append({"id": "restricoes", "label": "Restricoes", "question": "Quem tem mais restricoes vencidas?"})
+    if perm.can_view_trackhub(scope):
+        module_shortcuts.append({"id": "trackhub", "label": "TrackHub", "question": "Pendencias TrackHub atrasadas"})
+    if perm.can_view_mapa_geo():
+        module_shortcuts.append({"id": "mapa_geo", "label": "Mapa Geo", "question": "Obras com elementos no mapa geografico"})
+    if perm.can_view_rh(scope):
+        module_shortcuts.append({"id": "rh", "label": "RH / DP", "question": "Colaboradores com documento vencendo"})
+    module_shortcuts.append({"id": "panorama", "label": "Panorama", "question": "Qual obra esta mais critica hoje?"})
+
+    example_grid = [
+        {"icon": "📋", "category": "Diario", "question": "Quais obras estao sem RDO esta semana?"},
+        {"icon": "📦", "category": "Pedidos", "question": "Pedidos parados ha mais de 30 dias"},
+        {"icon": "⚠️", "category": "Restricoes", "question": "Quem tem mais restricoes vencidas?"},
+        {"icon": "🔧", "category": "Suprimentos", "question": "Como esta o pipeline de suprimentos?"},
+        {"icon": "✅", "category": "TrackHub", "question": "Pendencias TrackHub atrasadas"},
+        {"icon": "👥", "category": "RH", "question": "Colaboradores com documento vencendo"},
+        {"icon": "📍", "category": "Mapa", "question": "Obras com elementos no mapa geografico"},
+        {"icon": "🏗️", "category": "Geral", "question": "Qual obra esta mais critica hoje?"},
+    ]
+    quick_chips = [
+        "Situacao geral",
+        "RDOs pendentes",
+        "Pedidos atrasados",
+        "Restricoes criticas",
+    ]
+    welcome_subtitle = "Aqui esta o resumo operacional de hoje. Cite o codigo ou nome da obra na pergunta quando precisar."
+
+    first_name = (user.first_name or "").strip() or user.username
+    hour = timezone.localtime().hour
+    if hour < 12:
+        greeting_prefix = "Bom dia"
+    elif hour < 18:
+        greeting_prefix = "Boa tarde"
+    else:
+        greeting_prefix = "Boa noite"
+
+    welcome_chat = {
+        "mode": "dashboard",
+        "title": f"{greeting_prefix}, {first_name}",
+        "subtitle": welcome_subtitle,
+    }
+
     return {
         "active_project": (
             {"id": project.id, "code": project.code, "name": project.name or project.code} if project else None
@@ -213,4 +264,10 @@ def build_assistant_home_context(request) -> dict:
         "selected_project_id": project.id if project else None,
         "persist_session_project": persist_session_project,
         "available_projects": available_projects,
+        "sidebar_obras": sidebar_obras,
+        "quick_cards": quick_cards,
+        "module_shortcuts": module_shortcuts,
+        "example_grid": example_grid,
+        "greeting_name": first_name,
+        "quick_chips": quick_chips,
     }

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from accounts.groups import GRUPOS
+from accounts.groups import GRUPOS, usuario_tem_acesso_mapa_geografico, usuario_tem_administracao_global_na_plataforma
 from core.models import ProjectMember, ProjectOwner
 from gestao_aprovacao.models import Approval, WorkOrder, WorkOrderPermission
 
@@ -62,13 +62,51 @@ class AssistantPermissionService:
             return True
         return obra_id in set(scope.gestao_obra_ids) or obra_id in set(scope.aprovador_obra_ids)
 
+    def can_view_rh(self, scope: UserScope | None = None) -> bool:
+        if self.user.is_staff or self.user.is_superuser:
+            return True
+        return self.user.groups.filter(name=GRUPOS.RECURSOS_HUMANOS).exists()
+
+    def can_view_mapa_geo(self, scope: UserScope | None = None) -> bool:
+        return usuario_tem_acesso_mapa_geografico(self.user)
+
+    def can_view_gerencial(self, scope: UserScope | None = None) -> bool:
+        if self.user.is_staff or self.user.is_superuser:
+            return True
+        if usuario_tem_administracao_global_na_plataforma(self.user):
+            return True
+        gs = set(self.user.groups.values_list("name", flat=True))
+        return GRUPOS.RESPONSAVEL_EMPRESA in gs
+
+    def can_view_trackhub(self, scope: UserScope | None = None) -> bool:
+        scope = scope or self.build_scope()
+        if scope.role == "admin":
+            return True
+        return bool(scope.project_ids) or self.user.groups.filter(
+            name__in=[
+                GRUPOS.TRACKHUB,
+                GRUPOS.TRACKHUB_ADMIN,
+                GRUPOS.TRACKHUB_APROVADOR,
+                GRUPOS.TRACKHUB_SOLICITANTE,
+            ]
+        ).exists()
+
+    def can_view_restricoes(self, scope: UserScope | None = None) -> bool:
+        scope = scope or self.build_scope()
+        if scope.role == "admin":
+            return True
+        if self.user.groups.filter(name=GRUPOS.GESTAO_IMPEDIMENTOS).exists():
+            return True
+        return bool(scope.project_ids) or bool(scope.gestao_obra_ids)
+
+    def can_view_mapa_controle(self) -> bool:
+        if self.user.is_staff or self.user.is_superuser:
+            return True
+        return self.user.groups.filter(
+            name__in=[GRUPOS.ENGENHARIA, GRUPOS.MAPA_CONTROLE, GRUPOS.BI_DA_OBRA, GRUPOS.FERRAMENTA_OPERACIONAL]
+        ).exists()
+
     def allowed_user_ids_for_visibility(self, scope: UserScope) -> set[int]:
-        """
-        Define quais usuários podem ter métricas consultadas por este usuário.
-        Regra segura:
-        - admin: todos
-        - não-admin: ele mesmo + usuários que compartilham a MESMA obra/projeto no escopo
-        """
         if scope.role == "admin":
             from django.contrib.auth.models import User
 
@@ -97,4 +135,3 @@ class AssistantPermissionService:
                 .values_list("aprovado_por_id", flat=True)
             )
         return set(allowed)
-

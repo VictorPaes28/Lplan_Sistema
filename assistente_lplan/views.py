@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.core import signing
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
@@ -75,6 +76,12 @@ def assistant_home(request):
             "welcome_chat": assistant_ctx["welcome_chat"],
             "selected_project_id": assistant_ctx["selected_project_id"],
             "available_projects": assistant_ctx.get("available_projects") or [],
+            "sidebar_obras": assistant_ctx.get("sidebar_obras") or [],
+            "quick_cards": assistant_ctx.get("quick_cards") or [],
+            "module_shortcuts": assistant_ctx.get("module_shortcuts") or [],
+            "example_grid": assistant_ctx.get("example_grid") or [],
+            "quick_chips": assistant_ctx.get("quick_chips") or [],
+            "greeting_name": assistant_ctx.get("greeting_name") or "",
             "history_limit": MAX_UI_HISTORY_ITEMS,
         },
     )
@@ -158,7 +165,7 @@ def perguntar(request):
         payload_out = _normalize_response_payload(response.to_dict())
 
         qlog.intent = str(meta.get("intent", ""))
-        qlog.entities = meta.get("entities", {})
+        qlog.entities = _json_safe(meta.get("entities", {}))
         qlog.domain = str(meta.get("domain", ""))
         qlog.used_llm = bool(meta.get("used_llm", False))
         qlog.success = True
@@ -359,6 +366,13 @@ def _build_question_cache_key(user_id: int, question: str, context: dict) -> str
     return f"assistente_lplan:q:{hash_part}"
 
 
+def _json_safe(value):
+    """Garante tipos serializáveis para JSONField e cache."""
+    if value is None:
+        return None
+    return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
+
+
 def _normalize_response_payload(payload: dict) -> dict:
     """Garante campos esperados pelo frontend mesmo para cache legado."""
     if not isinstance(payload, dict):
@@ -380,5 +394,5 @@ def _normalize_response_payload(payload: dict) -> dict:
     payload.setdefault("raw_data", {})
     payload.setdefault("question_log_id", None)
     payload.setdefault("suggested_replies", [])
-    return payload
+    return _json_safe(payload)
 

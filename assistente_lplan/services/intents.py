@@ -1,16 +1,37 @@
+# Intenções legadas (mantidas para regras guiadas / feedback)
 INTENT_LOCATE_SUPPLY = "localizar_insumo"
 INTENT_LIST_OBRA_PENDING = "listar_pendencias_obra"
 INTENT_LIST_PENDING_APPROVALS = "listar_aprovacoes_pendentes"
 INTENT_RDO_BY_DATE = "consultar_rdo_por_data"
 INTENT_OBRA_SUMMARY = "resumo_obra"
-INTENT_USER_STATUS = "status_usuario"
+INTENT_USER_STATUS = "status_usuario"  # alias → pessoa_perfil
 INTENT_UNALLOCATED_ITEMS = "itens_sem_alocacao"
 INTENT_REJECTED_REQUESTS = "solicitacoes_reprovadas"
 INTENT_OBRA_BOTTLENECKS = "gargalos_obra"
 INTENT_INTELIGENCIA_INTEGRADA = "inteligencia_obra_integrada"
 INTENT_RELATORIO_LOCAL_MAPA = "relatorio_local_mapa"
 INTENT_RELATORIO_RDO_PERIOD = "relatorio_rdo_periodo"
+
+# Novas intenções
+INTENT_PEDIDOS_ATRASADOS = "pedidos_atrasados"
+INTENT_PEDIDOS_APROVADOR = "pedidos_aprovador"
+INTENT_RDO_FREQUENCIA = "rdo_frequencia"
+INTENT_RESTRICOES_OBRA = "restricoes_obra"
+INTENT_RESTRICOES_RESPONSAVEL = "restricoes_responsavel"
+INTENT_TRACKHUB_PENDENCIAS = "trackhub_pendencias"
+INTENT_TRACKHUB_RESPONSAVEL = "trackhub_responsavel"
+INTENT_MAPA_GEO = "mapa_geo"
+INTENT_MAPA_CONTROLE_GERAL = "mapa_controle_geral"
+INTENT_RH_GERAL = "rh_geral"
+INTENT_PANORAMA_GERAL = "panorama_geral"
+INTENT_PESSOA_PERFIL = "pessoa_perfil"
+INTENT_FRENTES_OBRA = "frentes_obra"
+
 INTENT_FALLBACK = "fallback"
+
+INTENT_ALIASES = {
+    INTENT_USER_STATUS: INTENT_PESSOA_PERFIL,
+}
 
 SUPPORTED_INTENTS = {
     INTENT_LOCATE_SUPPLY,
@@ -25,6 +46,40 @@ SUPPORTED_INTENTS = {
     INTENT_INTELIGENCIA_INTEGRADA,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
+    INTENT_PEDIDOS_ATRASADOS,
+    INTENT_PEDIDOS_APROVADOR,
+    INTENT_RDO_FREQUENCIA,
+    INTENT_RESTRICOES_OBRA,
+    INTENT_RESTRICOES_RESPONSAVEL,
+    INTENT_TRACKHUB_PENDENCIAS,
+    INTENT_TRACKHUB_RESPONSAVEL,
+    INTENT_MAPA_GEO,
+    INTENT_MAPA_CONTROLE_GERAL,
+    INTENT_RH_GERAL,
+    INTENT_PANORAMA_GERAL,
+    INTENT_PESSOA_PERFIL,
+    INTENT_FRENTES_OBRA,
     INTENT_FALLBACK,
 }
 
+INTENTS_REQUIRING_GERENCIAL_RANKING = frozenset(
+    {
+        INTENT_RESTRICOES_RESPONSAVEL,
+        INTENT_TRACKHUB_RESPONSAVEL,
+    }
+)
+
+INTENTS_MODULE_PERMISSION = {
+    INTENT_RESTRICOES_OBRA: "restricoes",
+    INTENT_RESTRICOES_RESPONSAVEL: "restricoes",
+    INTENT_TRACKHUB_PENDENCIAS: "trackhub",
+    INTENT_TRACKHUB_RESPONSAVEL: "trackhub",
+    INTENT_MAPA_GEO: "mapa_geo",
+    INTENT_MAPA_CONTROLE_GERAL: "mapa_controle",
+    INTENT_RH_GERAL: "rh",
+    INTENT_PANORAMA_GERAL: "gerencial",
+}
+
+
+def normalize_intent_key(intent: str) -> str:
+    return INTENT_ALIASES.get(intent, intent)

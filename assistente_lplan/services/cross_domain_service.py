@@ -6,7 +6,6 @@ from core.kpi_queries import (
 )
 from core.models import Project
 
-from .llm_provider import LLMProvider
 from .messages import MessageCatalog
 from .radar_obra_service import RadarObraService, RadarResult
 
@@ -81,11 +80,7 @@ class CrossDomainAssistantService:
             )
 
         radar = RadarObraService(project).build()
-        facts = self._facts_for_narrative(project, radar)
-        llm = LLMProvider()
-        narrative = llm.narrate_obra_intelligence(facts)
-        used_llm = bool(narrative)
-        summary = narrative or self._fallback_inteligencia_text(project, radar)
+        summary = self._fallback_inteligencia_text(project, radar)
 
         response = AssistantResponse(
             summary=summary,
@@ -102,7 +97,7 @@ class CrossDomainAssistantService:
             ],
             raw_data={
                 "inteligencia": True,
-                "narrative_from_llm": used_llm,
+                "narrative_from_llm": False,
                 "project_id": project.id,
             },
         )

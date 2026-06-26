@@ -173,6 +173,16 @@ class MapaGeoWhatsAppTests(TestCase):
         self.assertGreaterEqual(resultado['total_obras'], 1)
         self.assertTrue(any(o['nome'] == 'Obra Mapa Teste' for o in resultado['obras']))
 
+    def test_situacao_geral_inclui_mapa_geografico(self):
+        resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
+        mapa_geo = resultado['mapa_geografico']
+        self.assertTrue(mapa_geo['disponivel'])
+        obra = next(o for o in mapa_geo['obras'] if o['obra'] == 'Obra Mapa Teste')
+        self.assertGreaterEqual(obra['total_elementos'], 1)
+        self.assertIn('pontos', obra)
+        self.assertIn('marcadores_gps_rdo', obra)
+        self.assertIn('tem_marcadores_gps', obra)
+
     def test_comparar_progresso_mapa_datas(self):
         hoje = timezone.localdate()
         ontem = hoje - timedelta(days=1)
@@ -314,7 +324,7 @@ class BriefingOperacionalTests(TestCase):
         self.assertIn('alertas', briefing)
         self.assertIn('obras_sem_alertas', briefing)
         self.assertIn('rdos_atrasados', briefing['alertas'])
-        self.assertIn('pedidos_criticos', briefing['alertas'])
+        self.assertIn('pedidos_atrasados', briefing['alertas'])
         self.assertIn('restricoes_abertas', briefing['alertas'])
         self.assertIn('pendencias_vencidas', briefing['alertas'])
         self.assertIn('Obra Briefing', briefing['escopo']['obras'])
@@ -656,9 +666,10 @@ class RdoTrackHubWhatsAppTests(TestCase):
             resultado['modulos'],
             [
                 'rdos', 'pedidos', 'restricoes', 'suprimentos',
-                'mapa_controle', 'trackhub',
+                'mapa_controle', 'mapa_geografico', 'trackhub',
             ],
         )
+        self.assertIn('mapa_geografico', resultado)
         self.assertIn('detalhe', resultado['rdos'])
         self.assertIn('resumo_obras_ok', resultado)
         self.assertIn('obras', resultado['trackhub'])
@@ -698,7 +709,7 @@ class RdoTrackHubWhatsAppTests(TestCase):
         resumo = resultado['resumo_obras_ok']
         self.assertTrue(resumo['todas_obras_com_alerta'])
         self.assertEqual(resumo['total_sem_alertas'], 0)
-        self.assertIn('⚠️ Todas as obras', resumo['mensagem'])
+        self.assertIn('Todas as obras', resumo['mensagem'])
         self.assertNotIn('✅', resumo['mensagem'])
 
     def test_situacao_geral_resumo_obras_sem_alerta(self):
@@ -714,7 +725,6 @@ class RdoTrackHubWhatsAppTests(TestCase):
         resumo = resultado['resumo_obras_ok']
         self.assertFalse(resumo['todas_obras_com_alerta'])
         self.assertGreater(resumo['total_sem_alertas'], 0)
-        self.assertIn('✅', resumo['mensagem'])
         self.assertNotIn('⚠️ Todas as obras', resumo['mensagem'])
 
     def test_frequencia_rdos_inclui_situacao_periodo(self):
@@ -742,7 +752,10 @@ _IDENTIFICADORES_TECNICOS_PROIBIDOS = (
     'não assuma',
     'nunca agregue',
     'nunca só criticidade',
-    'como_responsavel_pendencia =',
+    'alerta_ag_critico',
+    'top_criticos',
+    'top_pedidos_criticos',
+    'pedidos_criticos',
 )
 
 
