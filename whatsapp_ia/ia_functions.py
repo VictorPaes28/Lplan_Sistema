@@ -1,3 +1,14 @@
+"""
+Funções de consulta da IA WhatsApp — retornos JSON para tool calls.
+
+Convenção de strings e metadados
+--------------------------------
+* Campos para o USUÁRIO FINAL (`mensagem`, `alerta`, `descricao`, `aviso`):
+  linguagem natural exibível no WhatsApp.
+* Metadados INTERNOS (`nivel`, `tipo`, flags, classificação, parâmetros):
+  ficam em `_meta` no payload. A IA usa `_meta` para formatação e
+  priorização, mas NUNCA deve citá-los na resposta (ver prompts.py).
+"""
 import inspect
 import json
 from datetime import datetime, timedelta
@@ -15,6 +26,23 @@ from core.models import ConstructionDiary, Project
 from gestao_aprovacao.models import WorkOrder
 from suprimentos.models import ItemMapa
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
+
+
+def _meta_ia(**kwargs):
+    """Metadados internos — não devem aparecer na resposta ao usuário."""
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def _lacunas_exibicao(lacunas):
+    return [
+        {
+            'de': item['apos_data'],
+            'ate': item['antes_data'],
+            'dias': item['dias_sem_rdo'],
+        }
+        for item in lacunas
+    ]
+
 
 TOOLS = [
     {
@@ -1719,17 +1747,20 @@ def _metricas_rdo_frequencia(
     )
 
     return {
-        'nunca_teve_rdo': nunca_teve,
         'ultimo_rdo_data': str(ultimo) if ultimo else None,
         'dias_desde_ultimo': dias_desde_ultimo,
-        'sem_rdo_recente': (
-            dias_desde_ultimo is not None
-            and dias_desde_ultimo > dias_sem_rdo_alerta
+        'total_rdos_periodo': len(datas_periodo),
+        'maior_intervalo_sem_rdo_dias': maior_lacuna,
+        'lacunas_no_periodo': _lacunas_exibicao(lacunas),
+        'qtd_lacunas_no_periodo': len(lacunas),
+        '_meta': _meta_ia(
+            nunca_teve_rdo=nunca_teve,
+            sem_rdo_recente=(
+                dias_desde_ultimo is not None
+                and dias_desde_ultimo > dias_sem_rdo_alerta
+            ),
+            dias_analise=dias_analise,
         ),
-        'total_periodo': len(datas_periodo),
-        'dias_analise': dias_analise,
-        'maior_lacuna_dias': maior_lacuna,
-        'lacunas_acima_limite': lacunas,
     }
 
 
@@ -1809,52 +1840,48 @@ def _situacao_rdo_periodo(
     ag_criticos = [r for r in ag_detalhes if r['critico']]
 
     return {
-        'periodo_dias': dias_analise,
         'total_rdos': total,
         'aprovados': aprovados,
         'pendentes_aprovacao': pendentes_aprovacao,
         'rascunhos': rascunhos,
         'reprovados': por_status.get('RG', 0),
         'dias_com_falta': dias_com_falta,
-        'por_status': por_status,
         'rdos_aguardando_aprovacao': ag_detalhes[:15],
         'rdos_ag_criticos': ag_criticos,
         'total_ag_criticos': len(ag_criticos),
+        '_meta': _meta_ia(
+            periodo_dias=dias_analise,
+            por_status=por_status,
+        ),
     }
 
 
 def _classificar_volume_suprimentos(total_itens):
     if total_itens == 0:
         return {
-            'classificacao': 'sem_cadastro',
             'descricao': (
-                'Nenhum item cadastrado — pode indicar falta de controle, '
-                'não necessariamente que está tudo bem'
+                'Nenhum item cadastrado — pode indicar falta de controle ⚠️'
             ),
-            'alerta_sem_cadastro': True,
+            '_meta': _meta_ia(classificacao='sem_cadastro', sem_itens=True),
         }
     if total_itens < 15:
         return {
-            'classificacao': 'baixo',
-            'descricao': f'{total_itens} itens — volume baixo (não é alto volume)',
-            'alerta_sem_cadastro': False,
+            'descricao': f'{total_itens} itens — volume baixo',
+            '_meta': _meta_ia(classificacao='baixo'),
         }
     if total_itens < 50:
         return {
-            'classificacao': 'medio',
             'descricao': f'{total_itens} itens — volume moderado',
-            'alerta_sem_cadastro': False,
+            '_meta': _meta_ia(classificacao='medio'),
         }
     if total_itens < 150:
         return {
-            'classificacao': 'alto',
             'descricao': f'{total_itens} itens — volume alto',
-            'alerta_sem_cadastro': False,
+            '_meta': _meta_ia(classificacao='alto'),
         }
     return {
-        'classificacao': 'muito_alto',
         'descricao': f'{total_itens} itens — volume muito alto',
-        'alerta_sem_cadastro': False,
+        '_meta': _meta_ia(classificacao='muito_alto'),
     }
 
 
@@ -2078,36 +2105,38 @@ def _restricoes_por_obra_escopo(usuario_wa) -> dict:
 
 def _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=None):
     sit = situacao or seg.get('situacao_periodo') or seg.get('situacao') or {}
+    meta = seg.setdefault('_meta', {})
     nivel = None
     tipo = None
-    if seg.get('sem_rdo_recente'):
+    if meta.get('sem_rdo_recente'):
+        dias = seg.get('dias_desde_ultimo')
         seg['alerta'] = (
-            f'Último RDO há {seg["dias_desde_ultimo"]} dias '
-            f'(limite: {dias_sem_rdo_alerta} dias)'
+            f'Último RDO há {dias} dias — acima do prazo recomendado ⚠️'
         )
         nivel = 'atencao'
         tipo = 'sem_rdo_recente'
-    if seg.get('nunca_teve_rdo'):
-        seg['alerta'] = 'Obra nunca registrou RDO'
+    if meta.get('nunca_teve_rdo'):
+        seg['alerta'] = 'Obra nunca registrou RDO ⚠️'
         nivel = 'atencao'
         tipo = 'nunca_teve_rdo'
     if sit.get('total_ag_criticos', 0) > 0:
         seg['alerta_ag_critico'] = (
             f'{sit["total_ag_criticos"]} RDO(s) aguardando aprovação '
-            f'há mais de {dias_sem_rdo_alerta} dias'
+            f'há muito tempo 🔴'
         )
         nivel = 'critico'
         tipo = 'ag_critico'
     if nivel:
-        seg['nivel'] = nivel
-        seg['tipo'] = tipo
+        meta['nivel'] = nivel
+        meta['tipo'] = tipo
 
 
 def _obra_tem_alerta_rdo(obra_rdo: dict) -> bool:
     for seg in obra_rdo.get('segmentos', []):
         if seg.get('alerta') or seg.get('alerta_ag_critico'):
             return True
-        if seg.get('sem_rdo_recente') or seg.get('nunca_teve_rdo'):
+        seg_meta = seg.get('_meta', {})
+        if seg_meta.get('sem_rdo_recente') or seg_meta.get('nunca_teve_rdo'):
             return True
     return False
 
@@ -2132,7 +2161,8 @@ def _obras_com_alerta_panorama(
         if obra.get('abertas', 0) > 0:
             com_alerta.add(obra['obra'])
     for obra in suprimentos.get('obras', []):
-        if obra.get('alerta_sem_cadastro') or obra.get('atrasados', 0) > 0:
+        sem_itens = obra.get('total_itens', 0) == 0
+        if sem_itens or obra.get('atrasados', 0) > 0:
             com_alerta.add(obra['obra'])
     for obra in mapa.get('obras', []):
         if not obra.get('tem_mapa_controle'):
@@ -2262,8 +2292,8 @@ def _mini_resumo_frente(project, front, obra_gestao, hoje=None):
         'rdos': {
             'ultimo_rdo_data': metricas_rdo['ultimo_rdo_data'],
             'dias_desde_ultimo': metricas_rdo['dias_desde_ultimo'],
-            'nunca_teve_rdo': metricas_rdo['nunca_teve_rdo'],
-            'lacunas_periodo': len(metricas_rdo['lacunas_acima_limite']),
+            'qtd_lacunas_no_periodo': metricas_rdo['qtd_lacunas_no_periodo'],
+            '_meta': metricas_rdo.get('_meta', {}),
         },
         'pedidos_pendentes': pedidos_pendentes,
         'pedidos_atrasados': pedidos_atrasados,
@@ -2445,7 +2475,7 @@ def consultar_obras_sem_rdo(data=None, usuario_wa=None) -> str:
             ),
             'obras': sem_rdo_hoje,
         },
-        'nunca_teve_rdo': {
+        'obras_sem_historico_rdo': {
             'total': len(nunca_teve_rdo),
             'descricao': 'Obras ativas que nunca registraram RDO no histórico',
             'obras': nunca_teve_rdo,
@@ -2466,12 +2496,14 @@ def consultar_suprimentos_obra(obra_nome=None, obra_id=None, usuario_wa=None) ->
         return json.dumps({
             'obra': obra.nome,
             'total_itens': kpis.get('total_itens', 0),
-            'sem_sc': kpis.get('sem_sc', 0),
-            'sem_pc': kpis.get('sem_pc', 0),
-            'sem_entrega': kpis.get('sem_entrega', 0),
+            'sem_solicitacao_compra': kpis.get('sem_sc', 0),
+            'sem_pedido_compra': kpis.get('sem_pc', 0),
+            'sem_entrega_registrada': kpis.get('sem_entrega', 0),
             'sem_alocacao': kpis.get('sem_alocacao', 0),
             'atrasados': kpis.get('atrasados', 0),
-            'percentual_medio_alocacao': kpis.get('percentual_medio_alocacao', 0),
+            'percentual_medio_alocacao_pct': kpis.get(
+                'percentual_medio_alocacao', 0,
+            ),
         }, ensure_ascii=False)
     except Exception as e:
         return json.dumps({'erro': str(e)}, ensure_ascii=False)
@@ -2491,9 +2523,8 @@ def consultar_panorama_suprimentos(usuario_wa=None) -> str:
                 'total_itens': total_itens,
                 'sem_alocacao': kpis.get('sem_alocacao', 0),
                 'atrasados': kpis.get('atrasados', 0),
-                'volume': volume['classificacao'],
-                'volume_descricao': volume['descricao'],
-                'alerta_sem_cadastro': volume['alerta_sem_cadastro'],
+                'descricao_volume': volume['descricao'],
+                '_meta': volume.get('_meta', {}),
             })
         except Exception:
             volume = _classificar_volume_suprimentos(0)
@@ -2502,21 +2533,21 @@ def consultar_panorama_suprimentos(usuario_wa=None) -> str:
                 'total_itens': 0,
                 'sem_alocacao': 0,
                 'atrasados': 0,
-                'volume': volume['classificacao'],
-                'volume_descricao': volume['descricao'],
-                'alerta_sem_cadastro': True,
-                'erro': 'dados indisponíveis',
+                'descricao_volume': volume['descricao'],
+                '_meta': {**volume.get('_meta', {}), 'erro_dados': True},
             })
     resultado.sort(key=lambda x: (-x['total_itens'], x['obra']))
     obras_sem_itens = [r['obra'] for r in resultado if r['total_itens'] == 0]
+    aviso = None
+    if obras_sem_itens:
+        aviso = (
+            f'{len(obras_sem_itens)} obra(s) sem nenhum item cadastrado ⚠️'
+        )
     return json.dumps({
         'total_obras': len(resultado),
         'obras': resultado,
         'obras_sem_itens': obras_sem_itens,
-        'alerta': (
-            'Obras sem nenhum item cadastrado podem indicar falta de controle '
-            'de suprimentos — não assuma que está tudo bem.'
-        ) if obras_sem_itens else None,
+        'aviso': aviso,
     }, ensure_ascii=False)
 
 
@@ -2591,10 +2622,7 @@ def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
         if len(mapas) == 1:
             item['percentual_conclusao'] = mapas[0]['percentual_conclusao']
         elif len(mapas) > 1:
-            item['nota'] = (
-                'Obra com múltiplos mapas — liste cada um com nome, '
-                '% e data; não calcule média.'
-            )
+            item['_meta'] = {'multiplos_mapas': True}
         resultado.append(item)
 
     def _ordem_mapa_obra(obra_item):
@@ -2610,10 +2638,6 @@ def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
     resultado.sort(key=_ordem_mapa_obra)
     return json.dumps({
         'total_obras': len(resultado),
-        'nota': (
-            'Com múltiplos mapas por obra, informe nome, percentual e '
-            'data de cada um — nunca agregue num único percentual.'
-        ),
         'obras': resultado,
     }, ensure_ascii=False)
 
@@ -2920,16 +2944,22 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
         ),
     }
     freq = payload['rdo_frequencia']
-    if freq.get('sem_rdo_recente'):
+    freq_meta = freq.get('_meta', {})
+    if freq_meta.get('sem_rdo_recente'):
         payload['alerta_rdo'] = (
-            f'Último RDO há {freq["dias_desde_ultimo"]} dias (limite: 7 dias)'
+            f'Último RDO há {freq["dias_desde_ultimo"]} dias — '
+            f'acima do prazo recomendado ⚠️'
         )
-        payload['alerta_rdo_nivel'] = 'atencao'
-        payload['alerta_rdo_tipo'] = 'sem_rdo_recente'
-    elif freq.get('nunca_teve_rdo'):
-        payload['alerta_rdo'] = 'Obra nunca registrou RDO'
-        payload['alerta_rdo_nivel'] = 'atencao'
-        payload['alerta_rdo_tipo'] = 'nunca_teve_rdo'
+        payload['_meta'] = _meta_ia(
+            alerta_rdo_nivel='atencao',
+            alerta_rdo_tipo='sem_rdo_recente',
+        )
+    elif freq_meta.get('nunca_teve_rdo'):
+        payload['alerta_rdo'] = 'Obra nunca registrou RDO ⚠️'
+        payload['_meta'] = _meta_ia(
+            alerta_rdo_nivel='atencao',
+            alerta_rdo_tipo='nunca_teve_rdo',
+        )
     if frentes_resumo:
         payload['tem_frentes_ativas'] = True
         payload['frentes'] = frentes_resumo
@@ -3116,27 +3146,12 @@ def consultar_usuarios(
                     )
 
             perfil.update({
-                'obras_vinculadas_usuario': sorted(obras_vinculadas),
-                'nota_obras_vinculadas': (
-                    'Obras onde o usuário é membro do projeto ou tem '
-                    'permissão no GestControll — NÃO usa campo texto '
-                    'de responsável da obra.'
-                ),
+                'obras_vinculadas': sorted(obras_vinculadas),
                 'restricoes_abertas': restricoes_abertas,
-                'pedidos_aguardando_aprovacao_deste_usuario': pedidos_pendentes,
-                'nota_pedidos_pendentes': (
-                    'Pedidos aguardando aprovação DESTE usuário como '
-                    'aprovador — não são pedidos criados por ele.'
-                ),
-                'pendencias_trackhub_atrasadas_como_responsavel_pendencia': (
-                    pendencias_resp_pendencia
-                ),
-                'pendencias_trackhub_atrasadas_como_responsavel_etapa': (
+                'pedidos_aguardando_aprovacao': pedidos_pendentes,
+                'pendencias_atrasadas_como_dono': pendencias_resp_pendencia,
+                'pendencias_atrasadas_como_responsavel_etapa': (
                     pendencias_resp_etapa
-                ),
-                'nota_trackhub_responsaveis': (
-                    'responsavel_pendencia = dono da pendência; '
-                    'responsavel_etapa = responsável de etapa dentro da pendência.'
                 ),
                 'tempo_medio_aprovacao_dias': (
                     round(sum(tempos) / len(tempos), 1) if tempos else None
@@ -4134,8 +4149,8 @@ def consultar_suprimentos_por_local(
                         'total': s.total,
                         'pendentes': s.pendentes,
                         'entregues': s.entregues,
-                        'sem_sc': s.sem_sc,
-                        'sem_pc': s.sem_pc,
+                        'sem_solicitacao_compra': s.sem_sc,
+                        'sem_pedido_compra': s.sem_pc,
                         'atrasados': s.atrasados,
                         'saude_score': s.saude_score,
                     }
@@ -4411,10 +4426,10 @@ def consultar_pendencias_por_responsavel(
         if obra:
             qs_pendencia = qs_pendencia.filter(obra=obra)
 
-    como_responsavel_pendencia = []
+    pendencias_como_dono = []
     for p in qs_pendencia.order_by('prazo')[:20]:
         vencida = p.prazo < hoje if p.prazo else False
-        como_responsavel_pendencia.append({
+        pendencias_como_dono.append({
             'id': p.id,
             'titulo': p.titulo,
             'tipo': p.tipo,
@@ -4423,7 +4438,7 @@ def consultar_pendencias_por_responsavel(
             'prazo': str(p.prazo) if p.prazo else '-',
             'vencida': vencida,
             'dias_atraso': (hoje - p.prazo).days if vencida else None,
-            'papel': 'responsavel_pendencia',
+            'tipo_responsabilidade': 'dono da pendência',
         })
 
     qs_etapa = EtapaPendencia.objects.filter(
@@ -4441,10 +4456,10 @@ def consultar_pendencias_por_responsavel(
         if obra:
             qs_etapa = qs_etapa.filter(pendencia__obra=obra)
 
-    como_responsavel_etapa = []
+    pendencias_como_responsavel_etapa = []
     for et in qs_etapa.order_by('prazo')[:20]:
         vencida = et.prazo < hoje if et.prazo else False
-        como_responsavel_etapa.append({
+        pendencias_como_responsavel_etapa.append({
             'pendencia_id': et.pendencia_id,
             'pendencia_titulo': et.pendencia.titulo,
             'etapa': et.titulo,
@@ -4455,19 +4470,15 @@ def consultar_pendencias_por_responsavel(
             'prazo': str(et.prazo) if et.prazo else '-',
             'vencida': vencida,
             'dias_atraso': (hoje - et.prazo).days if vencida else None,
-            'papel': 'responsavel_etapa',
+            'tipo_responsabilidade': 'responsável de etapa',
         })
 
     return json.dumps({
         'responsavel': responsavel_nome,
-        'nota': (
-            'como_responsavel_pendencia = dono da pendência; '
-            'como_responsavel_etapa = responsável de etapa dentro da pendência.'
-        ),
-        'total_como_responsavel_pendencia': qs_pendencia.count(),
+        'total_como_dono': qs_pendencia.count(),
         'total_como_responsavel_etapa': qs_etapa.count(),
-        'como_responsavel_pendencia': como_responsavel_pendencia,
-        'como_responsavel_etapa': como_responsavel_etapa,
+        'pendencias_como_dono': pendencias_como_dono,
+        'pendencias_como_responsavel_etapa': pendencias_como_responsavel_etapa,
     }, ensure_ascii=False)
 
 
@@ -4617,17 +4628,19 @@ def consultar_resumo_mapa_obra(
     summary = get_map_summary(project)
     return json.dumps({
         'obra': project.name,
-        'project_id': project.id,
-        'total': summary['total'],
+        'total_elementos': summary['total'],
         'pontos': summary['points'],
         'linhas': summary['segments'],
         'areas': summary['areas'],
         'progresso_geral_pct': summary['overall_progress_pct'],
         'marcadores_gps': summary['gps_markers'],
-        'vinculos_eap': summary['eap_linked'],
         'rdos_com_gps': summary['diaries_with_gps'],
         'ultima_data_diario': summary['last_diary_date'],
-        'fonte_importacao': summary['import_label'],
+        '_meta': _meta_ia(
+            project_id=project.id,
+            vinculos_eap=summary['eap_linked'],
+            fonte_importacao=summary['import_label'],
+        ),
     }, ensure_ascii=False)
 
 
@@ -4929,7 +4942,6 @@ def consultar_resumo_rh(usuario_wa=None) -> str:
             'admissoes': resumo['admissoes'],
             'contratos': resumo['contratos'],
         },
-        'dias_antecedencia_documentos': resumo['dias_antecedencia_documentos'],
         'data': str(resumo['hoje']),
     }, ensure_ascii=False)
 
@@ -5258,11 +5270,6 @@ def consultar_frequencia_rdos(
 
     return json.dumps({
         'total_obras': len(resultado_obras),
-        'parametros': {
-            'dias_sem_rdo_alerta': dias_sem_rdo_alerta,
-            'dias_analise': dias_analise,
-            'lacuna_minima_dias': lacuna_minima_dias,
-        },
         'obras': resultado_obras,
     }, ensure_ascii=False)
 
@@ -5311,7 +5318,6 @@ def consultar_situacao_rdo_obra(
 
     return json.dumps({
         'obra': project.name,
-        'periodo_dias': dias_analise,
         'segmentos': segmentos,
     }, ensure_ascii=False)
 
@@ -5405,19 +5411,14 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
             'total_abertas': restricoes['total_abertas'],
             'total_vencidas': restricoes['total_vencidas'],
             'total_criticas_altas': restricoes['total_criticas_altas'],
-            'nota': (
-                'Para cada obra informe abertas, vencidas e críticas/altas — '
-                'nunca só criticidade sem vencidas.'
-            ),
             'obras': restricoes['obras'],
         },
         'suprimentos': {
             'obras_sem_itens': suprimentos.get('obras_sem_itens', []),
-            'alerta': suprimentos.get('alerta'),
+            'aviso': suprimentos.get('aviso'),
             'detalhe': suprimentos,
         },
         'mapa_controle': {
-            'nota': mapa.get('nota'),
             'obras': [
                 {
                     'obra': o['obra'],
@@ -5428,7 +5429,10 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
                         {'percentual_conclusao': o['percentual_conclusao']}
                         if o.get('percentual_conclusao') is not None else {}
                     ),
-                    **({'nota': o['nota']} if o.get('nota') else {}),
+                    **(
+                        {'_meta': o['_meta']}
+                        if o.get('_meta') else {}
+                    ),
                 }
                 for o in mapa.get('obras', [])
             ],
@@ -5437,7 +5441,6 @@ def consultar_situacao_geral_obras(usuario_wa=None) -> str:
         'trackhub': {
             'data_referencia': str(hoje),
             'inclui_sede': True,
-            'nota': 'Escopo TrackHub inclui Sede/escritório.',
             'totais': {
                 'obras': len(trackhub_obras),
                 'abertas': total_abertas_th,
@@ -5509,7 +5512,6 @@ def consultar_situacao_pedidos_obras(
     )
 
     payload = {
-        'dias_aprovacao_alerta': dias_aprovacao_alerta,
         'total_obras': len(obras_resultado),
         'obras': obras_resultado,
         'top_pedidos_criticos': todos_criticos[:15],

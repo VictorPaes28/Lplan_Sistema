@@ -33,6 +33,7 @@ from whatsapp_ia.ia_functions import (
     consultar_documentos_vencendo,
     consultar_frequencia_rdos,
     consultar_panorama_mapa_controle,
+    consultar_panorama_suprimentos,
     consultar_pendencias_trackhub,
     consultar_pendencias_por_responsavel,
     consultar_resumo_mapa_obra,
@@ -147,15 +148,15 @@ class MapaGeoWhatsAppTests(TestCase):
             )
         )
         self.assertEqual(resultado['obra'], 'Obra Mapa Teste')
-        self.assertIn('total', resultado)
+        self.assertIn('total_elementos', resultado)
         self.assertIn('linhas', resultado)
         self.assertIn('pontos', resultado)
         self.assertIn('areas', resultado)
         self.assertIn('progresso_geral_pct', resultado)
         self.assertIn('marcadores_gps', resultado)
-        self.assertIn('vinculos_eap', resultado)
+        self.assertIn('vinculos_eap', resultado['_meta'])
         self.assertIn('ultima_data_diario', resultado)
-        self.assertGreaterEqual(resultado['total'], 1)
+        self.assertGreaterEqual(resultado['total_elementos'], 1)
 
     def test_listar_elementos_mapa_obra(self):
         resultado = json.loads(
@@ -288,8 +289,9 @@ class RecursosHumanosWhatsAppTests(TestCase):
             consultar_colaboradores_ativos(usuario_wa=self.wa)
         )
         self.assertGreaterEqual(resultado['total'], 1)
-        colab = resultado['colaboradores'][0]
-        self.assertEqual(colab['nome'], 'João Silva')
+        colab = next(
+            c for c in resultado['colaboradores'] if c['nome'] == 'João Silva'
+        )
         self.assertNotIn('cpf', colab)
         self.assertNotIn('salario', colab)
 
@@ -434,12 +436,13 @@ class RdoTrackHubWhatsAppTests(TestCase):
 
     def test_classificar_volume_suprimentos_baixo(self):
         vol = _classificar_volume_suprimentos(5)
-        self.assertEqual(vol['classificacao'], 'baixo')
-        self.assertIn('não é alto volume', vol['descricao'])
+        self.assertEqual(vol['_meta']['classificacao'], 'baixo')
+        self.assertIn('volume baixo', vol['descricao'])
+        self.assertNotIn('não é alto volume', vol['descricao'])
 
     def test_classificar_volume_sem_cadastro_alerta(self):
         vol = _classificar_volume_suprimentos(0)
-        self.assertTrue(vol['alerta_sem_cadastro'])
+        self.assertTrue(vol['_meta']['sem_itens'])
 
     def test_escopo_trackhub_inclui_sede(self):
         th = list(_get_escopo_trackhub(self.wa).values_list('nome', flat=True))
@@ -497,39 +500,47 @@ class RdoTrackHubWhatsAppTests(TestCase):
         )
         self.assertEqual(resultado['obra'], 'Obra RDO Teste')
         seg = resultado['segmentos'][0]
-        self.assertTrue(seg.get('sem_rdo_recente'))
+        seg_meta = seg.get('_meta', {})
+        self.assertTrue(seg_meta.get('sem_rdo_recente'))
         self.assertIn('alerta', seg)
-        self.assertEqual(seg.get('nivel'), 'atencao')
-        self.assertEqual(seg.get('tipo'), 'sem_rdo_recente')
+        self.assertEqual(seg_meta.get('nivel'), 'atencao')
+        self.assertEqual(seg_meta.get('tipo'), 'sem_rdo_recente')
         texto = json.dumps(resultado)
         self.assertNotIn('OBRIGATÓRIO ALERTAR', texto)
         self.assertNotIn('SITUAÇÃO CRÍTICA', texto)
+        self.assertNotIn('(limite', texto)
 
     def test_frequencia_rdos_sem_texto_interno(self):
         resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))
         texto = json.dumps(resultado)
         self.assertNotIn('OBRIGATÓRIO ALERTAR', texto)
         self.assertNotIn('SITUAÇÃO CRÍTICA', texto)
+        self.assertNotIn('(limite', texto)
+        self.assertNotIn('parametros', texto)
+        self.assertNotIn('dias_sem_rdo_alerta', texto)
+        self.assertNotIn('lacunas_acima_limite', texto)
 
     def test_panorama_mapa_controle_sem_media_agregada(self):
         resultado = json.loads(consultar_panorama_mapa_controle(usuario_wa=self.wa))
-        self.assertIn('nota', resultado)
+        self.assertNotIn('nota', resultado)
         for obra in resultado['obras']:
             self.assertIn('mapas', obra)
             self.assertNotIn('percentual_conclusao_medio', obra)
+            self.assertNotIn('nota', obra)
             if obra['total_mapas'] > 1:
-                self.assertIn('nota', obra)
+                self.assertTrue(obra.get('_meta', {}).get('multiplos_mapas'))
             if obra['total_mapas'] == 1:
                 self.assertIn('percentual_conclusao', obra)
 
     def test_situacao_geral_mapa_controle_lista_individual(self):
         resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
         mapa = resultado['mapa_controle']
-        self.assertIn('nota', mapa)
+        self.assertNotIn('nota', mapa)
         self.assertIn('obras', mapa)
         for obra in mapa['obras']:
             self.assertIn('mapas', obra)
             self.assertNotIn('percentual_conclusao_medio', obra)
+            self.assertNotIn('nota', obra)
 
     def test_trackhub_contagem_inclui_sede_e_vencidas(self):
         from trackhub.models import Pendencia
@@ -602,9 +613,10 @@ class RdoTrackHubWhatsAppTests(TestCase):
             consultar_usuarios(usuario_nome='Cleiton', usuario_wa=self.wa)
         )
         perfil = resultado['usuarios'][0]
-        self.assertIn('Obra RDO Teste', perfil['obras_vinculadas_usuario'])
-        self.assertIn('pedidos_aguardando_aprovacao_deste_usuario', perfil)
+        self.assertIn('Obra RDO Teste', perfil['obras_vinculadas'])
+        self.assertIn('pedidos_aguardando_aprovacao', perfil)
         self.assertNotIn('obras_como_responsavel', perfil)
+        self.assertNotIn('nota_obras_vinculadas', perfil)
 
     def test_pendencias_por_responsavel_separa_papel(self):
         from trackhub.models import EtapaPendencia, Pendencia
@@ -632,10 +644,11 @@ class RdoTrackHubWhatsAppTests(TestCase):
                 usuario_wa=self.wa,
             )
         )
-        self.assertIn('como_responsavel_pendencia', resultado)
-        self.assertIn('como_responsavel_etapa', resultado)
-        self.assertGreater(resultado['total_como_responsavel_pendencia'], 0)
+        self.assertIn('pendencias_como_dono', resultado)
+        self.assertIn('pendencias_como_responsavel_etapa', resultado)
+        self.assertGreater(resultado['total_como_dono'], 0)
         self.assertGreater(resultado['total_como_responsavel_etapa'], 0)
+        self.assertNotIn('nota', resultado)
 
     def test_situacao_geral_obras_modulos(self):
         resultado = json.loads(consultar_situacao_geral_obras(usuario_wa=self.wa))
@@ -712,3 +725,57 @@ class RdoTrackHubWhatsAppTests(TestCase):
         seg = obra['segmentos'][0]
         self.assertIn('situacao_periodo', seg)
         self.assertIn('total_rdos', seg['situacao_periodo'])
+
+
+_IDENTIFICADORES_TECNICOS_PROIBIDOS = (
+    '(limite',
+    'dias_sem_rdo_alerta',
+    'parametros',
+    'nota_',
+    'lacunas_acima_limite',
+    'sem_sc',
+    'sem_pc',
+    'alerta_sem_cadastro',
+    'dias_aprovacao_alerta',
+    'dias_antecedencia_documentos',
+    'volume_descricao',
+    'não assuma',
+    'nunca agregue',
+    'nunca só criticidade',
+    'como_responsavel_pendencia =',
+)
+
+
+class AntiVazamentoTextoInternoTests(TestCase):
+    """Garante que retornos das funções não contenham texto interno vazável."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.wa = _criar_usuario_wa(suffix='leak')
+
+    def _assert_sem_vazamentos(self, texto: str):
+        texto_lower = texto.lower()
+        for proibido in _IDENTIFICADORES_TECNICOS_PROIBIDOS:
+            with self.subTest(proibido=proibido):
+                self.assertNotIn(proibido.lower(), texto_lower)
+
+    def test_funcoes_principais_sem_vazamento(self):
+        consultas = [
+            (consultar_frequencia_rdos, {'usuario_wa': self.wa}),
+            (consultar_panorama_suprimentos, {'usuario_wa': self.wa}),
+            (consultar_panorama_mapa_controle, {'usuario_wa': self.wa}),
+            (consultar_situacao_geral_obras, {'usuario_wa': self.wa}),
+            (consultar_resumo_rh, {'usuario_wa': _criar_usuario_wa(
+                {'pode_consultar_rh': True}, suffix='rh',
+            )}),
+        ]
+        for func, kwargs in consultas:
+            with self.subTest(func=func.__name__):
+                self._assert_sem_vazamentos(func(**kwargs))
+
+    def test_prompt_contem_regra_proibido(self):
+        briefing = gerar_briefing_operacional(usuario_wa=self.wa, use_cache=False)
+        prompt = montar_system_prompt(briefing)
+        self.assertIn('PROIBIDO expor ao usuário', prompt)
+        self.assertIn('dias_sem_rdo_alerta', prompt)
+        self.assertIn('_meta', prompt)

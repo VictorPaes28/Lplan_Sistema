@@ -62,10 +62,11 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
                 front_id=seg,
                 dias_sem_rdo_alerta=dias_alerta,
             )
-            if metricas['nunca_teve_rdo']:
+            meta = metricas.get('_meta', {})
+            if meta.get('nunca_teve_rdo'):
                 nunca = True
                 alerta = True
-            if metricas['sem_rdo_recente']:
+            if meta.get('sem_rdo_recente'):
                 alerta = True
                 dias = metricas['dias_desde_ultimo']
                 if dias is not None and (pior_dias is None or dias > pior_dias):
@@ -74,14 +75,14 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
         if alerta:
             item = {'obra': project.name}
             if nunca:
-                item['nunca_teve_rdo'] = True
+                item['sem_historico_rdo'] = True
             if pior_dias is not None:
                 item['dias_desde_ultimo'] = pior_dias
             atrasados.append(item)
 
     atrasados.sort(
         key=lambda x: (
-            not x.get('nunca_teve_rdo'),
+            not x.get('sem_historico_rdo'),
             -(x.get('dias_desde_ultimo') or 9999),
         ),
     )
