@@ -2522,6 +2522,28 @@ def consultar_panorama_suprimentos(usuario_wa=None) -> str:
 
 def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
     from painel_operacional.models import AmbienteOperacional, AmbienteTipo
+    from suprimentos.services.mapa_controle_viewmodel import AmbienteProvider
+    from suprimentos.views_controle import (
+        _build_matrix_payload_from_rows,
+        _extract_first_matrix_rows_from_layout,
+    )
+
+    provider = AmbienteProvider(
+        extract_first_matrix_rows_from_layout=_extract_first_matrix_rows_from_layout,
+        build_matrix_payload_from_rows=_build_matrix_payload_from_rows,
+    )
+    selected_base = {
+        'setor': '',
+        'bloco': '',
+        'pavimento': '',
+        'apto': '',
+        'atividade': '',
+        'status': '',
+        'search': '',
+        'quick_find': '',
+        'matrix_mode': '',
+        'column_group': '',
+    }
 
     obras = list(_get_escopo_obras(usuario_wa).order_by('nome'))
     resultado = []
@@ -2534,14 +2556,30 @@ def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
 
         mapas = []
         for amb in ambientes:
-            kpis_amb = _kpis_ambiente_controle(obra, amb)
+            view_ctx = provider.build(
+                obra=obra,
+                selected=dict(selected_base),
+                ambiente_id=amb.id,
+            )
+            pct = None
+            total_unidades = 0
+            if view_ctx:
+                matrix = view_ctx.get('matrix') or {}
+                kpis = view_ctx.get('kpis') or {}
+                raw_pct = matrix.get('total_geral')
+                if raw_pct is None and kpis.get('total_itens'):
+                    raw_pct = kpis.get('percentual_medio')
+                if raw_pct is not None:
+                    pct = float(raw_pct)
+                total_unidades = int(kpis.get('total_itens') or 0)
+
             mapas.append({
                 'nome': amb.nome,
                 'ultima_atualizacao': (
                     str(amb.updated_at.date()) if amb.updated_at else '-'
                 ),
-                'percentual_conclusao': kpis_amb['percentual_conclusao'],
-                'quantidade_unidades': kpis_amb['total_unidades'],
+                'percentual_conclusao': pct,
+                'quantidade_unidades': total_unidades,
             })
 
         item = {
