@@ -7,21 +7,18 @@ from __future__ import annotations
 from django.contrib.auth.models import User
 
 from assistente_lplan.schemas import AssistantResponse
-from assistente_lplan.services.permissions import AssistantPermissionService, UserScope
-from core.models import Project
-
 from assistente_lplan.services.intents import (
-    INTENT_FRENTES_OBRA,
     INTENT_INTELIGENCIA_INTEGRADA,
     INTENT_LIST_OBRA_PENDING,
-    INTENT_MAPA_CONTROLE_GERAL,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
-    INTENT_PESSOA_PERFIL,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
-    INTENT_RESTRICOES_OBRA,
+    INTENT_USER_STATUS,
 )
+from assistente_lplan.services.permissions import AssistantPermissionService, UserScope
+from core.models import Project
+from assistente_lplan.services.llm_provider import LLMProvider
 
 
 def _has_usuario(entities: dict) -> bool:
@@ -37,9 +34,6 @@ INTENTS_REQUIRING_OBRA_CHOICE: frozenset[str] = frozenset(
         INTENT_OBRA_SUMMARY,
         INTENT_RELATORIO_LOCAL_MAPA,
         INTENT_RELATORIO_RDO_PERIOD,
-        INTENT_RESTRICOES_OBRA,
-        INTENT_MAPA_CONTROLE_GERAL,
-        INTENT_FRENTES_OBRA,
     }
 )
 
@@ -109,6 +103,7 @@ def build_obra_clarification_response(
     user_question: str,
     scope: UserScope,
     projects: list[dict],
+    llm: LLMProvider,
 ) -> AssistantResponse:
     templates = _clarify_templates_for_intent(intent)
     suggested = []
@@ -118,14 +113,21 @@ def build_obra_clarification_response(
     suggested = suggested[:12]
 
     intro = None
-    codes = ", ".join(p["code"] for p in projects[:8])
-    intro = (
-        "Para cruzar Diario de Obra, Mapa de Suprimentos e GestControll (pedidos), "
-        "preciso saber qual obra. Voce tem varias no seu acesso."
-        f" Obras: {codes}"
-        + ("…" if len(projects) > 8 else "")
-        + " Use um dos atalhos abaixo ou digite o codigo na pergunta."
-    )
+    if llm.can_use():
+        intro = llm.clarify_missing_obra(
+            user_question=user_question,
+            intent_key=intent,
+            projects=projects,
+        )
+    if not intro:
+        codes = ", ".join(p["code"] for p in projects[:8])
+        intro = (
+            "Para cruzar Diario de Obra, Mapa de Suprimentos e GestControll (pedidos), "
+            "preciso saber qual obra. Voce tem varias no seu acesso."
+            f" Obras: {codes}"
+            + ("…" if len(projects) > 8 else "")
+            + " Use um dos atalhos abaixo ou digite o codigo na pergunta."
+        )
 
     return AssistantResponse(
         summary=intro,

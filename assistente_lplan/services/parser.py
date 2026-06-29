@@ -10,29 +10,16 @@ from .intents import (
     INTENT_LIST_OBRA_PENDING,
     INTENT_LIST_PENDING_APPROVALS,
     INTENT_LOCATE_SUPPLY,
-    INTENT_MAPA_CONTROLE_GERAL,
-    INTENT_MAPA_GEO,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
-    INTENT_PANORAMA_GERAL,
-    INTENT_PEDIDOS_ATRASADOS,
-    INTENT_PEDIDOS_APROVADOR,
-    INTENT_PESSOA_PERFIL,
     INTENT_RDO_BY_DATE,
-    INTENT_RDO_FREQUENCIA,
     INTENT_REJECTED_REQUESTS,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
-    INTENT_RESTRICOES_OBRA,
-    INTENT_RESTRICOES_RESPONSAVEL,
-    INTENT_RH_GERAL,
-    INTENT_TRACKHUB_PENDENCIAS,
-    INTENT_TRACKHUB_RESPONSAVEL,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
 )
 from .learning import GuidedLearningService
-from .parser_keywords import PARSER_RULES
 
 
 def normalize_intent_question(question: str) -> str:
@@ -91,7 +78,175 @@ class RuleBasedIntentParser:
                 reason="match_regra_guiada_aprovada",
             )
 
-        rules = [(intent, keywords, 0.0) for intent, keywords in PARSER_RULES]
+        rules = [
+            (
+                INTENT_RELATORIO_LOCAL_MAPA,
+                [
+                    "mapa de controle",
+                    "mapa de suprimentos",
+                    "apartamento",
+                    "apto ",
+                    "apt ",
+                    "unidade ",
+                    "local no mapa",
+                    "situacao do apartamento",
+                    "situação do apartamento",
+                    "como esta o apartamento",
+                    "como está o apartamento",
+                    "como esta o apto",
+                    "o que falta no apartamento",
+                    "relatorio do apartamento",
+                    "relatório do apartamento",
+                    "pavimento",
+                    "bloco ",
+                    "andar ",
+                    "setor ",
+                    "como vai o",
+                    "como vai a",
+                    "status do apartamento",
+                    "status do apto",
+                    "status do local",
+                    "situacao do mapa",
+                    "situação do mapa",
+                    "mapa controle",
+                    "pendencias do apartamento",
+                    "pendências do apartamento",
+                    "unidade habitacional",
+                    "comparar com outros locais",
+                    "comparar com a obra",
+                    "desempenho do local",
+                    "indicadores do local",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RELATORIO_RDO_PERIOD,
+                [
+                    "ultimos",
+                    "últimos",
+                    "pdf",
+                    "gerar pdf",
+                    "baixar pdf",
+                    "relatorio em pdf",
+                    "relatório em pdf",
+                    "exportar",
+                    "consolidado",
+                    "periodo do rdo",
+                    "rdo dos ultimos",
+                    "rdo dos últimos",
+                    "diario dos ultimos",
+                    "diário dos últimos",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_INTELIGENCIA_INTEGRADA,
+                [
+                    "inteligencia integrada",
+                    "inteligência integrada",
+                    "visao integrada",
+                    "visão integrada",
+                    "panorama da obra",
+                    "analise consolidada",
+                    "análise consolidada",
+                    "leitura integrada da obra",
+                    "centro de inteligencia",
+                    "centro de inteligência",
+                    "visao geral da obra",
+                    "visão geral da obra",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_LOCATE_SUPPLY,
+                ["onde esta", "onde está", "localizar", "localizacao", "localização", "insumo", "cimento"],
+                0.0,
+            ),
+            (
+                INTENT_UNALLOCATED_ITEMS,
+                ["itens sem aloc", "sem alocacao", "sem alocação", "nao alocados", "não alocados"],
+                0.0,
+            ),
+            (
+                INTENT_LIST_PENDING_APPROVALS,
+                [
+                    "aprova",
+                    "aprovacao",
+                    "aprovação",
+                    "aprovacoes",
+                    "aprovações",
+                    "gestcontroll",
+                    "gest controll",
+                    "pedido pendente",
+                    "pedidos pendentes",
+                    "fila de aprovacao",
+                    "fila de aprovação",
+                    "pendente",
+                    "pendentes",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RDO_BY_DATE,
+                ["rdo", "diario do dia", "diário do dia", "relatorio do dia", "relatório do dia", "rdo do dia"],
+                0.0,
+            ),
+            (
+                INTENT_REJECTED_REQUESTS,
+                ["reprovad", "reprovado", "reprovadas", "solicitacoes reprovadas", "solicitações reprovadas"],
+                0.0,
+            ),
+            (
+                INTENT_OBRA_BOTTLENECKS,
+                [
+                    "gargalo",
+                    "gargalos",
+                    "travando",
+                    "travado",
+                    "impedindo",
+                    "bloqueando",
+                    "problema",
+                    "problemas",
+                    "dificuldade",
+                    "dificuldades",
+                    "incidente",
+                    "incidentes",
+                    "lentidao",
+                    "lentidão",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_OBRA_SUMMARY,
+                [
+                    "resumo da obra",
+                    "resuma a situacao",
+                    "resuma a situação",
+                    "situacao da obra",
+                    "situação da obra",
+                    "obra atual",
+                    "como esta a obra",
+                    "como está a obra",
+                    "como anda a obra",
+                    "como esta o rdo",
+                    "como está o rdo",
+                    "como esta o diario",
+                    "como está o diario",
+                    "diario de obras",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_LIST_OBRA_PENDING,
+                ["penden", "pendên", "pendencia da obra", "pendência da obra", "o que falta na obra"],
+                0.0,
+            ),
+            (
+                INTENT_USER_STATUS,
+                ["ultimos 30 dias", "últimos 30 dias", "status do usuario", "status de usuário", "desempenho do"],
+                0.0,
+            ),
+        ]
 
         scored: list[tuple[str, float]] = []
         for intent, keywords, _ in rules:
@@ -102,43 +257,10 @@ class RuleBasedIntentParser:
                     base = 0.22 if len(keyword) > 6 else 0.15
                     score += base * match_strength
 
-            if intent in (INTENT_USER_STATUS, INTENT_PESSOA_PERFIL) and "usuario" in entities:
-                score += 0.35
-            if intent in (INTENT_USER_STATUS, INTENT_PESSOA_PERFIL) and "usuario" in entities and ("esta" in normalized_text):
+            if intent == INTENT_USER_STATUS and "usuario" in entities:
                 score += 0.25
-            if intent == INTENT_PEDIDOS_ATRASADOS and any(t in normalized_text for t in ["atrasad", "parado", "dias em aberto", "demorad"]):
-                score += 0.38
-            if intent == INTENT_RDO_FREQUENCIA and any(t in normalized_text for t in ["frequenc", "sem rdo", "nunca teve", "lacuna", "ultimo rdo"]):
-                score += 0.36
-            if intent == INTENT_PANORAMA_GERAL and any(t in normalized_text for t in ["panorama", "situacao geral", "todas as obras", "visao geral", "resumo do dia"]):
-                score += 0.4
-            if intent == INTENT_RESTRICOES_OBRA and any(t in normalized_text for t in ["restric", "impediment", "impeditiv", "bloqueio"]):
-                score += 0.34
-            if intent in (INTENT_RESTRICOES_RESPONSAVEL, INTENT_TRACKHUB_RESPONSAVEL) and any(
-                t in normalized_text for t in ["quem tem mais", "ranking", "responsavel com mais", "mais restric", "top restric"]
-            ):
-                score += 0.42
-            if intent == INTENT_RESTRICOES_OBRA and any(
-                t in normalized_text for t in ["quem tem mais", "ranking", "top restric", "responsavel com mais"]
-            ):
-                score *= 0.22
-            if intent == INTENT_TRACKHUB_PENDENCIAS and "trackhub" in normalized_text:
-                score += 0.35
-            if intent == INTENT_MAPA_GEO and any(t in normalized_text for t in ["mapa geo", "geografic", "gps", "marcador"]):
-                score += 0.38
-            if intent == INTENT_MAPA_CONTROLE_GERAL and any(t in normalized_text for t in ["execucao fisica", "avanco fisico", "percentual", "ambiente"]):
-                score += 0.34
-            if intent == INTENT_RH_GERAL and (
-                normalized_text.startswith("rh ")
-                or normalized_text.startswith("dp ")
-                or any(
-                    t in normalized_text
-                    for t in [" rh", " dp", "colaborador", "funcionario", "admiss", "alerta rh", "alertas rh", "rh alerta"]
-                )
-            ):
-                score += 0.38
-            if intent == INTENT_PEDIDOS_APROVADOR and "aprov" in normalized_text:
-                score += 0.28
+            if intent == INTENT_USER_STATUS and "usuario" in entities and ("esta" in normalized_text):
+                score += 0.25
             if intent == INTENT_RDO_BY_DATE and "data" in entities:
                 score += 0.5
             if intent == INTENT_RDO_BY_DATE and any(tok in normalized_text for tok in ["rdo", "diario", "relatorio"]):
@@ -196,14 +318,8 @@ class RuleBasedIntentParser:
             # "Aprovações pendentes na obra X" não deve cair em pendências operacionais (diário).
             if intent == INTENT_LIST_OBRA_PENDING and "aprov" in normalized_text:
                 score *= 0.32
-            if intent == INTENT_LIST_PENDING_APPROVALS and "aprov" in normalized_text and intent != INTENT_PEDIDOS_ATRASADOS:
+            if intent == INTENT_LIST_PENDING_APPROVALS and "aprov" in normalized_text:
                 score += 0.34
-            if intent == INTENT_PEDIDOS_ATRASADOS and "pendente" in normalized_text and "atrasad" not in normalized_text:
-                score *= 0.45
-            if intent == INTENT_OBRA_SUMMARY and any(t in normalized_text for t in ["panorama", "todas as obras", "situacao geral"]):
-                score *= 0.2
-            if intent == INTENT_PANORAMA_GERAL and "obra" in entities:
-                score += 0.12
 
             if score > 0:
                 scored.append((intent, min(score, 1.0)))
