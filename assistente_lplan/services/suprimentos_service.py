@@ -4,6 +4,7 @@ from django.db.models import Q, Sum, Value
 from django.db.models.functions import Coalesce
 
 from assistente_lplan.schemas import AssistantResponse
+from assistente_lplan.services.llm_provider import LLMProvider
 from assistente_lplan.services.obras_service import ObrasAssistantService
 from mapa_obras.models import LocalObra, Obra
 from suprimentos.models import ItemMapa
@@ -250,26 +251,32 @@ class SuprimentosAssistantService:
         comp = facts["comparativo_obra"]
         ver = facts["veredito"]
 
-        nivel = ver.get("nivel", "atencao")
-        summary = (
-            f"Local {local.nome} ({local.get_tipo_display()}) na obra {obra.codigo_sienge}. "
-            f"Indice de saude operacional: {kpis['saude_score']}/100 (nivel: {nivel}). "
-            f"Linhas no mapa: {kpis['total_itens']}; "
-            f"{kpis['pendentes']} pendentes; "
-            f"alocacao media {kpis['pct_medio_alocacao']:.1f}% "
-            f"({kpis['pct_linhas_entregues']:.1f}% das linhas entregues). "
-        )
-        if comp.get("total_locais_com_itens", 0) > 1:
-            summary += (
-                f"Na obra, a media de pendencias por local e {comp['media_pendentes_por_local']:.1f}; "
-                f"este local esta na posicao {comp['posicao_ranking_pendencias']} "
-                f"de {comp['total_locais_com_itens']} (quanto menor, mais pendencias). "
-            )
-        riscos = ver.get("fatores_risco") or []
-        if riscos:
-            summary += "Atencao: " + "; ".join(riscos[:4]) + "."
+        llm = LLMProvider()
+        narrative = llm.narrate_local_mapa_report(facts) if llm.can_use() else None
+
+        if narrative:
+            summary = narrative
         else:
-            summary += "Nenhum alerta critico automatico nos contadores atuais."
+            nivel = ver.get("nivel", "atencao")
+            summary = (
+                f"Local {local.nome} ({local.get_tipo_display()}) na obra {obra.codigo_sienge}. "
+                f"Indice de saude operacional: {kpis['saude_score']}/100 (nivel: {nivel}). "
+                f"Linhas no mapa: {kpis['total_itens']}; "
+                f"{kpis['pendentes']} pendentes; "
+                f"alocacao media {kpis['pct_medio_alocacao']:.1f}% "
+                f"({kpis['pct_linhas_entregues']:.1f}% das linhas entregues). "
+            )
+            if comp.get("total_locais_com_itens", 0) > 1:
+                summary += (
+                    f"Na obra, a media de pendencias por local e {comp['media_pendentes_por_local']:.1f}; "
+                    f"este local esta na posicao {comp['posicao_ranking_pendencias']} "
+                    f"de {comp['total_locais_com_itens']} (quanto menor, mais pendencias). "
+                )
+            riscos = ver.get("fatores_risco") or []
+            if riscos:
+                summary += "Atencao: " + "; ".join(riscos[:4]) + "."
+            else:
+                summary += "Nenhum alerta critico automatico nos contadores atuais."
 
         rows = []
         qs_items = (
@@ -316,6 +323,6 @@ class SuprimentosAssistantService:
             alerts=alerts,
             actions=[{"label": "Abrir mapa filtrado", "url": "/engenharia/mapa/", "style": "primary"}],
             links=[{"label": "Mapa de Suprimentos", "url": "/engenharia/mapa/"}],
-            raw_data={"facts": facts, "project_id": project.id, "narrative_llm": False},
+            raw_data={"facts": facts, "project_id": project.id, "narrative_llm": bool(narrative)},
         )
 
