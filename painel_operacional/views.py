@@ -38,6 +38,24 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+# TEMPORÁRIO: importação de planilha na criação do mapa de controle desabilitada
+# devido a erro no fluxo de interpretação/importação. Reativar quando corrigido.
+PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA = True
+
+
+def _importacao_planilha_criacao_bloqueada_response() -> JsonResponse:
+    return JsonResponse(
+        {
+            "success": False,
+            "error": (
+                "Importação de planilha temporariamente indisponível na criação do mapa de controle. "
+                "Crie o ambiente vazio e monte a matriz manualmente."
+            ),
+            "import_disabled": True,
+        },
+        status=503,
+    )
+
 
 def _resolve_editor_mode(ambiente: AmbienteOperacional) -> str:
     modo = str(getattr(ambiente, "modo_editor", "") or "").strip()
@@ -1164,6 +1182,7 @@ def ferramenta_shell(request):
             "ambientes_json": json.dumps(ambientes),
             "tipos_ambiente": AmbienteTipo.choices,
             "importar_mapa_url": importar_url,
+            "importacao_planilha_criacao_desabilitada": PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA,
             **ctx.to_template_context(),
         },
     )
@@ -1735,6 +1754,10 @@ def api_publicar_ambiente(request, ambiente_id: int):
 @require_group(GRUPOS.FERRAMENTA_OPERACIONAL)
 @require_http_methods(["POST"])
 def api_importar_matriz_excel(request, ambiente_id: int):
+    # Bloqueio alinhado à UI do modal de criação (ferramenta_shell); ver PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA.
+    if PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA:
+        return _importacao_planilha_criacao_bloqueada_response()
+
     _, obra = _resolver_obra(request)
     ambiente = AmbienteOperacional.objects.filter(id=ambiente_id, ativo=True).first()
     if not ambiente:

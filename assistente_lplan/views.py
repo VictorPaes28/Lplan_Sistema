@@ -49,17 +49,10 @@ CACHE_TTL_SECONDS = 1000
 @login_required
 def assistant_home(request):
     history = _load_persistent_history(request.user, limit=MAX_UI_HISTORY_ITEMS)
+    if not request.session.pop("_assistente_keep_project", False):
+        request.session.pop("assistente_project_id", None)
+        request.session.modified = True
     assistant_ctx = build_assistant_home_context(request)
-    if assistant_ctx.get("persist_session_project") and assistant_ctx.get("selected_project_id"):
-        try:
-            p = Project.objects.get(pk=int(assistant_ctx["selected_project_id"]), is_active=True)
-        except (Project.DoesNotExist, TypeError, ValueError):
-            pass
-        else:
-            request.session["selected_project_id"] = p.id
-            request.session["selected_project_name"] = p.name
-            request.session["selected_project_code"] = p.code
-            request.session.modified = True
 
     return render(
         request,
@@ -99,9 +92,18 @@ def set_session_project(request):
     if not project:
         return redirect("assistente_lplan:home")
 
-    request.session["selected_project_id"] = project.id
-    request.session["selected_project_name"] = project.name
-    request.session["selected_project_code"] = project.code
+    request.session["assistente_project_id"] = project.id
+    request.session["_assistente_keep_project"] = True
+    request.session.modified = True
+    return redirect("assistente_lplan:home")
+
+
+@login_required
+@require_http_methods(["POST"])
+def clear_session_project(request):
+    """Remove a obra priorizada da sessão do assistente (modo todas as obras do escopo)."""
+    request.session.pop("assistente_project_id", None)
+    request.session.pop("_assistente_keep_project", None)
     request.session.modified = True
     return redirect("assistente_lplan:home")
 
@@ -119,8 +121,8 @@ def perguntar(request):
     context = payload.get("contexto") or {}
     if not isinstance(context, dict):
         context = {}
-    if request.session.get("selected_project_id") and "selected_project_id" not in context:
-        context["selected_project_id"] = request.session.get("selected_project_id")
+    if request.session.get("assistente_project_id") and "selected_project_id" not in context:
+        context["selected_project_id"] = request.session.get("assistente_project_id")
     if not question:
         msg = MessageCatalog.resolve("assistant.api.question_required", {"path": request.path, "status": 400})
         return JsonResponse({"error": msg["text"], "message_code": msg["code"], "next_steps": msg["next_steps"]}, status=400)

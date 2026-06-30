@@ -6,6 +6,7 @@ from django.core import signing
 from django.urls import reverse
 from django.utils import timezone
 
+from assistente_lplan.services.obra_entity import obra_display_name, resolve_project_from_entities
 from assistente_lplan.schemas import AssistantResponse
 from assistente_lplan.services.messages import MessageCatalog
 from core.models import ConstructionDiary, DiaryStatus, Project
@@ -28,7 +29,7 @@ class DiarioAssistantService:
         if not project:
             return AssistantResponse(
                 summary="Nao foi possivel identificar uma obra do seu escopo.",
-                alerts=[{"level": "warning", "message": "Informe o nome/codigo da obra na pergunta."}],
+                alerts=[{"level": "warning", "message": "Informe o nome da obra na pergunta."}],
             )
 
         qs = (
@@ -49,7 +50,7 @@ class DiarioAssistantService:
 
         total = ConstructionDiary.objects.filter(project=project).exclude(status=DiaryStatus.APROVADO).count()
         return AssistantResponse(
-            summary=f"A obra {project.code} possui {total} diarios pendentes/nao aprovados.",
+            summary=f"A obra {obra_display_name(project)} possui {total} diarios pendentes/nao aprovados.",
             cards=[
                 {"title": "Diarios pendentes", "value": str(total), "tone": "warning"},
                 {
@@ -62,7 +63,11 @@ class DiarioAssistantService:
                     "tone": "info",
                 },
             ],
-            table={"caption": f"Pendencias do diario - {project.name}", "columns": ["data", "relatorio", "status", "responsavel"], "rows": rows},
+            table={
+                "caption": f"Pendencias do diario - {obra_display_name(project)}",
+                "columns": ["data", "relatorio", "status", "responsavel"],
+                "rows": rows,
+            },
             badges=["Diario de Obras"],
             actions=[{"label": "Abrir relatorios", "url": "/reports/", "style": "primary"}],
             links=[{"label": "Relatorios da obra", "url": "/reports/"}],
@@ -112,8 +117,8 @@ class DiarioAssistantService:
         for d in diaries:
             rows.append(
                 {
-                    "obra": d.project.code if d.project else "-",
-                    "projeto": d.project.name if d.project else "-",
+                    "obra": obra_display_name(d.project) if d.project else "-",
+                    "projeto": obra_display_name(d.project) if d.project else "-",
                     "data": d.date.strftime("%d/%m/%Y") if d.date else "-",
                     "rdo": f"#{d.report_number}" if d.report_number else "-",
                     "status": d.get_status_display(),
@@ -121,7 +126,7 @@ class DiarioAssistantService:
                 }
             )
 
-        obra_label = project.code if project else "seu escopo"
+        obra_label = obra_display_name(project) if project else "seu escopo"
         date_label = target_date.strftime("%d/%m/%Y")
         ds = target_date.isoformat()
         list_by_date = f"{reverse('report-list')}?date_start={ds}&date_end={ds}"
@@ -130,7 +135,7 @@ class DiarioAssistantService:
         for d in diaries[:6]:
             links.append(
                 {
-                    "label": f"Abrir RDO {d.project.code if d.project else ''} #{d.report_number or d.pk}".strip(),
+                    "label": f"Abrir RDO {obra_display_name(d.project) if d.project else ''} #{d.report_number or d.pk}".strip(),
                     "url": reverse("diary-detail", args=[d.pk]),
                 }
             )
@@ -171,7 +176,7 @@ class DiarioAssistantService:
         if not project:
             return AssistantResponse(
                 summary="Nao encontrei a obra no seu escopo para analisar gargalos.",
-                alerts=[{"level": "warning", "message": "Tente: gargalos da obra <nome/codigo>."}],
+                alerts=[{"level": "warning", "message": "Tente: gargalos da obra <nome>."}],
             )
 
         base = ConstructionDiary.objects.filter(project=project)
@@ -186,7 +191,7 @@ class DiarioAssistantService:
             alerts.append({"level": "error", "message": "Ha ocorrencias de seguranca que exigem atencao."})
 
         return AssistantResponse(
-            summary=f"Gargalos da obra {project.code} compilados a partir do Diario de Obras.",
+            summary=f"Gargalos da obra {obra_display_name(project)} compilados a partir do Diario de Obras.",
             cards=[
                 {"title": "Paralisacoes", "value": str(stoppages), "tone": "warning"},
                 {"title": "Riscos", "value": str(riscos), "tone": "danger"},
@@ -201,28 +206,7 @@ class DiarioAssistantService:
         )
 
     def _resolve_project(self, entities: dict):
-        project_id = entities.get("project_id")
-        if project_id:
-            try:
-                pid = int(project_id)
-            except (TypeError, ValueError):
-                pid = None
-            if pid:
-                qs_by_id = Project.objects.filter(is_active=True, id=pid)
-                if self.scope.role != "admin":
-                    qs_by_id = qs_by_id.filter(id__in=self.scope.project_ids)
-                p = qs_by_id.first()
-                if p:
-                    return p
-
-        term = (entities.get("obra") or "").strip()
-        qs = Project.objects.filter(is_active=True)
-        if self.scope.role != "admin":
-            qs = qs.filter(id__in=self.scope.project_ids)
-        if term:
-            project = qs.filter(name__icontains=term).first() or qs.filter(code__icontains=term).first()
-            return project
-        return qs.order_by("-created_at").first()
+        return resolve_project_from_entities(entities, self.scope, allow_default=True)
 
     @staticmethod
     def _resolve_target_date(entities: dict):
@@ -271,7 +255,7 @@ class DiarioAssistantService:
             return AssistantResponse(
                 summary=(
                     f"Nao ha diarios (RDO) registrados entre {date_from.strftime('%d/%m/%Y')} e "
-                    f"{date_to.strftime('%d/%m/%Y')} na obra {project.code}."
+                    f"{date_to.strftime('%d/%m/%Y')} na obra {obra_display_name(project)}."
                 ),
                 badges=["RDO", "Sem registros"],
                 alerts=[{"level": "info", "message": "Crie ou aprove RDOs nesse intervalo para gerar o PDF."}],
@@ -296,7 +280,7 @@ class DiarioAssistantService:
 
         return AssistantResponse(
             summary=(
-                f"PDF consolidado do RDO da obra {project.code}: ultimos {nd} dia(s) "
+                f"PDF consolidado do RDO da obra {obra_display_name(project)}: ultimos {nd} dia(s) "
                 f"({date_from.strftime('%d/%m/%Y')} a {date_to.strftime('%d/%m/%Y')}), "
                 f"{diaries_n} dia(s) com registro. Clique para baixar. "
                 "O documento reune textos e atividades; fotos e anexos seguem nos PDFs por dia."
@@ -305,7 +289,7 @@ class DiarioAssistantService:
                 {"title": "Janela (dias)", "value": str(nd), "tone": "info"},
                 {"title": "Dias com RDO", "value": str(diaries_n), "tone": "success"},
             ],
-            badges=["RDO", "PDF", project.code],
+            badges=["RDO", "PDF", obra_display_name(project)],
             actions=[{"label": "Baixar PDF consolidado", "url": download_path, "style": "primary"}],
             links=[
                 {"label": "Relatorios da obra", "url": "/reports/"},

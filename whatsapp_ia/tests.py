@@ -727,6 +727,38 @@ class RdoTrackHubWhatsAppTests(TestCase):
         self.assertGreater(resumo['total_sem_alertas'], 0)
         self.assertNotIn('⚠️ Todas as obras', resumo['mensagem'])
 
+    def test_frequencia_rdos_obra_com_frentes_rdo_aprovado_atrasado(self):
+        from core.models import ConstructionDiary, ProjectFront
+
+        hoje = timezone.localdate()
+        front = ProjectFront.objects.create(
+            project=self.project,
+            name='Torre A',
+            is_active=True,
+        )
+        ConstructionDiary.objects.create(
+            project=self.project,
+            front=front,
+            date=hoje - timedelta(days=10),
+            status='AP',
+        )
+
+        resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))
+        obra = next(
+            o for o in resultado['obras'] if o['obra'] == 'Obra RDO Teste'
+        )
+        seg_obra = next(
+            s for s in obra['segmentos'] if s['frente'] == 'Obra inteira'
+        )
+        self.assertEqual(seg_obra['dias_desde_ultimo'], 10)
+        self.assertTrue(seg_obra['_meta']['sem_rdo_recente'])
+        self.assertIn('alerta', seg_obra)
+
+        nomes_atrasadas = {
+            o['obra'] for o in resultado['obras_sem_rdo_recente']['obras']
+        }
+        self.assertIn('Obra RDO Teste', nomes_atrasadas)
+
     def test_frequencia_rdos_inclui_situacao_periodo(self):
         resultado = json.loads(consultar_frequencia_rdos(usuario_wa=self.wa))
         obra = next(

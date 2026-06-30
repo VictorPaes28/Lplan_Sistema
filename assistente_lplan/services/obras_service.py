@@ -10,6 +10,7 @@ from core.models import ConstructionDiary, DiaryStatus, Project
 from gestao_aprovacao.models import WorkOrder
 
 from .messages import MessageCatalog
+from .obra_entity import obra_display_name, resolve_project_from_entities
 from .radar_obra_service import RadarObraService
 
 
@@ -33,7 +34,9 @@ class ObrasAssistantService:
         itens_sem_aloc = count_itens_sem_alocacao_efetiva(project)
 
         if diarios_pend == 0 and pedidos_pend == 0 and itens_sem_aloc == 0:
-            msg = MessageCatalog.resolve("assistant.obras.pending_empty", {"domain": "obras", "obra": project.code})
+            msg = MessageCatalog.resolve(
+                "assistant.obras.pending_empty", {"domain": "obras", "obra": obra_display_name(project)}
+            )
             return AssistantResponse(
                 summary=msg["text"],
                 badges=["Sem dados suficientes"],
@@ -42,7 +45,7 @@ class ObrasAssistantService:
             )
 
         response = AssistantResponse(
-            summary=f"Pendencias consolidadas da obra {project.code}.",
+            summary=f"Pendencias consolidadas da obra {obra_display_name(project)}.",
             cards=[
                 {"title": "Diarios pendentes", "value": str(diarios_pend), "tone": "warning"},
                 {"title": "Aprovacoes pendentes", "value": str(pedidos_pend), "tone": "warning"},
@@ -101,7 +104,9 @@ class ObrasAssistantService:
             {"indicador": "Pedidos reprovados", "valor": reprovados},
         ]
         if total_diarios == 0 and total_pedidos == 0:
-            msg = MessageCatalog.resolve("assistant.obras.summary_empty", {"domain": "obras", "obra": project.code})
+            msg = MessageCatalog.resolve(
+                "assistant.obras.summary_empty", {"domain": "obras", "obra": obra_display_name(project)}
+            )
             return AssistantResponse(
                 summary=msg["text"],
                 badges=["Sem dados suficientes"],
@@ -111,13 +116,17 @@ class ObrasAssistantService:
 
         taxa_aprov = int((diarios_aprovados / total_diarios) * 100) if total_diarios else 0
         response = AssistantResponse(
-            summary=f"Resumo operacional da obra {project.code} pronto para decisao.",
+            summary=f"Resumo operacional da obra {obra_display_name(project)} pronto para decisao.",
             cards=[
                 {"title": "Taxa de aprovacao diario", "value": f"{taxa_aprov:.1f}%", "tone": "info"},
                 {"title": "Pedidos pendentes", "value": str(pendentes_pedido), "tone": "warning"},
                 {"title": "Pedidos reprovados", "value": str(reprovados), "tone": "danger"},
             ],
-            table={"caption": f"Resumo da obra {project.name}", "columns": ["indicador", "valor"], "rows": rows},
+            table={
+                "caption": f"Resumo da obra {obra_display_name(project)}",
+                "columns": ["indicador", "valor"],
+                "rows": rows,
+            },
             badges=["Resumo da Obra"],
             actions=[{"label": "Abrir obra no diario", "url": "/reports/", "style": "primary"}],
             links=[
@@ -128,28 +137,7 @@ class ObrasAssistantService:
         return self._attach_radar(response, project)
 
     def _resolve_project(self, entities: dict):
-        project_id = entities.get("project_id")
-        if project_id:
-            try:
-                pid = int(project_id)
-            except (TypeError, ValueError):
-                pid = None
-            if pid:
-                qs_by_id = Project.objects.filter(is_active=True, id=pid)
-                if self.scope.role != "admin":
-                    qs_by_id = qs_by_id.filter(id__in=self.scope.project_ids)
-                p = qs_by_id.first()
-                if p:
-                    return p
-
-        term = (entities.get("obra") or "").strip()
-        qs = Project.objects.filter(is_active=True)
-        if self.scope.role != "admin":
-            qs = qs.filter(id__in=self.scope.project_ids)
-        if term:
-            project = qs.filter(name__icontains=term).first() or qs.filter(code__icontains=term).first()
-            return project
-        return qs.order_by("-created_at").first()
+        return resolve_project_from_entities(entities, self.scope, allow_default=True)
 
     def _attach_radar(self, response: AssistantResponse, project: Project) -> AssistantResponse:
         radar = RadarObraService(project).build()

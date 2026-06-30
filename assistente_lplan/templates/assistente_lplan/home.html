@@ -13,18 +13,23 @@
         grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
         gap: 1.25rem;
         align-items: stretch;
-        min-height: calc(100vh - 8rem);
+        height: calc(100vh - 11rem);
+        min-height: 28rem;
+        max-height: calc(100vh - 11rem);
+        overflow: hidden;
     }
-    .assistant-panel { background: #fff; border: 1px solid #e8ecf1; border-radius: 14px; padding: 1rem 1.1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+    .assistant-panel { background: #fff; border: 1px solid #e8ecf1; border-radius: 14px; padding: 1rem 1.1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); min-height: 0; }
+    .assistant-panel:not(.assistant-panel--chat) { overflow-y: auto; }
     .assistant-panel--chat {
         display: flex;
         flex-direction: column;
         min-height: 0;
+        overflow: hidden;
+        padding-bottom: 0;
     }
     .assistant-chat {
         flex: 1;
-        min-height: 42vh;
-        max-height: min(68vh, calc(100vh - 220px));
+        min-height: 0;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -94,6 +99,11 @@
     .assistant-topic--supply > summary::before { background: #ea580c; box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2); }
     .assistant-topic--diary > summary::before { background: #0d9488; box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2); }
     .assistant-topic--flow > summary::before { background: #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2); }
+    .assistant-topic--restrict > summary::before { background: #dc2626; box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2); }
+    .assistant-topic--track > summary::before { background: #0891b2; box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.2); }
+    .assistant-topic--control > summary::before { background: #4f46e5; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
+    .assistant-topic--geo > summary::before { background: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2); }
+    .assistant-topic--hr > summary::before { background: #db2777; box-shadow: 0 0 0 2px rgba(219, 39, 119, 0.2); }
     .assistant-topic > summary::after { content: "▾"; font-size: 0.65rem; color: #94a3b8; display: inline-block; transition: transform 0.2s ease; }
     .assistant-topic[open] > summary::after { transform: rotate(-180deg); }
     .assistant-topic > summary:hover { background: #f1f5f9; }
@@ -172,7 +182,26 @@
     .assistant-recommended { margin-top: 0.6rem; padding: 0.55rem; border-radius: 10px; border: 1px solid #fdba74; background: #fff7ed; }
     .assistant-recommended-title { font-size: 0.72rem; font-weight: 800; color: #9a3412; text-transform: uppercase; letter-spacing: .04em; }
     .assistant-recommended-label { margin-top: 0.2rem; font-size: 0.86rem; font-weight: 600; color: #7c2d12; }
-    .assistant-form { margin-top: auto; padding-top: 0.85rem; flex-shrink: 0; display: flex; gap: 0.5rem; align-items: center; border-top: 1px solid #f1f5f9; }
+    .assistant-form {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        margin-top: auto;
+        margin-left: -1.1rem;
+        margin-right: -1.1rem;
+        margin-bottom: -1rem;
+        padding: 0.85rem 1.1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+        flex-shrink: 0;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        border-top: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 0 0 14px 14px;
+    }
     .assistant-input { flex: 1; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.65rem 0.85rem; background: #fafbfc; }
     .assistant-input:focus { outline: none; border-color: #93c5fd; background: #fff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
     .assistant-send { border: 0; border-radius: 10px; background: #2563eb; color: #fff; padding: 0.65rem 1rem; font-weight: 600; }
@@ -245,7 +274,22 @@
         border-top: 1px solid #eef2f7;
     }
     .assistant-msg.assistant { border-color: #eef2f7; background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%); }
-    @media (max-width: 980px) { .assistant-shell { grid-template-columns: 1fr; min-height: auto; } .assistant-msg.user, .assistant-msg.assistant { margin: 0; } }
+    @media (max-width: 980px) {
+        .assistant-shell {
+            grid-template-columns: 1fr;
+            height: auto;
+            max-height: none;
+            overflow: visible;
+            min-height: auto;
+        }
+        .assistant-panel:not(.assistant-panel--chat) { overflow-y: visible; }
+        .assistant-panel--chat {
+            min-height: min(70vh, calc(100vh - 12rem));
+            max-height: calc(100vh - 12rem);
+            overflow: hidden;
+        }
+        .assistant-msg.user, .assistant-msg.assistant { margin: 0; }
+    }
 </style>
 {% endblock %}
 
@@ -259,14 +303,15 @@
         {% if active_project and available_projects %}
         <div class="assistant-context-card text-sm text-slate-800">
             <div class="font-semibold text-slate-900 tracking-tight">Obra priorizada</div>
-            <div class="mt-1"><span class="font-mono text-slate-800 bg-slate-100/80 px-1.5 py-0.5 rounded">{{ active_project.code }}</span> <span class="text-slate-600">—</span> {{ active_project.name|truncatechars:42 }}</div>
-            <p class="mt-2 text-xs text-slate-600 leading-relaxed">Para trocar de obra, escolha outra na lista e confirme. Você também pode <strong>citar o código na pergunta</strong> ou usar <em>Selecionar obra</em> no sistema.</p>
-            <form method="post" action="{% url 'assistente_lplan:set_session_project' %}" class="mt-2 space-y-2">
+            <div class="mt-1 font-semibold text-slate-900 tracking-tight">{{ active_project.display_name|default:active_project.name|upper }}</div>
+            <p class="mt-2 text-xs text-slate-600 leading-relaxed">Para trocar de obra, escolha outra na lista e confirme. Você também pode <strong>citar o nome da obra na pergunta</strong> ou usar <em>Selecionar obra</em> no sistema.</p>
+            <form method="post" action="{% url 'assistente_lplan:set_session_project' %}" class="assistant-project-form mt-2 space-y-2">
                 {% csrf_token %}
-                <label class="sr-only" for="assistant-pick-project">Obra</label>
-                <select name="project_id" id="assistant-pick-project" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                <label class="sr-only" for="assistant-pick-project-active">Obra</label>
+                <select name="project_id" id="assistant-pick-project-active" class="assistant-pick-project w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                    <option value="">Todas as obras</option>
                     {% for p in available_projects %}
-                    <option value="{{ p.id }}"{% if p.id == active_project.id %} selected{% endif %}>{{ p.code }} — {{ p.name|truncatechars:40 }}</option>
+                    <option value="{{ p.id }}"{% if p.id == active_project.id %} selected{% endif %}>{{ p.display_name|default:p.name|upper|truncatechars:40 }}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" class="assistant-btn primary w-full text-center text-sm font-semibold">Usar esta obra</button>
@@ -279,19 +324,21 @@
         {% elif active_project %}
         <div class="assistant-context-card text-sm text-slate-700">
             <div class="font-semibold text-slate-900 tracking-tight">Obra priorizada</div>
-            <div class="mt-1"><span class="font-mono text-slate-800 bg-slate-100/80 px-1.5 py-0.5 rounded">{{ active_project.code }}</span> <span class="text-slate-600">—</span> {{ active_project.name|truncatechars:42 }}</div>
+            <div class="mt-1 font-semibold text-slate-900 tracking-tight">{{ active_project.display_name|default:active_project.name|upper }}</div>
             <div class="mt-2 text-xs text-slate-500 leading-relaxed">Contexto das sugestões e das respostas. Só há uma obra no seu acesso; para outro projeto peça vínculo ao gestor ou use <a href="{% url 'select-project' %}" class="text-blue-700 underline font-medium">Selecionar obra</a>.</div>
         </div>
         {% elif available_projects %}
         <div class="assistant-context-card assistant-context-card--pick text-sm text-slate-800">
-            <div class="font-semibold text-slate-900 tracking-tight">Qual obra priorizar?</div>
-            <p class="mt-1.5 text-xs text-slate-600 leading-relaxed">Escolha uma obra para alinhar Diário, Mapa e GestControll. Você pode <strong>citar o código na pergunta</strong> a qualquer momento.</p>
-            <form method="post" action="{% url 'assistente_lplan:set_session_project' %}" class="mt-2 space-y-2">
+            <div class="font-semibold text-slate-900 tracking-tight">Contexto das consultas</div>
+            <div class="mt-1 font-semibold text-slate-900 tracking-tight">Todas as obras</div>
+            <p class="mt-1.5 text-xs text-slate-600 leading-relaxed">Consultas sem nome de obra usam todas as obras do seu acesso. Para focar em uma, escolha na lista e confirme. Você também pode <strong>citar o nome da obra na pergunta</strong> a qualquer momento.</p>
+            <form method="post" action="{% url 'assistente_lplan:clear_session_project' %}" class="assistant-project-form mt-2 space-y-2">
                 {% csrf_token %}
-                <label class="sr-only" for="assistant-pick-project">Obra</label>
-                <select name="project_id" id="assistant-pick-project" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                <label class="sr-only" for="assistant-pick-project-all">Obra</label>
+                <select name="project_id" id="assistant-pick-project-all" class="assistant-pick-project w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900">
+                    <option value="" selected>Todas as obras</option>
                     {% for p in available_projects %}
-                    <option value="{{ p.id }}">{{ p.code }} — {{ p.name|truncatechars:40 }}</option>
+                    <option value="{{ p.id }}">{{ p.display_name|default:p.name|upper|truncatechars:40 }}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" class="assistant-btn primary w-full text-center text-sm font-semibold">Usar esta obra</button>
@@ -310,13 +357,9 @@
         {% endif %}
         <div class="assistant-suggestions-head">
             <h3>Sugestões por tema</h3>
-            {% if suggestion_groups_more %}
-            <p>Até <strong>três blocos</strong> ficam visíveis aqui; o restante está em <strong>Mais temas</strong>. O primeiro bloco abre sozinho.</p>
-            {% else %}
             <p>Cada bloco agrupa um tipo de pergunta. O primeiro vem aberto para começar rápido.</p>
-            {% endif %}
         </div>
-        <div class="mb-4 max-h-[48vh] overflow-y-auto pr-1 space-y-1">
+        <div class="mb-4 max-h-[62vh] overflow-y-auto pr-1 space-y-1">
             {% if suggestion_groups_primary %}
             {% for group in suggestion_groups_primary %}
             <details class="assistant-topic{% if group.accent %} assistant-topic--{{ group.accent }}{% endif %}" {% if forloop.first %}open{% endif %}>
@@ -332,24 +375,6 @@
             {% for question in suggested_questions %}
             <button type="button" class="assistant-suggestion js-suggested-question w-full">{{ question }}</button>
             {% endfor %}
-            {% endif %}
-
-            {% if suggestion_groups_more %}
-            <details class="assistant-topic assistant-topic-mega">
-                <summary>Mais temas ({{ suggestion_groups_more|length }})</summary>
-                <div class="assistant-topic-body">
-                    {% for group in suggestion_groups_more %}
-                    <details class="assistant-topic{% if group.accent %} assistant-topic--{{ group.accent }}{% endif %}">
-                        <summary>{{ group.title }}</summary>
-                        <div class="assistant-topic-body">
-                            {% for question in group.questions %}
-                            <button type="button" class="assistant-suggestion js-suggested-question w-full">{{ question }}</button>
-                            {% endfor %}
-                        </div>
-                    </details>
-                    {% endfor %}
-                </div>
-            </details>
             {% endif %}
         </div>
 
@@ -379,7 +404,7 @@
                 </div>
                 {% if wc.mode == "project" %}
                 <p class="assistant-welcome-lead">
-                    Pergunte sobre a obra <span class="assistant-welcome-code">{{ wc.project_code }}</span><span class="assistant-welcome-dash">—</span><span class="assistant-welcome-name">{{ wc.project_name }}</span>.
+                    Pergunte sobre a obra <span class="assistant-welcome-name">{{ wc.project_name }}</span>.
                     Use as sugestões ao lado ou digite abaixo.
                 </p>
                 <p class="assistant-welcome-sub">{{ wc.hint_other_project }}</p>
@@ -389,6 +414,9 @@
                     <div class="assistant-welcome-order-body">{{ wc.order_detail }}</div>
                 </details>
                 {% endif %}
+                {% elif wc.mode == "all_projects" %}
+                <p class="assistant-welcome-lead">{{ wc.lines.0 }}</p>
+                <p class="assistant-welcome-sub">{{ wc.lines.1 }}</p>
                 {% elif wc.mode == "pick_project" %}
                 <p class="assistant-welcome-lead">{{ wc.lines.0 }}</p>
                 <p class="assistant-welcome-sub">{{ wc.lines.1 }}</p>
@@ -415,4 +443,16 @@
 
 {% block extra_js %}
 <script src="{% static 'assistente_lplan/js/assistant_ui.js' %}"></script>
+<script>
+(function () {
+    var clearUrl = "{% url 'assistente_lplan:clear_session_project' %}";
+    var setUrl = "{% url 'assistente_lplan:set_session_project' %}";
+    document.querySelectorAll(".assistant-project-form").forEach(function (form) {
+        form.addEventListener("submit", function () {
+            var sel = form.querySelector(".assistant-pick-project");
+            form.action = sel && sel.value === "" ? clearUrl : setUrl;
+        });
+    });
+})();
+</script>
 {% endblock %}

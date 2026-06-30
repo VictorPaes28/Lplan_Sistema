@@ -5204,6 +5204,46 @@ def consultar_alertas_rh_criticos(usuario_wa=None) -> str:
     }, ensure_ascii=False)
 
 
+def _obras_sem_rdo_recente_escopo(
+    projects,
+    *,
+    dias_analise=90,
+    dias_sem_rdo_alerta=7,
+    lacuna_minima_dias=7,
+):
+    """Obras cujo último RDO (qualquer status) está há mais de N dias."""
+    obras = []
+    for project in projects:
+        metricas = _metricas_rdo_frequencia(
+            project,
+            front_id='todas',
+            dias_analise=dias_analise,
+            dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+            lacuna_minima_dias=lacuna_minima_dias,
+        )
+        meta = metricas.get('_meta', {})
+        if not (meta.get('sem_rdo_recente') or meta.get('nunca_teve_rdo')):
+            continue
+        item = {
+            'obra': project.name,
+            'project_id': project.id,
+            'ultimo_rdo_data': metricas.get('ultimo_rdo_data'),
+            'dias_desde_ultimo': metricas.get('dias_desde_ultimo'),
+        }
+        if meta.get('nunca_teve_rdo'):
+            item['nunca_teve_rdo'] = True
+        obras.append(item)
+
+    obras.sort(
+        key=lambda x: (
+            not x.get('nunca_teve_rdo'),
+            -(x.get('dias_desde_ultimo') or 9999),
+            x['obra'],
+        ),
+    )
+    return obras
+
+
 def consultar_frequencia_rdos(
     obra_nome=None,
     obra_id=None,
@@ -5249,14 +5289,14 @@ def consultar_frequencia_rdos(
                 'frente_id': None,
                 **_metricas_rdo_frequencia(
                     project,
-                    front_id=None,
+                    front_id='todas',
                     dias_analise=dias_analise,
                     dias_sem_rdo_alerta=dias_sem_rdo_alerta,
                     lacuna_minima_dias=lacuna_minima_dias,
                 ),
                 'situacao_periodo': _situacao_rdo_periodo(
                     project,
-                    front_id=None,
+                    front_id='todas',
                     dias_analise=dias_analise,
                     dias_ag_critico=dias_sem_rdo_alerta,
                 ),
@@ -5306,8 +5346,24 @@ def consultar_frequencia_rdos(
 
         resultado_obras.append(bloco)
 
+    obras_sem_rdo_recente = _obras_sem_rdo_recente_escopo(
+        projects,
+        dias_analise=dias_analise,
+        dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+        lacuna_minima_dias=lacuna_minima_dias,
+    )
+
     return json.dumps({
         'total_obras': len(resultado_obras),
+        'obras_sem_rdo_recente': {
+            'limite_dias': dias_sem_rdo_alerta,
+            'total': len(obras_sem_rdo_recente),
+            'descricao': (
+                'Obras com último RDO há mais de '
+                f'{dias_sem_rdo_alerta} dias (independente do status)'
+            ),
+            'obras': obras_sem_rdo_recente,
+        },
         'obras': resultado_obras,
     }, ensure_ascii=False)
 
@@ -5330,7 +5386,7 @@ def consultar_situacao_rdo_obra(
     segmentos = []
 
     if frentes:
-        configs = [(None, 'Obra inteira')] + [
+        configs = [('todas', 'Obra inteira')] + [
             (f.id, f.name) for f in frentes
         ]
         for front_id, nome in configs:

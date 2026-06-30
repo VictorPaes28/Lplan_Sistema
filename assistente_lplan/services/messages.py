@@ -99,7 +99,7 @@ class MessageCatalog:
             ),
             next_steps=(
                 "Informe explicitamente obra, usuario ou insumo.",
-                "Exemplo: 'Resuma a situacao da obra ALFA'.",
+                "Exemplo: 'Resuma a situacao da obra SUNRISE'.",
             ),
         ),
         "assistant.intent.ambiguous_alert": MessageTemplate(
@@ -168,7 +168,7 @@ class MessageCatalog:
                 "Dados insuficientes para listar pendencias da obra com seguranca.",
                 "Dados insuficientes: nao consegui identificar a obra para listar pendencias.",
             ),
-            next_steps=("Informe nome ou codigo da obra explicitamente.",),
+            next_steps=("Informe o nome da obra explicitamente.",),
         ),
         "assistant.obras.pending_empty": MessageTemplate(
             kind="empty_state",
@@ -184,7 +184,7 @@ class MessageCatalog:
                 "Dados insuficientes para resumo: a obra nao foi identificada no seu escopo.",
                 "Dados insuficientes: nao consegui identificar a obra para gerar resumo no escopo atual.",
             ),
-            next_steps=("Informe nome/codigo da obra ou selecione uma obra ativa no contexto.",),
+            next_steps=("Informe o nome da obra ou selecione uma obra ativa no contexto.",),
         ),
         "assistant.obras.summary_empty": MessageTemplate(
             kind="empty_state",
@@ -224,7 +224,7 @@ class MessageCatalog:
                 "Dados insuficientes para analise de gargalos.",
                 "Dados insuficientes: nao consegui identificar a obra para analise de gargalos.",
             ),
-            next_steps=("Informe claramente nome ou codigo da obra.",),
+            next_steps=("Informe claramente o nome da obra.",),
         ),
         "assistant.cross.bottlenecks_empty": MessageTemplate(
             kind="empty_state",
@@ -240,7 +240,7 @@ class MessageCatalog:
                 "Preciso da data para localizar o RDO com seguranca.",
                 "Dados insuficientes: informe o dia para buscar o RDO.",
             ),
-            next_steps=("Exemplo: 'Quero o RDO do dia 15/03/2026 da obra ALFA'.",),
+            next_steps=("Exemplo: 'Quero o RDO do dia 15/03/2026 da obra SUNRISE'.",),
         ),
         "assistant.diario.date_empty": MessageTemplate(
             kind="empty_state",

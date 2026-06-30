@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+# Textos de obra exibidos ao usuário: usar obra_entity.obra_display_name (nome em maiúsculas).
+
 
 @dataclass
 class AssistantCard:

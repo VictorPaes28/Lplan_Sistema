@@ -48,7 +48,7 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
     for project in projects:
         frentes = _frentes_ativas_project(project)
         segmentos = (
-            [None] + [f.id for f in frentes]
+            ['todas'] + [f.id for f in frentes]
             if frentes
             else ['todas']
         )

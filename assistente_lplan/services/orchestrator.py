@@ -6,8 +6,13 @@ from difflib import SequenceMatcher
 from assistente_lplan.schemas import AssistantResponse
 
 from .aprovacoes_service import AprovacoesAssistantService
+from .controle_service import ControleAssistantService
 from .cross_domain_service import CrossDomainAssistantService
 from .diario_service import DiarioAssistantService
+from .impedimentos_service import ImpedimentosAssistantService
+from .mapa_geo_service import MapaGeoAssistantService
+from .rh_service import RhAssistantService
+from .trackhub_service import TrackHubAssistantService
 from .clarification import (
     INTENTS_REQUIRING_OBRA_CHOICE,
     _has_obra_pointer,
@@ -19,22 +24,46 @@ from .clarification import (
     sample_users_for_clarification,
 )
 from .intents import (
+    INTENT_ADMISSOES_EM_ANDAMENTO,
+    INTENT_ALERTAS_MAPA_GEOGRAFICO,
+    INTENT_CONSULTAR_PENDENCIAS_TRACKHUB,
+    INTENT_CONSULTAR_RESTRICOES_OBRA,
+    INTENT_DESEMPENHO_EQUIPE_GEST,
+    INTENT_DOCUMENTOS_VENCENDO_RH,
     INTENT_FALLBACK,
+    INTENT_FILA_ATRASO_APROVACOES,
     INTENT_INTELIGENCIA_INTEGRADA,
+    INTENT_ITENS_ATRASADOS_SUPRIMENTOS,
+    INTENT_LISTAR_AMBIENTES_OPERACIONAIS,
+    INTENT_LISTAR_FRENTES_OBRA,
     INTENT_LIST_OBRA_PENDING,
     INTENT_LIST_PENDING_APPROVALS,
     INTENT_LOCATE_SUPPLY,
+    INTENT_MARCADORES_GPS_RDO,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
+    INTENT_PANORAMA_MAPA_CONTROLE,
+    INTENT_PANORAMA_PIPELINE_SUPRIMENTOS,
+    INTENT_PANORAMA_SUPRIMENTOS_GERAL,
+    INTENT_PEDIDOS_POR_FRENTE,
+    INTENT_PENDENCIAS_VENCIDAS_TRACKHUB,
+    INTENT_PRAZOS_CONTRATO_RH,
     INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
+    INTENT_RESUMO_ALERTAS_RH,
+    INTENT_RESUMO_FILA_TRACKHUB,
+    INTENT_RESUMO_MAPA_GEOGRAFICO,
+    INTENT_RESTRICOES_CRITICAS_ESCOPO,
+    INTENT_RESTRICOES_POR_RESPONSAVEL,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
 )
+from .permissions import INTENTS_MODULE_PERMISSION
 from .llm_provider import LLMProvider
 from .obras_service import ObrasAssistantService
+from .obra_entity import enrich_obra_entities
 from .parser import RuleBasedIntentParser, normalize_intent_question
 from .permissions import AssistantPermissionService
 from .suprimentos_service import SuprimentosAssistantService
@@ -60,11 +89,16 @@ class AssistantOrchestrator:
         self.obras = ObrasAssistantService(self.scope)
         self.usuarios = UsuariosAssistantService(user, self.scope, self.permission_service)
         self.cross = CrossDomainAssistantService(self.scope)
+        self.controle = ControleAssistantService(self.scope)
+        self.mapa_geo = MapaGeoAssistantService(self.scope)
+        self.trackhub = TrackHubAssistantService(user, self.scope)
+        self.impedimentos = ImpedimentosAssistantService(self.scope)
+        self.rh = RhAssistantService(user)
 
     def handle(self, question: str, context: dict | None = None) -> tuple[AssistantResponse, dict]:
         context = context or {}
         intent, entities, used_llm, confidence, candidates, reason = self._detect_intent(question)
-        entities = dict(entities or {})
+        entities = enrich_obra_entities(dict(entities or {}), question, self.scope)
 
         selected_project_id = context.get("selected_project_id")
         if selected_project_id and not (entities.get("obra") or "").strip():
@@ -105,7 +139,7 @@ class AssistantOrchestrator:
                 response = AssistantResponse(
                     summary=(
                         "Nao ha obra de projeto vinculada ao seu usuario. No Lplan, Diario, Mapa e GestControll "
-                        "usam a mesma obra (codigo de projeto). Peca ao gestor o vinculo ao projeto ou use Selecionar obra / Relatorios."
+                        "usam a mesma obra de projeto. Peca ao gestor o vinculo ao projeto ou use Selecionar obra / Relatorios."
                     ),
                     badges=["Sem obra no escopo"],
                     alerts=[
@@ -202,6 +236,21 @@ class AssistantOrchestrator:
             }
             return response, meta
 
+        denied = self._permission_denied_response(intent)
+        if denied:
+            denied = self._ensure_actionability(denied, domain=self._domain_for_intent(intent))
+            meta = {
+                "intent": intent,
+                "entities": entities,
+                "domain": "permission",
+                "used_llm": used_llm,
+                "context": context,
+                "confidence": confidence,
+                "reason": "sem_permissao_modulo",
+            }
+            denied.raw_data.update(meta)
+            return denied, meta
+
         response = self._dispatch(intent, entities, question=question)
         response = self._ensure_actionability(response, domain=domain)
         response = self._apply_primary_action_highlight(response=response, intent=intent, domain=domain)
@@ -239,7 +288,7 @@ class AssistantOrchestrator:
             intent, entities, confidence = llm_result
             if confidence >= 0.6:
                 return intent, entities, True, confidence, [(intent, confidence)], "llm_match"
-            parse = self.fallback_parser.parse(qn or question)
+            parse = self.fallback_parser.parse(qn or question, scope=self.scope)
             return (
                 parse.intent,
                 parse.entities,
@@ -248,7 +297,7 @@ class AssistantOrchestrator:
                 parse.candidates,
                 "llm_baixa_confianca_fallback_regra",
             )
-        parse = self.fallback_parser.parse(qn or question)
+        parse = self.fallback_parser.parse(qn or question, scope=self.scope)
         return parse.intent, parse.entities, False, parse.confidence, parse.candidates, parse.reason
 
     def _dispatch(self, intent: str, entities: dict, question: str = "") -> AssistantResponse:
@@ -276,6 +325,50 @@ class AssistantOrchestrator:
             return self.cross.gargalos_obra(entities)
         if intent == INTENT_INTELIGENCIA_INTEGRADA:
             return self.cross.inteligencia_integrada(entities)
+        if intent == INTENT_PANORAMA_PIPELINE_SUPRIMENTOS:
+            return self.suprimentos.panorama_pipeline(entities)
+        if intent == INTENT_ITENS_ATRASADOS_SUPRIMENTOS:
+            return self.suprimentos.itens_atrasados(entities)
+        if intent == INTENT_PANORAMA_SUPRIMENTOS_GERAL:
+            return self.suprimentos.panorama_geral(entities)
+        if intent == INTENT_FILA_ATRASO_APROVACOES:
+            return self.aprovacoes.fila_atraso(entities)
+        if intent == INTENT_DESEMPENHO_EQUIPE_GEST:
+            return self.aprovacoes.desempenho_equipe(entities)
+        if intent == INTENT_LISTAR_FRENTES_OBRA:
+            return self.aprovacoes.listar_frentes(entities)
+        if intent == INTENT_PEDIDOS_POR_FRENTE:
+            return self.aprovacoes.pedidos_por_frente(entities)
+        if intent == INTENT_CONSULTAR_RESTRICOES_OBRA:
+            return self.impedimentos.consultar_restricoes_obra(entities)
+        if intent == INTENT_RESTRICOES_CRITICAS_ESCOPO:
+            return self.impedimentos.restricoes_criticas_escopo(entities)
+        if intent == INTENT_RESTRICOES_POR_RESPONSAVEL:
+            return self.impedimentos.restricoes_por_responsavel(entities)
+        if intent == INTENT_PANORAMA_MAPA_CONTROLE:
+            return self.controle.panorama_mapa_controle(entities)
+        if intent == INTENT_LISTAR_AMBIENTES_OPERACIONAIS:
+            return self.controle.listar_ambientes(entities)
+        if intent == INTENT_RESUMO_MAPA_GEOGRAFICO:
+            return self.mapa_geo.resumo_obra(entities)
+        if intent == INTENT_ALERTAS_MAPA_GEOGRAFICO:
+            return self.mapa_geo.alertas_obra(entities)
+        if intent == INTENT_MARCADORES_GPS_RDO:
+            return self.mapa_geo.marcadores_gps_rdo(entities)
+        if intent == INTENT_CONSULTAR_PENDENCIAS_TRACKHUB:
+            return self.trackhub.consultar_pendencias(entities)
+        if intent == INTENT_PENDENCIAS_VENCIDAS_TRACKHUB:
+            return self.trackhub.pendencias_vencidas(entities)
+        if intent == INTENT_RESUMO_FILA_TRACKHUB:
+            return self.trackhub.resumo_fila(entities)
+        if intent == INTENT_RESUMO_ALERTAS_RH:
+            return self.rh.resumo_alertas(entities)
+        if intent == INTENT_ADMISSOES_EM_ANDAMENTO:
+            return self.rh.admissoes_em_andamento(entities)
+        if intent == INTENT_DOCUMENTOS_VENCENDO_RH:
+            return self.rh.documentos_vencendo(entities)
+        if intent == INTENT_PRAZOS_CONTRATO_RH:
+            return self.rh.prazos_contrato(entities)
         if intent == INTENT_FALLBACK:
             fallback_summary = MessageCatalog.resolve(
                 "assistant.intent.ambiguous_summary",
@@ -434,13 +527,13 @@ class AssistantOrchestrator:
                 "Inteligencia integrada: como esta a obra no conjunto?",
             ],
             INTENT_RELATORIO_LOCAL_MAPA: [
-                "Como esta o apartamento 302 no mapa de controle da obra 260?",
+                "Como esta o apartamento 302 no mapa de controle da obra SUNRISE?",
                 "Situacao do apto 1201 no mapa de suprimentos obra X",
                 "Relatorio do local Bloco A Apto 201 no mapa de controle",
             ],
             INTENT_RELATORIO_RDO_PERIOD: [
                 "Gerar PDF dos ultimos 15 dias de RDO da obra ALFA",
-                "Relatorio em PDF do diario dos ultimos 7 dias obra 260",
+                "Relatorio em PDF do diario dos ultimos 7 dias obra SUNRISE",
                 "Baixar PDF consolidado RDO ultimos 30 dias",
             ],
         }
@@ -469,8 +562,49 @@ class AssistantOrchestrator:
             INTENT_RELATORIO_LOCAL_MAPA: "suprimentos",
             INTENT_RELATORIO_RDO_PERIOD: "obras",
             INTENT_FALLBACK: "fallback",
+            INTENT_PANORAMA_PIPELINE_SUPRIMENTOS: "suprimentos",
+            INTENT_ITENS_ATRASADOS_SUPRIMENTOS: "suprimentos",
+            INTENT_PANORAMA_SUPRIMENTOS_GERAL: "suprimentos",
+            INTENT_FILA_ATRASO_APROVACOES: "aprovacoes",
+            INTENT_DESEMPENHO_EQUIPE_GEST: "aprovacoes",
+            INTENT_LISTAR_FRENTES_OBRA: "aprovacoes",
+            INTENT_PEDIDOS_POR_FRENTE: "aprovacoes",
+            INTENT_PANORAMA_MAPA_CONTROLE: "controle",
+            INTENT_LISTAR_AMBIENTES_OPERACIONAIS: "controle",
+            INTENT_RESUMO_MAPA_GEOGRAFICO: "mapa_geo",
+            INTENT_ALERTAS_MAPA_GEOGRAFICO: "mapa_geo",
+            INTENT_MARCADORES_GPS_RDO: "mapa_geo",
+            INTENT_CONSULTAR_PENDENCIAS_TRACKHUB: "trackhub",
+            INTENT_PENDENCIAS_VENCIDAS_TRACKHUB: "trackhub",
+            INTENT_RESUMO_FILA_TRACKHUB: "trackhub",
+            INTENT_CONSULTAR_RESTRICOES_OBRA: "impedimentos",
+            INTENT_RESTRICOES_CRITICAS_ESCOPO: "impedimentos",
+            INTENT_RESTRICOES_POR_RESPONSAVEL: "impedimentos",
+            INTENT_RESUMO_ALERTAS_RH: "rh",
+            INTENT_ADMISSOES_EM_ANDAMENTO: "rh",
+            INTENT_DOCUMENTOS_VENCENDO_RH: "rh",
+            INTENT_PRAZOS_CONTRATO_RH: "rh",
         }
         return mapping.get(intent, "unknown")
+
+    def _permission_denied_response(self, intent: str) -> AssistantResponse | None:
+        module = INTENTS_MODULE_PERMISSION.get(intent)
+        if not module:
+            return None
+        if self.permission_service.can_run_intent(intent):
+            return None
+        label = self.permission_service.module_label(module)
+        return AssistantResponse(
+            summary=f"Seu usuario nao tem acesso ao modulo {label} para esta consulta.",
+            badges=["Sem permissao", label],
+            alerts=[
+                {
+                    "level": "warning",
+                    "message": "Solicite ao gestor o grupo correspondente no cadastro de usuarios.",
+                }
+            ],
+            raw_data={"module": module, "intent": intent},
+        )
 
     @staticmethod
     def _ensure_actionability(response: AssistantResponse, domain: str) -> AssistantResponse:
@@ -517,6 +651,26 @@ class AssistantOrchestrator:
             "fallback": {
                 "actions": [{"label": "Abrir Assistente", "url": "/assistente/", "style": "primary"}],
                 "links": [{"label": "Assistente LPLAN", "url": "/assistente/"}],
+            },
+            "controle": {
+                "actions": [{"label": "Abrir Mapa de Controle", "url": "/engenharia/mapa-controle/", "style": "primary"}],
+                "links": [{"label": "Mapa de Controle", "url": "/engenharia/mapa-controle/"}],
+            },
+            "mapa_geo": {
+                "actions": [{"label": "Abrir Mapa Geografico", "url": "/mapa-geo/", "style": "primary"}],
+                "links": [{"label": "Mapa Geografico", "url": "/mapa-geo/"}],
+            },
+            "trackhub": {
+                "actions": [{"label": "Abrir TrackHub", "url": "/trackhub/", "style": "primary"}],
+                "links": [{"label": "TrackHub", "url": "/trackhub/"}],
+            },
+            "impedimentos": {
+                "actions": [{"label": "Abrir Restricoes", "url": "/impedimentos/", "style": "primary"}],
+                "links": [{"label": "Gestao de Impeditivos", "url": "/impedimentos/"}],
+            },
+            "rh": {
+                "actions": [{"label": "Abrir RH", "url": "/rh/", "style": "primary"}],
+                "links": [{"label": "Recursos Humanos", "url": "/rh/"}],
             },
         }
         defaults = domain_defaults.get(domain, domain_defaults["fallback"])
