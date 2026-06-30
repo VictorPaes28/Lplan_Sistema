@@ -95,6 +95,8 @@
                         {% endfor %}
                     </select>
                 </div>
+                {# TEMPORÁRIO: importação na criação desabilitada (PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA) — erro no fluxo de importação #}
+                {% if not importacao_planilha_criacao_desabilitada %}
                 <div id="poCreateImportWrap" class="alert alert-light border small py-2 px-3 d-none mb-0">
                     <div class="fw-semibold mb-1">Importar planilha nesta ferramenta (opcional)</div>
                     <div class="row g-2">
@@ -106,6 +108,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -122,6 +125,7 @@
 <script>
 window.PO_CONTEXT = {
   obraId: {{ obra_selecionada.id|default:"null" }},
+  importacaoPlanilhaCriacaoDesabilitada: {% if importacao_planilha_criacao_desabilitada %}true{% else %}false{% endif %},
   endpoints: {
     list: "{% url 'suprimentos:po_api_listar_ambientes' %}",
     create: "{% url 'suprimentos:po_api_criar_ambiente' %}",

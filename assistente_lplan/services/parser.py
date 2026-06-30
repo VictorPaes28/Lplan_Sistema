@@ -5,21 +5,45 @@ from datetime import date, timedelta
 from difflib import SequenceMatcher
 
 from .intents import (
+    INTENT_ADMISSOES_EM_ANDAMENTO,
+    INTENT_ALERTAS_MAPA_GEOGRAFICO,
+    INTENT_CONSULTAR_PENDENCIAS_TRACKHUB,
+    INTENT_CONSULTAR_RESTRICOES_OBRA,
+    INTENT_DESEMPENHO_EQUIPE_GEST,
+    INTENT_DOCUMENTOS_VENCENDO_RH,
     INTENT_FALLBACK,
+    INTENT_FILA_ATRASO_APROVACOES,
     INTENT_INTELIGENCIA_INTEGRADA,
+    INTENT_ITENS_ATRASADOS_SUPRIMENTOS,
+    INTENT_LISTAR_AMBIENTES_OPERACIONAIS,
+    INTENT_LISTAR_FRENTES_OBRA,
     INTENT_LIST_OBRA_PENDING,
     INTENT_LIST_PENDING_APPROVALS,
     INTENT_LOCATE_SUPPLY,
+    INTENT_MARCADORES_GPS_RDO,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
+    INTENT_PANORAMA_MAPA_CONTROLE,
+    INTENT_PANORAMA_PIPELINE_SUPRIMENTOS,
+    INTENT_PANORAMA_SUPRIMENTOS_GERAL,
+    INTENT_PEDIDOS_POR_FRENTE,
+    INTENT_PENDENCIAS_VENCIDAS_TRACKHUB,
+    INTENT_PRAZOS_CONTRATO_RH,
     INTENT_RDO_BY_DATE,
     INTENT_REJECTED_REQUESTS,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
+    INTENT_RESUMO_ALERTAS_RH,
+    INTENT_RESUMO_FILA_TRACKHUB,
+    INTENT_RESUMO_MAPA_GEOGRAFICO,
+    INTENT_RESTRICOES_CRITICAS_ESCOPO,
+    INTENT_RESTRICOES_POR_RESPONSAVEL,
     INTENT_UNALLOCATED_ITEMS,
     INTENT_USER_STATUS,
 )
 from .learning import GuidedLearningService
+from .obra_entity import enrich_obra_entities
+from .permissions import UserScope
 
 
 def normalize_intent_question(question: str) -> str:
@@ -49,12 +73,14 @@ class RuleBasedIntentParser:
         candidates: list[tuple[str, float]]
         reason: str
 
-    def parse(self, question: str) -> ParseResult:
+    def parse(self, question: str, scope: UserScope | None = None) -> ParseResult:
         text = normalize_intent_question(question)
         normalized_text = self._normalize(text)
         normalized_tokens = self._tokenize(normalized_text)
         entities = GuidedLearningService.apply_entity_aliases(self._extract_entities(text))
         entities.update(GuidedLearningService.detect_alias_mentions(text))
+        if scope:
+            entities = enrich_obra_entities(entities, text, scope)
         if not text:
             return self.ParseResult(
                 intent=INTENT_FALLBACK,
@@ -70,6 +96,8 @@ class RuleBasedIntentParser:
             merged_entities = dict(entities)
             merged_entities.update(guided_entities or {})
             merged_entities = GuidedLearningService.apply_entity_aliases(merged_entities)
+            if scope:
+                merged_entities = enrich_obra_entities(merged_entities, text, scope)
             return self.ParseResult(
                 intent=guided_intent,
                 entities=merged_entities,
@@ -246,6 +274,261 @@ class RuleBasedIntentParser:
                 ["ultimos 30 dias", "últimos 30 dias", "status do usuario", "status de usuário", "desempenho do"],
                 0.0,
             ),
+            # Fase 1
+            (
+                INTENT_PANORAMA_PIPELINE_SUPRIMENTOS,
+                [
+                    "panorama pipeline",
+                    "pipeline suprimentos",
+                    "pipeline de suprimentos",
+                    "sc pc pipeline",
+                    "solicitacao compra",
+                    "pedido compra",
+                    "etapas suprimentos",
+                    "fluxo suprimentos",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_ITENS_ATRASADOS_SUPRIMENTOS,
+                [
+                    "itens atrasados",
+                    "itens atrasado",
+                    "atraso suprimentos",
+                    "atrasados suprimentos",
+                    "entrega atrasada",
+                    "prazo suprimentos",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_FILA_ATRASO_APROVACOES,
+                [
+                    "fila atraso",
+                    "atraso aprovacao",
+                    "atraso aprovação",
+                    "aprovacoes atrasadas",
+                    "aprovações atrasadas",
+                    "pedidos atrasados gest",
+                    "sla aprovacao",
+                    "sla aprovação",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_CONSULTAR_RESTRICOES_OBRA,
+                [
+                    "restricao",
+                    "restrição",
+                    "restricoes",
+                    "restrições",
+                    "impeditivo",
+                    "impeditivos",
+                    "impedimento obra",
+                    "gestao impedimentos",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RESTRICOES_CRITICAS_ESCOPO,
+                [
+                    "restricoes criticas",
+                    "restrições críticas",
+                    "criticas escopo",
+                    "criticas no escopo",
+                    "impeditivos criticos",
+                    "impeditivos críticos",
+                ],
+                0.0,
+            ),
+            # Fase 2
+            (
+                INTENT_PANORAMA_MAPA_CONTROLE,
+                [
+                    "panorama mapa controle",
+                    "percentual mapa controle",
+                    "mapa de controle obra",
+                    "avanco fisico",
+                    "avanço físico",
+                    "progresso mapa controle",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RESUMO_MAPA_GEOGRAFICO,
+                [
+                    "mapa geografico",
+                    "mapa geográfico",
+                    "resumo mapa geo",
+                    "elementos geograficos",
+                    "elementos geográficos",
+                    "progresso mapa geo",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_CONSULTAR_PENDENCIAS_TRACKHUB,
+                [
+                    "trackhub",
+                    "track hub",
+                    "pendencias trackhub",
+                    "pendências trackhub",
+                    "fila trackhub",
+                    "pendencia track",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_PENDENCIAS_VENCIDAS_TRACKHUB,
+                [
+                    "pendencias vencidas trackhub",
+                    "pendências vencidas trackhub",
+                    "trackhub vencidas",
+                    "prazo vencido trackhub",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RESUMO_ALERTAS_RH,
+                [
+                    "alertas rh",
+                    "alertas recursos humanos",
+                    "resumo rh",
+                    "resumo alertas rh",
+                    "situacao rh",
+                    "situação rh",
+                ],
+                0.0,
+            ),
+            # Fase 3
+            (
+                INTENT_DESEMPENHO_EQUIPE_GEST,
+                [
+                    "desempenho equipe",
+                    "desempenho da equipe",
+                    "performance equipe gest",
+                    "metricas equipe gest",
+                    "métricas equipe gest",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_LISTAR_FRENTES_OBRA,
+                [
+                    "frentes obra",
+                    "frentes da obra",
+                    "listar frentes",
+                    "frentes ativas",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_PEDIDOS_POR_FRENTE,
+                [
+                    "pedidos por frente",
+                    "pedidos na frente",
+                    "pendentes na frente",
+                    "fila frente",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_ALERTAS_MAPA_GEOGRAFICO,
+                [
+                    "alertas mapa geografico",
+                    "alertas mapa geográfico",
+                    "alertas mapa geo",
+                    "bloqueios mapa geo",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_MARCADORES_GPS_RDO,
+                [
+                    "marcadores gps",
+                    "gps rdo",
+                    "geolocalizacao rdo",
+                    "geolocalização rdo",
+                    "rdo no mapa",
+                    "localizacao rdo",
+                    "localização rdo",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_ADMISSOES_EM_ANDAMENTO,
+                [
+                    "admissoes em andamento",
+                    "admissões em andamento",
+                    "fluxo admissao",
+                    "fluxo admissão",
+                    "admitindo",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_DOCUMENTOS_VENCENDO_RH,
+                [
+                    "documentos vencendo",
+                    "documentos vencidos rh",
+                    "validade documento rh",
+                    "vencimento documento",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_PRAZOS_CONTRATO_RH,
+                [
+                    "prazos contrato",
+                    "prazo contratual",
+                    "contrato vencendo",
+                    "contratos vencendo rh",
+                    "fim de contrato",
+                ],
+                0.0,
+            ),
+            # Fase 4
+            (
+                INTENT_LISTAR_AMBIENTES_OPERACIONAIS,
+                [
+                    "ambientes operacionais",
+                    "ambiente operacional",
+                    "ferramenta operacional",
+                    "listar ambientes",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_PANORAMA_SUPRIMENTOS_GERAL,
+                [
+                    "panorama suprimentos",
+                    "panorama geral suprimentos",
+                    "visao geral suprimentos",
+                    "visão geral suprimentos",
+                    "resumo suprimentos geral",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RESTRICOES_POR_RESPONSAVEL,
+                [
+                    "restricoes por responsavel",
+                    "restrições por responsável",
+                    "impeditivos do responsavel",
+                    "impeditivos do responsável",
+                ],
+                0.0,
+            ),
+            (
+                INTENT_RESUMO_FILA_TRACKHUB,
+                [
+                    "resumo fila trackhub",
+                    "estatisticas trackhub",
+                    "estatísticas trackhub",
+                    "indicadores trackhub",
+                ],
+                0.0,
+            ),
         ]
 
         scored: list[tuple[str, float]] = []
@@ -314,6 +597,132 @@ class RuleBasedIntentParser:
                 score *= 0.12
             if intent == INTENT_LOCATE_SUPPLY and ("insumo" in entities or "bloco" in entities):
                 score += 0.2
+
+            has_penden = "penden" in normalized_text
+            has_trackhub = any(t in normalized_text for t in ["trackhub", "track hub"])
+            has_gest = any(
+                t in normalized_text
+                for t in ["gestcontroll", "gest controll", "aprov", "pedido pendente", "fila de aprov"]
+            )
+            has_restricao = any(
+                t in normalized_text for t in ["restric", "impedit", "impediment"]
+            )
+            has_mapa_geo = any(t in normalized_text for t in ["geograf", "mapa geo", "gps"])
+            has_mapa_controle = any(
+                t in normalized_text for t in ["mapa de controle", "mapa controle", "avanco fis", "avanço fís"]
+            )
+            has_suprimentos = any(
+                t in normalized_text for t in ["supriment", "pipeline", "sc ", "pedido compra", "solicitacao compr"]
+            )
+            has_rh = any(t in normalized_text for t in [" rh", "recursos humanos", "admiss", "contrato rh", "documento"])
+
+            if intent == INTENT_CONSULTAR_PENDENCIAS_TRACKHUB:
+                if has_trackhub:
+                    score += 0.48
+                if has_penden and has_trackhub:
+                    score += 0.32
+                if has_gest and not has_trackhub:
+                    score *= 0.35
+            if intent == INTENT_PENDENCIAS_VENCIDAS_TRACKHUB:
+                if has_trackhub and any(t in normalized_text for t in ["vencid", "atrasad", "prazo"]):
+                    score += 0.45
+            if intent == INTENT_RESUMO_FILA_TRACKHUB:
+                if has_trackhub and any(t in normalized_text for t in ["resumo", "estatist", "indicador", "fila"]):
+                    score += 0.42
+
+            if intent == INTENT_FILA_ATRASO_APROVACOES:
+                if has_gest and any(t in normalized_text for t in ["atras", "sla", "fila"]):
+                    score += 0.42
+                if "fila" in normalized_text and "atras" in normalized_text:
+                    score += 0.55
+                if has_trackhub:
+                    score *= 0.3
+            if intent == INTENT_LIST_PENDING_APPROVALS:
+                if has_gest and has_penden and not has_trackhub:
+                    score += 0.28
+                if any(t in normalized_text for t in ["atras", "sla"]):
+                    score *= 0.55
+                if "fila" in normalized_text and "atras" in normalized_text:
+                    score *= 0.25
+                if "frente" in normalized_text:
+                    score *= 0.3
+
+            if intent == INTENT_LIST_OBRA_PENDING:
+                if has_penden and not has_trackhub and not has_gest and not has_restricao:
+                    score += 0.22
+                if any(t in normalized_text for t in ["falta na obra", "pendencia da obra", "pendência da obra"]):
+                    score += 0.38
+                if has_trackhub or has_gest:
+                    score *= 0.28
+                if has_restricao:
+                    score *= 0.25
+
+            if intent == INTENT_CONSULTAR_RESTRICOES_OBRA:
+                if has_restricao:
+                    score += 0.44
+                if "obra" in entities or "project_id" in entities:
+                    score += 0.18
+            if intent == INTENT_RESTRICOES_CRITICAS_ESCOPO:
+                if has_restricao and any(t in normalized_text for t in ["crit", "escopo"]):
+                    score += 0.46
+            if intent == INTENT_RESTRICOES_POR_RESPONSAVEL:
+                if has_restricao and any(t in normalized_text for t in ["responsav", "responsável"]):
+                    score += 0.44
+            if intent == INTENT_OBRA_BOTTLENECKS and has_restricao:
+                score *= 0.35
+
+            if intent == INTENT_PANORAMA_PIPELINE_SUPRIMENTOS:
+                if has_suprimentos and any(t in normalized_text for t in ["pipeline", "sc", "fluxo", "etapa"]):
+                    score += 0.4
+            if intent == INTENT_PANORAMA_SUPRIMENTOS_GERAL:
+                if has_suprimentos and any(t in normalized_text for t in ["panorama", "geral", "visao", "visão", "resumo"]):
+                    score += 0.38
+                if "pipeline" in normalized_text:
+                    score *= 0.45
+            if intent == INTENT_ITENS_ATRASADOS_SUPRIMENTOS:
+                if has_suprimentos and any(t in normalized_text for t in ["atras", "prazo"]):
+                    score += 0.38
+
+            if intent == INTENT_PANORAMA_MAPA_CONTROLE:
+                if has_mapa_controle:
+                    score += 0.42
+                if has_mapa_geo:
+                    score *= 0.35
+            if intent == INTENT_RESUMO_MAPA_GEOGRAFICO:
+                if has_mapa_geo and not any(t in normalized_text for t in ["alerta", "gps", "marcador"]):
+                    score += 0.4
+                if has_mapa_controle:
+                    score *= 0.4
+            if intent == INTENT_ALERTAS_MAPA_GEOGRAFICO:
+                if has_mapa_geo and "alerta" in normalized_text:
+                    score += 0.44
+            if intent == INTENT_MARCADORES_GPS_RDO:
+                if has_mapa_geo or any(t in normalized_text for t in ["gps", "geolocal", "marcador"]):
+                    score += 0.42
+
+            if intent in (
+                INTENT_RESUMO_ALERTAS_RH,
+                INTENT_ADMISSOES_EM_ANDAMENTO,
+                INTENT_DOCUMENTOS_VENCENDO_RH,
+                INTENT_PRAZOS_CONTRATO_RH,
+            ):
+                if has_rh or "rh" in normalized_tokens:
+                    score += 0.35
+
+            if intent == INTENT_DESEMPENHO_EQUIPE_GEST:
+                if any(t in normalized_text for t in ["equipe", "time", "gest"]):
+                    score += 0.32
+            if intent == INTENT_LISTAR_FRENTES_OBRA:
+                if "frente" in normalized_text and "pedido" not in normalized_text:
+                    score += 0.36
+            if intent == INTENT_PEDIDOS_POR_FRENTE:
+                if "frente" in normalized_text and any(t in normalized_text for t in ["pedido", "pendent"]):
+                    score += 0.55
+                if entities.get("frente"):
+                    score += 0.2
+            if intent == INTENT_LISTAR_AMBIENTES_OPERACIONAIS:
+                if any(t in normalized_text for t in ["ambiente", "ferramenta operacional"]):
+                    score += 0.38
 
             # "Aprovações pendentes na obra X" não deve cair em pendências operacionais (diário).
             if intent == INTENT_LIST_OBRA_PENDING and "aprov" in normalized_text:
@@ -434,6 +843,18 @@ class RuleBasedIntentParser:
         if dias_m:
             nd = max(1, min(30, int(dias_m.group(1))))
             entities["dias"] = str(nd)
+
+        frente_match = re.search(r"\bfrente\s+([a-z0-9\-_/ ]+?)(?=\s+obra|\?|$)", normalized_text)
+        if frente_match:
+            entities["frente"] = frente_match.group(1).strip(" .,:;")
+
+        resp_match = re.search(
+            r"\b(?:responsavel|responsável)\s+([a-z0-9._@\- ]+?)(?=\s+obra|\?|$)",
+            text,
+            re.I,
+        )
+        if resp_match:
+            entities["responsavel"] = resp_match.group(1).strip(" .,:;?!)]}\\\"'")
 
         return {k: v for k, v in entities.items() if v}
 

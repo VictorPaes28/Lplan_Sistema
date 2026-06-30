@@ -28,8 +28,12 @@
     return String(value || "").trim() === "mapa_controle";
   }
 
+  // TEMPORÁRIO: espelha PO_IMPORTACAO_PLANILHA_CRIACAO_DESABILITADA no backend (erro no fluxo de importação).
+  const importacaoPlanilhaCriacaoDesabilitada = Boolean(context.importacaoPlanilhaCriacaoDesabilitada);
+
   function syncCreateModalContext() {
-    const showImport = isMapaControleType(selectType && selectType.value);
+    const showImport =
+      !importacaoPlanilhaCriacaoDesabilitada && isMapaControleType(selectType && selectType.value);
     if (createImportWrap) createImportWrap.classList.toggle("d-none", !showImport);
     if (!showImport && createImportFile) createImportFile.value = "";
     if (!showImport && createImportSheet) createImportSheet.value = "";
@@ -110,6 +114,7 @@
   }
 
   async function importPlanilhaParaAmbiente(ambienteId) {
+    if (importacaoPlanilhaCriacaoDesabilitada) return null;
     if (!isMapaControleType(selectType && selectType.value)) return null;
     const file = createImportFile && createImportFile.files && createImportFile.files[0];
     if (!file) return null;
@@ -407,7 +412,7 @@
       if (inputName) inputName.value = "";
       syncCreateModalContext();
       let importInfo = null;
-      if (data && data.item && data.item.id) {
+      if (!importacaoPlanilhaCriacaoDesabilitada && data && data.item && data.item.id) {
         setButtonLoading(btnCreate, true, "Importando...");
         importInfo = await importPlanilhaParaAmbiente(Number(data.item.id));
       }

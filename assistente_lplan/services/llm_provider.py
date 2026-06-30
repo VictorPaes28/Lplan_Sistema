@@ -2,6 +2,7 @@ import json
 import os
 from urllib import error, request
 
+from assistente_lplan.services.obra_entity import obra_display_name
 from .intents import SUPPORTED_INTENTS
 
 
@@ -56,12 +57,12 @@ class LLMProvider:
         """Uma pergunta de esclarecimento curta, sem inventar dados; lista obras vem de projects."""
         if not self.can_use() or not projects:
             return None
-        lines = [f"- {p.get('code', '')} ({p.get('name', '')[:60]})" for p in projects[:12]]
+        lines = [f"- {obra_display_name(p)}" for p in projects[:12]]
         system = (
             "Voce e o assistente operacional LPLAN. O usuario fez uma pergunta que exige escolher UMA obra, "
             "mas ele tem varias obras no acesso. Escreva em portugues-BR: (1) uma frase reconhecendo a intencao, "
-            "(2) explique em uma linha que no Lplan Diario, Mapa e GestControll sao amarrados ao codigo da obra, "
-            "(3) peca para escolher uma obra. Nao invente codigos — use apenas a lista fornecida. Maximo 500 caracteres."
+            "(2) explique em uma linha que no Lplan Diario, Mapa e GestControll usam a mesma obra de projeto, "
+            "(3) peca para escolher uma obra pelo nome. Nao invente nomes — use apenas a lista fornecida. Maximo 500 caracteres."
         )
         user = (
             f"Pergunta: {user_question}\nIntencao tecnica: {intent_key}\n"
@@ -90,6 +91,7 @@ class LLMProvider:
         system = (
             "Voce e um analista operacional de obras. Escreva em portugues-BR, tom profissional e direto. "
             "Use APENAS os numeros e fatos do JSON fornecido. Nao invente indicadores, datas ou quantidades. "
+            "Ao citar a obra, use somente o nome em maiusculas (campo obra), nunca codigo numerico. "
             "Se faltar dado, diga que o indicador nao esta disponivel. "
             "Estruture em: (1) situacao em 2 frases, (2) ate 4 bullets com os principais pontos de atencao, "
             "(3) uma linha de prioridade do que olhar primeiro. Maximo 900 caracteres."
