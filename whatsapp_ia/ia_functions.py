@@ -1,3 +1,14 @@
+"""
+Funções de consulta da IA WhatsApp — retornos JSON para tool calls.
+
+Convenção de strings e metadados
+--------------------------------
+* Campos para o USUÁRIO FINAL (`mensagem`, `alerta`, `descricao`, `aviso`):
+  linguagem natural exibível no WhatsApp.
+* Metadados INTERNOS (`nivel`, `tipo`, flags, classificação, parâmetros):
+  ficam em `_meta` no payload. A IA usa `_meta` para formatação e
+  priorização, mas NUNCA deve citá-los na resposta (ver prompts.py).
+"""
 import inspect
 import json
 from datetime import datetime, timedelta
@@ -15,6 +26,23 @@ from core.models import ConstructionDiary, Project
 from gestao_aprovacao.models import WorkOrder
 from suprimentos.models import ItemMapa
 from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
+
+
+def _meta_ia(**kwargs):
+    """Metadados internos — não devem aparecer na resposta ao usuário."""
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def _lacunas_exibicao(lacunas):
+    return [
+        {
+            'de': item['apos_data'],
+            'ate': item['antes_data'],
+            'dias': item['dias_sem_rdo'],
+        }
+        for item in lacunas
+    ]
+
 
 TOOLS = [
     {
@@ -146,6 +174,53 @@ TOOLS = [
                         ),
                     },
                 },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_situacao_rdo_obra',
+            'description': (
+                'Situação completa de RDO de uma obra: total no período, '
+                'aprovados, pendentes de aprovação, rascunhos, dias com falta, '
+                'alerta se último RDO >7 dias e RDOs AG há muitos dias (crítico). '
+                'Use para perguntas sobre RDO de obra específica.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'obra_nome': {
+                        'type': 'string',
+                        'description': 'Nome ou parte do nome da obra.',
+                    },
+                    'obra_id': {
+                        'type': 'integer',
+                        'description': 'ID do core.Project (opcional).',
+                    },
+                    'dias_analise': {
+                        'type': 'integer',
+                        'description': 'Janela de análise em dias. Default 90.',
+                    },
+                },
+                'required': [],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'consultar_situacao_geral_obras',
+            'description': (
+                'Panorama operacional consolidado de TODAS as obras: RDOs, '
+                'pedidos (GestControll), restrições, suprimentos, '
+                'mapa de controle, mapa geográfico e TrackHub (inclui Sede). '
+                'Use SEMPRE quando o usuário pedir situação geral das obras.'
+            ),
+            'parameters': {
+                'type': 'object',
+                'properties': {},
                 'required': [],
             },
         },
@@ -374,10 +449,10 @@ TOOLS = [
         'function': {
             'name': 'consultar_pendencias_trackhub',
             'description': (
-                'Consulta pendências operacionais (TrackHub) de uma obra. '
-                'Retorna total abertas, em andamento, aguardando, '
-                'vencidas e por tipo. '
-                'Se obra não informada, retorna resumo de todas as obras ativas.'
+                'Consulta pendências TrackHub por obra. Inclui Sede. '
+                'Retorna totais globais, abertas, vencidas, responsáveis '
+                'das pendências atrasadas e dias de atraso. '
+                'Lista TODAS as obras, inclusive com zero pendências.'
             ),
             'parameters': {
                 'type': 'object',
@@ -512,9 +587,10 @@ TOOLS = [
             'name': 'consultar_usuarios',
             'description': (
                 'Consulta usuários do sistema. Com usuario_nome, retorna '
-                'perfil cruzado: último login, obras como responsável, '
-                'restrições abertas, pedidos pendentes de aprovação, '
-                'pendências TrackHub atrasadas e tempo médio de aprovação.'
+                'perfil cruzado: obras vinculadas (membro/permissão Gest), '
+                'restrições abertas, pedidos aguardando aprovação DESTE usuário, '
+                'pendências TrackHub atrasadas (separado: responsável da pendência '
+                'vs responsável de etapa) e tempo médio de aprovação.'
             ),
             'parameters': {
                 'type': 'object',
@@ -1072,9 +1148,10 @@ TOOLS = [
         'function': {
             'name': 'consultar_pendencias_por_responsavel',
             'description': (
-                'Consulta pendências TrackHub de um responsável específico. '
-                "Use quando perguntar 'pendências do Cleiton', "
-                "'o que a Emília tem aberto', 'tarefas do responsável X'."
+                'Consulta pendências TrackHub de um responsável. '
+                'Separa como_responsavel_pendencia (dono da pendência) de '
+                'como_responsavel_etapa (etapa dentro da pendência). '
+                "Use quando perguntar 'pendências do Cleiton'."
             ),
             'parameters': {
                 'type': 'object',
@@ -1670,17 +1747,265 @@ def _metricas_rdo_frequencia(
     )
 
     return {
-        'nunca_teve_rdo': nunca_teve,
         'ultimo_rdo_data': str(ultimo) if ultimo else None,
         'dias_desde_ultimo': dias_desde_ultimo,
-        'sem_rdo_recente': (
-            dias_desde_ultimo is not None
-            and dias_desde_ultimo > dias_sem_rdo_alerta
+        'total_rdos_periodo': len(datas_periodo),
+        'maior_intervalo_sem_rdo_dias': maior_lacuna,
+        'lacunas_no_periodo': _lacunas_exibicao(lacunas),
+        'qtd_lacunas_no_periodo': len(lacunas),
+        '_meta': _meta_ia(
+            nunca_teve_rdo=nunca_teve,
+            sem_rdo_recente=(
+                dias_desde_ultimo is not None
+                and dias_desde_ultimo > dias_sem_rdo_alerta
+            ),
+            dias_analise=dias_analise,
         ),
-        'total_periodo': len(datas_periodo),
-        'dias_analise': dias_analise,
-        'maior_lacuna_dias': maior_lacuna,
-        'lacunas_acima_limite': lacunas,
+    }
+
+
+def _get_escopo_trackhub(usuario_wa=None):
+    """
+    Escopo de obras para TrackHub — inclui Sede/escritório.
+    Respeita permissões do usuário, mas não aplica WHATSAPP_IA_OBRAS_EXCLUIDAS.
+    """
+    from mapa_obras.models import Obra as ObraMapa
+    from whatsapp_ia.models import IaPermissaoConsulta
+
+    todas_ativas = ObraMapa.objects.filter(ativa=True)
+
+    if not usuario_wa:
+        return todas_ativas
+
+    try:
+        permissao = IaPermissaoConsulta.objects.get(usuario=usuario_wa)
+        obras_auth = permissao.obras_autorizadas.all()
+        if obras_auth.exists():
+            return obras_auth.filter(ativa=True)
+        return todas_ativas
+    except IaPermissaoConsulta.DoesNotExist:
+        return todas_ativas
+
+
+def _situacao_rdo_periodo(
+    project,
+    front_id=None,
+    dias_analise=90,
+    dias_ag_critico=7,
+):
+    from core.models import DiaryNoReportDay
+
+    hoje = timezone.localdate()
+    inicio = hoje - timedelta(days=dias_analise)
+
+    qs = ConstructionDiary.objects.filter(
+        project=project,
+        date__gte=inicio,
+        date__lte=hoje,
+    )
+    if front_id == 'todas':
+        pass
+    elif front_id is None:
+        qs = qs.filter(front__isnull=True)
+    else:
+        qs = qs.filter(front_id=front_id)
+
+    por_status = {}
+    for row in qs.values('status').annotate(qtd=Count('id')):
+        por_status[row['status']] = row['qtd']
+
+    total = sum(por_status.values())
+    aprovados = por_status.get('AP', 0)
+    pendentes_aprovacao = por_status.get('AG', 0)
+    rascunhos = por_status.get('SP', 0) + por_status.get('PR', 0)
+
+    qs_falta = DiaryNoReportDay.objects.filter(
+        project=project,
+        date__gte=inicio,
+        date__lte=hoje,
+    )
+    dias_com_falta = qs_falta.count()
+
+    ag_detalhes = []
+    for d in qs.filter(status='AG').order_by('date'):
+        dias_aberto = (hoje - d.date).days
+        item = {
+            'data': str(d.date),
+            'dias_em_aberto': dias_aberto,
+            'critico': dias_aberto >= dias_ag_critico,
+        }
+        ag_detalhes.append(item)
+
+    ag_detalhes.sort(key=lambda x: -x['dias_em_aberto'])
+    ag_criticos = [r for r in ag_detalhes if r['critico']]
+
+    return {
+        'total_rdos': total,
+        'aprovados': aprovados,
+        'pendentes_aprovacao': pendentes_aprovacao,
+        'rascunhos': rascunhos,
+        'reprovados': por_status.get('RG', 0),
+        'dias_com_falta': dias_com_falta,
+        'rdos_aguardando_aprovacao': ag_detalhes[:15],
+        'rdos_ag_criticos': ag_criticos,
+        'total_ag_criticos': len(ag_criticos),
+        '_meta': _meta_ia(
+            periodo_dias=dias_analise,
+            por_status=por_status,
+        ),
+    }
+
+
+def _classificar_volume_suprimentos(total_itens):
+    if total_itens == 0:
+        return {
+            'descricao': (
+                'Nenhum item cadastrado — pode indicar falta de controle'
+            ),
+            '_meta': _meta_ia(classificacao='sem_cadastro', sem_itens=True),
+        }
+    if total_itens < 15:
+        return {
+            'descricao': f'{total_itens} itens — volume baixo',
+            '_meta': _meta_ia(classificacao='baixo'),
+        }
+    if total_itens < 50:
+        return {
+            'descricao': f'{total_itens} itens — volume moderado',
+            '_meta': _meta_ia(classificacao='medio'),
+        }
+    if total_itens < 150:
+        return {
+            'descricao': f'{total_itens} itens — volume alto',
+            '_meta': _meta_ia(classificacao='alto'),
+        }
+    return {
+        'descricao': f'{total_itens} itens — volume muito alto',
+        '_meta': _meta_ia(classificacao='muito_alto'),
+    }
+
+
+def _kpis_ambiente_controle(obra, ambiente):
+    from painel_operacional.models import VersaoEstado
+    from suprimentos.services.analise_obra_service import (
+        AnaliseObraService,
+        _collect_all_activity_pcts_from_rows,
+    )
+
+    service = AnaliseObraService(obra)
+    versao = (
+        ambiente.versoes.filter(estado=VersaoEstado.DRAFT)
+        .order_by('-numero')
+        .first()
+        or ambiente.versoes.filter(estado=VersaoEstado.PUBLISHED)
+        .order_by('-numero')
+        .first()
+    )
+    if not versao:
+        return {'percentual_conclusao': None, 'total_unidades': 0}
+
+    layout = versao.layout if isinstance(versao.layout, dict) else {}
+    rows = service._parse_layout_rows(layout)
+    if not rows:
+        return {'percentual_conclusao': None, 'total_unidades': 0}
+
+    all_values = _collect_all_activity_pcts_from_rows(rows)
+    pct = round(sum(all_values) / len(all_values), 1) if all_values else None
+    return {
+        'percentual_conclusao': pct,
+        'total_unidades': len(all_values),
+    }
+
+
+def _serialize_pendencia_vencida(p, hoje):
+    from trackhub.models import EtapaPendencia
+
+    dias_atraso = (hoje - p.prazo).days if p.prazo else None
+    resp_pendencia = p.responsavel_nome or 'Sem responsável'
+
+    etapas_pendentes = []
+    for et in EtapaPendencia.objects.filter(
+        pendencia=p,
+        status='pendente',
+    ).select_related('responsavel_interno').order_by('ordem'):
+        resp_etapa = (
+            et.responsavel_interno.get_full_name()
+            if et.responsavel_interno else 'Sem responsável'
+        )
+        etapas_pendentes.append({
+            'etapa': et.titulo,
+            'responsavel_etapa': resp_etapa,
+            'prazo_etapa': str(et.prazo) if et.prazo else None,
+        })
+
+    return {
+        'titulo': p.titulo,
+        'tipo': p.tipo,
+        'status': p.status,
+        'prazo': str(p.prazo) if p.prazo else None,
+        'dias_atraso': dias_atraso,
+        'responsavel_pendencia': resp_pendencia,
+        'etapas_pendentes': etapas_pendentes,
+    }
+
+
+def _agregar_pendencias_obra(obra, hoje):
+    from trackhub.models import Pendencia
+
+    qs = Pendencia.objects.filter(obra=obra).exclude(
+        status__in=['concluida', 'cancelada'],
+    )
+    total_abertas = qs.count()
+    vencidas_qs = qs.filter(prazo__isnull=False, prazo__lt=hoje)
+    vencidas = vencidas_qs.count()
+
+    por_status = {}
+    for p in qs:
+        por_status[p.status] = por_status.get(p.status, 0) + 1
+
+    por_tipo = list(
+        qs.values('tipo').annotate(qtd=Count('id')).order_by('-qtd'),
+    )
+
+    vencidas_detalhe = [
+        _serialize_pendencia_vencida(p, hoje)
+        for p in vencidas_qs.select_related(
+            'responsavel_interno',
+        ).order_by('prazo')[:20]
+    ]
+
+    resp_atraso = {}
+    for item in vencidas_detalhe:
+        nome = item['responsavel_pendencia']
+        dias = item['dias_atraso'] or 0
+        if nome not in resp_atraso:
+            resp_atraso[nome] = {'pendencias': 0, 'maior_atraso_dias': 0}
+        resp_atraso[nome]['pendencias'] += 1
+        resp_atraso[nome]['maior_atraso_dias'] = max(
+            resp_atraso[nome]['maior_atraso_dias'],
+            dias,
+        )
+
+    responsaveis_atrasados = [
+        {
+            'responsavel_pendencia': nome,
+            'pendencias_vencidas': stats['pendencias'],
+            'maior_atraso_dias': stats['maior_atraso_dias'],
+        }
+        for nome, stats in sorted(
+            resp_atraso.items(),
+            key=lambda x: (-x[1]['maior_atraso_dias'], -x[1]['pendencias']),
+        )
+    ]
+
+    return {
+        'obra': obra.nome,
+        'total_abertas': total_abertas,
+        'vencidas': vencidas,
+        'por_status': por_status,
+        'por_tipo': por_tipo,
+        'vencidas_detalhe': vencidas_detalhe,
+        'responsaveis_atrasados': responsaveis_atrasados,
     }
 
 
@@ -1712,6 +2037,145 @@ def _contar_restricoes_abertas(obra_gestao, front_id=None):
             prazo__lt=hoje,
         ).count(),
     }
+
+
+def _restricoes_totais_obra(obra_gestao) -> dict:
+    from impedimentos.models import Impedimento, StatusImpedimento
+
+    if not obra_gestao:
+        return {'total_abertas': 0, 'vencidas': 0, 'criticas_altas': 0}
+
+    status_final = StatusImpedimento.objects.filter(
+        obra=obra_gestao,
+    ).order_by('-ordem').first()
+    qs = Impedimento.objects.filter(
+        obra=obra_gestao,
+        parent__isnull=True,
+    )
+    if status_final:
+        qs = qs.exclude(status_id=status_final.id)
+
+    hoje = timezone.localdate()
+    return {
+        'total_abertas': qs.count(),
+        'vencidas': qs.filter(
+            prazo__isnull=False,
+            prazo__lt=hoje,
+        ).count(),
+        'criticas_altas': qs.filter(
+            prioridade__in=['ALTA', 'CRITICA'],
+        ).count(),
+    }
+
+
+def _restricoes_por_obra_escopo(usuario_wa) -> dict:
+    from gestao_aprovacao.models import Obra as ObraGestao
+
+    escopo_ids = list(_get_escopo_obras(usuario_wa).values_list('id', flat=True))
+    obras_gestao = ObraGestao.objects.filter(
+        ativo=True,
+        project__obra_mapa__id__in=escopo_ids,
+    ).order_by('nome')
+
+    total_abertas = 0
+    total_vencidas = 0
+    total_criticas_altas = 0
+    por_obra = []
+
+    for obra_g in obras_gestao:
+        stats = _restricoes_totais_obra(obra_g)
+        total_abertas += stats['total_abertas']
+        total_vencidas += stats['vencidas']
+        total_criticas_altas += stats['criticas_altas']
+        por_obra.append({
+            'obra': obra_g.nome,
+            'abertas': stats['total_abertas'],
+            'vencidas': stats['vencidas'],
+            'criticas_altas': stats['criticas_altas'],
+        })
+
+    por_obra.sort(key=lambda x: (-x['abertas'], x['obra']))
+    return {
+        'total_abertas': total_abertas,
+        'total_vencidas': total_vencidas,
+        'total_criticas_altas': total_criticas_altas,
+        'obras': por_obra,
+    }
+
+
+def _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=None):
+    sit = situacao or seg.get('situacao_periodo') or seg.get('situacao') or {}
+    meta = seg.setdefault('_meta', {})
+    nivel = None
+    tipo = None
+    if meta.get('sem_rdo_recente'):
+        dias = seg.get('dias_desde_ultimo')
+        seg['alerta'] = f'Último RDO há {dias} dias sem registro recente'
+        nivel = 'atencao'
+        tipo = 'sem_rdo_recente'
+    if meta.get('nunca_teve_rdo'):
+        seg['alerta'] = 'Obra nunca registrou RDO'
+        nivel = 'atencao'
+        tipo = 'nunca_teve_rdo'
+    ag_criticos = sit.get('rdos_ag_criticos') or []
+    if sit.get('total_ag_criticos', 0) > 0:
+        max_dias = max(
+            (r.get('dias_em_aberto') or 0 for r in ag_criticos),
+            default=0,
+        )
+        seg['alerta_ag_atrasado'] = (
+            f'{sit["total_ag_criticos"]} RDO(s) aguardando aprovação '
+            f'— o mais antigo há {max_dias} dias'
+        )
+        nivel = 'critico'
+        tipo = 'ag_atrasado'
+    if nivel:
+        meta['nivel'] = nivel
+        meta['tipo'] = tipo
+
+
+def _obra_tem_alerta_rdo(obra_rdo: dict) -> bool:
+    for seg in obra_rdo.get('segmentos', []):
+        if seg.get('alerta') or seg.get('alerta_ag_atrasado'):
+            return True
+        seg_meta = seg.get('_meta', {})
+        if seg_meta.get('sem_rdo_recente') or seg_meta.get('nunca_teve_rdo'):
+            return True
+    return False
+
+
+def _obras_com_alerta_panorama(
+    rdo: dict,
+    pedidos: dict,
+    restricoes: dict,
+    suprimentos: dict,
+    mapa: dict,
+    trackhub_obras: list,
+    obras_escopo: list,
+) -> set:
+    com_alerta = set()
+    for obra in rdo.get('obras', []):
+        if _obra_tem_alerta_rdo(obra):
+            com_alerta.add(obra['obra'])
+    for obra in pedidos.get('obras', []):
+        if obra.get('atrasados', 0) > 0 or obra.get('prazo_vencido', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in restricoes.get('obras', []):
+        if obra.get('abertas', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in suprimentos.get('obras', []):
+        sem_itens = obra.get('total_itens', 0) == 0
+        if sem_itens or obra.get('atrasados', 0) > 0:
+            com_alerta.add(obra['obra'])
+    for obra in mapa.get('obras', []):
+        if not obra.get('tem_mapa_controle'):
+            com_alerta.add(obra['obra'])
+    trackhub_map = {t['obra']: t for t in trackhub_obras}
+    for nome in obras_escopo:
+        th = trackhub_map.get(nome)
+        if th and th.get('vencidas', 0) > 0:
+            com_alerta.add(nome)
+    return com_alerta
 
 
 def _serializar_pedido_pendente(workorder, hoje=None):
@@ -1794,7 +2258,7 @@ def _agregar_pedidos_obra(
             {'frente': nome, **dados}
             for nome, dados in sorted(por_frente.items())
         ],
-        'pedidos_criticos': criticos[:10],
+        'pedidos_atrasados': criticos[:10],
     }
 
 
@@ -1831,8 +2295,8 @@ def _mini_resumo_frente(project, front, obra_gestao, hoje=None):
         'rdos': {
             'ultimo_rdo_data': metricas_rdo['ultimo_rdo_data'],
             'dias_desde_ultimo': metricas_rdo['dias_desde_ultimo'],
-            'nunca_teve_rdo': metricas_rdo['nunca_teve_rdo'],
-            'lacunas_periodo': len(metricas_rdo['lacunas_acima_limite']),
+            'qtd_lacunas_no_periodo': metricas_rdo['qtd_lacunas_no_periodo'],
+            '_meta': metricas_rdo.get('_meta', {}),
         },
         'pedidos_pendentes': pedidos_pendentes,
         'pedidos_atrasados': pedidos_atrasados,
@@ -2014,7 +2478,7 @@ def consultar_obras_sem_rdo(data=None, usuario_wa=None) -> str:
             ),
             'obras': sem_rdo_hoje,
         },
-        'nunca_teve_rdo': {
+        'obras_sem_historico_rdo': {
             'total': len(nunca_teve_rdo),
             'descricao': 'Obras ativas que nunca registraram RDO no histórico',
             'obras': nunca_teve_rdo,
@@ -2035,12 +2499,14 @@ def consultar_suprimentos_obra(obra_nome=None, obra_id=None, usuario_wa=None) ->
         return json.dumps({
             'obra': obra.nome,
             'total_itens': kpis.get('total_itens', 0),
-            'sem_sc': kpis.get('sem_sc', 0),
-            'sem_pc': kpis.get('sem_pc', 0),
-            'sem_entrega': kpis.get('sem_entrega', 0),
+            'sem_solicitacao_compra': kpis.get('sem_sc', 0),
+            'sem_pedido_compra': kpis.get('sem_pc', 0),
+            'sem_entrega_registrada': kpis.get('sem_entrega', 0),
             'sem_alocacao': kpis.get('sem_alocacao', 0),
             'atrasados': kpis.get('atrasados', 0),
-            'percentual_medio_alocacao': kpis.get('percentual_medio_alocacao', 0),
+            'percentual_medio_alocacao_pct': kpis.get(
+                'percentual_medio_alocacao', 0,
+            ),
         }, ensure_ascii=False)
     except Exception as e:
         return json.dumps({'erro': str(e)}, ensure_ascii=False)
@@ -2053,64 +2519,126 @@ def consultar_panorama_suprimentos(usuario_wa=None) -> str:
         try:
             service = MapaControleService(obra, MapaControleFilters())
             kpis = service.build_summary_payload().get('kpis', {})
+            total_itens = kpis.get('total_itens', 0)
+            volume = _classificar_volume_suprimentos(total_itens)
             resultado.append({
                 'obra': obra.nome,
-                'total_itens': kpis.get('total_itens', 0),
+                'total_itens': total_itens,
                 'sem_alocacao': kpis.get('sem_alocacao', 0),
                 'atrasados': kpis.get('atrasados', 0),
+                'descricao_volume': volume['descricao'],
+                '_meta': volume.get('_meta', {}),
             })
         except Exception:
+            volume = _classificar_volume_suprimentos(0)
             resultado.append({
                 'obra': obra.nome,
                 'total_itens': 0,
                 'sem_alocacao': 0,
                 'atrasados': 0,
-                'erro': 'dados indisponíveis',
+                'descricao_volume': volume['descricao'],
+                '_meta': {**volume.get('_meta', {}), 'erro_dados': True},
             })
     resultado.sort(key=lambda x: (-x['total_itens'], x['obra']))
     obras_sem_itens = [r['obra'] for r in resultado if r['total_itens'] == 0]
+    aviso = None
+    if obras_sem_itens:
+        aviso = (
+            f'{len(obras_sem_itens)} obra(s) sem nenhum item cadastrado'
+        )
     return json.dumps({
         'total_obras': len(resultado),
         'obras': resultado,
         'obras_sem_itens': obras_sem_itens,
+        'aviso': aviso,
     }, ensure_ascii=False)
 
 
 def consultar_panorama_mapa_controle(usuario_wa=None) -> str:
     from painel_operacional.models import AmbienteOperacional, AmbienteTipo
-    from suprimentos.services.analise_obra_service import AnaliseObraService
+    from suprimentos.services.mapa_controle_viewmodel import AmbienteProvider
+    from suprimentos.views_controle import (
+        _build_matrix_payload_from_rows,
+        _extract_first_matrix_rows_from_layout,
+    )
+
+    provider = AmbienteProvider(
+        extract_first_matrix_rows_from_layout=_extract_first_matrix_rows_from_layout,
+        build_matrix_payload_from_rows=_build_matrix_payload_from_rows,
+    )
+    selected_base = {
+        'setor': '',
+        'bloco': '',
+        'pavimento': '',
+        'apto': '',
+        'atividade': '',
+        'status': '',
+        'search': '',
+        'quick_find': '',
+        'matrix_mode': '',
+        'column_group': '',
+    }
 
     obras = list(_get_escopo_obras(usuario_wa).order_by('nome'))
     resultado = []
     for obra in obras:
-        tem_mapa = AmbienteOperacional.objects.filter(
+        ambientes = AmbienteOperacional.objects.filter(
             obra=obra,
             tipo=AmbienteTipo.MAPA_CONTROLE,
             ativo=True,
-        ).exists()
-        pct = None
-        unidades = 0
-        if tem_mapa:
-            try:
-                secao = AnaliseObraService(obra).build_section('controle') or {}
-                controle = secao.get('controle', {}) if isinstance(secao, dict) else {}
-                kpis = controle.get('kpis', {}) if isinstance(controle, dict) else {}
-                pct = kpis.get('percentual_medio')
-                unidades = kpis.get('total_itens', 0) or 0
-            except Exception:
-                pass
-        resultado.append({
+        ).order_by('-updated_at')
+
+        mapas = []
+        for amb in ambientes:
+            view_ctx = provider.build(
+                obra=obra,
+                selected=dict(selected_base),
+                ambiente_id=amb.id,
+            )
+            pct = None
+            total_unidades = 0
+            if view_ctx:
+                matrix = view_ctx.get('matrix') or {}
+                kpis = view_ctx.get('kpis') or {}
+                raw_pct = matrix.get('total_geral')
+                if raw_pct is None and kpis.get('total_itens'):
+                    raw_pct = kpis.get('percentual_medio')
+                if raw_pct is not None:
+                    pct = float(raw_pct)
+                total_unidades = int(kpis.get('total_itens') or 0)
+
+            mapas.append({
+                'nome': amb.nome,
+                'ultima_atualizacao': (
+                    str(amb.updated_at.date()) if amb.updated_at else '-'
+                ),
+                'percentual_conclusao': pct,
+                'quantidade_unidades': total_unidades,
+            })
+
+        item = {
             'obra': obra.nome,
-            'tem_mapa_controle': tem_mapa,
-            'percentual_conclusao': pct,
-            'quantidade_unidades': unidades,
-        })
-    resultado.sort(
-        key=lambda x: (
-            x['percentual_conclusao'] is None,
-            -(x['percentual_conclusao'] or 0),
-        ),
-    )
+            'tem_mapa_controle': len(mapas) > 0,
+            'total_mapas': len(mapas),
+            'mapas': mapas,
+        }
+        if len(mapas) == 1:
+            item['percentual_conclusao'] = mapas[0]['percentual_conclusao']
+        elif len(mapas) > 1:
+            item['_meta'] = {'multiplos_mapas': True}
+        resultado.append(item)
+
+    def _ordem_mapa_obra(obra_item):
+        if not obra_item['tem_mapa_controle']:
+            return (True, 0)
+        pcts = [
+            m['percentual_conclusao']
+            for m in obra_item['mapas']
+            if m['percentual_conclusao'] is not None
+        ]
+        return (False, -(max(pcts) if pcts else 0))
+
+    resultado.sort(key=_ordem_mapa_obra)
     return json.dumps({
         'total_obras': len(resultado),
         'obras': resultado,
@@ -2212,12 +2740,18 @@ def consultar_restricoes_criticas(usuario_wa=None) -> str:
 
 
 def consultar_pendencias_trackhub(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
-    from trackhub.models import Pendencia
-
     hoje = timezone.localdate()
 
     if obra_nome or obra_id:
-        obra = _resolver_obra_mapa(obra_nome, obra_id, usuario_wa=usuario_wa)
+        escopo_th = _get_escopo_trackhub(usuario_wa)
+        if obra_id:
+            obra = escopo_th.filter(id=obra_id).first()
+        elif obra_nome:
+            obra = escopo_th.filter(nome__icontains=obra_nome).first()
+            if not obra:
+                obra = _resolver_obra_mapa(obra_nome, obra_id, usuario_wa)
+        else:
+            obra = None
         if not obra:
             return json.dumps(
                 {'erro': 'Obra não encontrada.'},
@@ -2225,33 +2759,30 @@ def consultar_pendencias_trackhub(obra_nome=None, obra_id=None, usuario_wa=None)
             )
         obras = [obra]
     else:
-        obras = list(_get_escopo_obras(usuario_wa))
+        obras = list(_get_escopo_trackhub(usuario_wa).order_by('nome'))
 
     resultado = []
+    total_abertas_global = 0
+    total_vencidas_global = 0
+
     for obra in obras:
-        qs = Pendencia.objects.filter(obra=obra).exclude(
-            status__in=['concluida', 'cancelada'],
-        )
-        total_abertas = qs.count()
-        if total_abertas == 0 and len(obras) > 1:
-            continue
-        vencidas = qs.filter(prazo__isnull=False, prazo__lt=hoje).count()
-        por_status = {}
-        for p in qs:
-            por_status[p.status] = por_status.get(p.status, 0) + 1
-        por_tipo = list(
-            qs.values('tipo').annotate(qtd=Count('id')).order_by('-qtd'),
-        )
-        resultado.append({
-            'obra': obra.nome,
-            'total_abertas': total_abertas,
-            'vencidas': vencidas,
-            'por_status': por_status,
-            'por_tipo': por_tipo,
-        })
+        item = _agregar_pendencias_obra(obra, hoje)
+        resultado.append(item)
+        total_abertas_global += item['total_abertas']
+        total_vencidas_global += item['vencidas']
+
+    resultado.sort(
+        key=lambda x: (-x['vencidas'], -x['total_abertas'], x['obra']),
+    )
 
     return json.dumps({
-        'total_obras': len(resultado),
+        'data_referencia': str(hoje),
+        'inclui_sede': True,
+        'totais': {
+            'obras': len(resultado),
+            'abertas': total_abertas_global,
+            'vencidas': total_vencidas_global,
+        },
         'obras': resultado,
     }, ensure_ascii=False)
 
@@ -2260,17 +2791,19 @@ def consultar_pendencias_vencidas(obra_nome=None, usuario_wa=None) -> str:
     from trackhub.models import Pendencia
 
     hoje = timezone.localdate()
-    escopo = _get_escopo_obras(usuario_wa)
+    escopo = _get_escopo_trackhub(usuario_wa)
 
     qs = Pendencia.objects.filter(
         prazo__lt=hoje,
         obra__in=escopo,
     ).exclude(
         status__in=['concluida', 'cancelada'],
-    ).select_related('obra')
+    ).select_related('obra', 'responsavel_interno')
 
     if obra_nome:
         obra = _resolver_obra_mapa(obra_nome=obra_nome, usuario_wa=usuario_wa)
+        if not obra:
+            obra = escopo.filter(nome__icontains=obra_nome).first()
         if not obra:
             return json.dumps({
                 'total_vencidas': 0,
@@ -2280,14 +2813,10 @@ def consultar_pendencias_vencidas(obra_nome=None, usuario_wa=None) -> str:
         qs = qs.filter(obra=obra)
 
     resultado = []
-    for p in qs[:20]:
+    for p in qs.order_by('prazo')[:30]:
         resultado.append({
             'obra': p.obra.nome if p.obra else '-',
-            'titulo': p.titulo,
-            'tipo': p.tipo,
-            'status': p.status,
-            'prazo': str(p.prazo) if p.prazo else '-',
-            'responsavel': p.responsavel_nome,
+            **_serialize_pendencia_vencida(p, hoje),
         })
 
     return json.dumps({
@@ -2412,7 +2941,27 @@ def resumo_obra(obra_nome=None, obra_id=None, usuario_wa=None) -> str:
         'itens_sem_alocacao': itens_sem_alocacao,
         'restricoes_abertas': restricoes_abertas,
         'pendencias_trackhub_abertas': pendencias_abertas,
+        'rdo': _situacao_rdo_periodo(project, front_id='todas'),
+        'rdo_frequencia': _metricas_rdo_frequencia(
+            project, front_id='todas',
+        ),
     }
+    freq = payload['rdo_frequencia']
+    freq_meta = freq.get('_meta', {})
+    if freq_meta.get('sem_rdo_recente'):
+        payload['alerta_rdo'] = (
+            f'Último RDO há {freq["dias_desde_ultimo"]} dias sem registro recente'
+        )
+        payload['_meta'] = _meta_ia(
+            alerta_rdo_nivel='atencao',
+            alerta_rdo_tipo='sem_rdo_recente',
+        )
+    elif freq_meta.get('nunca_teve_rdo'):
+        payload['alerta_rdo'] = 'Obra nunca registrou RDO'
+        payload['_meta'] = _meta_ia(
+            alerta_rdo_nivel='atencao',
+            alerta_rdo_tipo='nunca_teve_rdo',
+        )
     if frentes_resumo:
         payload['tem_frentes_ativas'] = True
         payload['frentes'] = frentes_resumo
@@ -2524,24 +3073,18 @@ def consultar_usuarios(
         }
 
         if usuario_nome:
-            obras_resp = set()
-            for p in Project.objects.filter(
-                is_active=True,
-                id__in=project_ids,
-                responsible__icontains=u.get_full_name() or u.username,
-            ).values_list('name', flat=True):
-                obras_resp.add(p)
+            obras_vinculadas = set()
             for pm in ProjectMember.objects.filter(
                 user=u,
                 project_id__in=project_ids,
             ).select_related('project'):
-                obras_resp.add(pm.project.name)
+                obras_vinculadas.add(pm.project.name)
             for perm in WorkOrderPermission.objects.filter(
                 usuario=u,
                 ativo=True,
                 obra__project_id__in=project_ids,
             ).select_related('obra'):
-                obras_resp.add(perm.obra.nome)
+                obras_vinculadas.add(perm.obra.nome)
 
             imp_qs = Impedimento.objects.filter(
                 parent__isnull=True,
@@ -2568,12 +3111,28 @@ def consultar_usuarios(
                 obra_id__in=obras_aprovador,
             ).count()
 
-            pendencias_atrasadas = Pendencia.objects.filter(
+            pendencias_resp_pendencia = Pendencia.objects.filter(
                 responsavel_interno=u,
-                obra_id__in=escopo_ids,
+                obra_id__in=list(
+                    _get_escopo_trackhub(usuario_wa).values_list('id', flat=True),
+                ),
                 prazo__lt=hoje,
             ).exclude(
                 status__in=['concluida', 'cancelada'],
+            ).count()
+
+            from trackhub.models import EtapaPendencia
+
+            pendencias_resp_etapa = EtapaPendencia.objects.filter(
+                responsavel_interno=u,
+                status='pendente',
+                pendencia__obra_id__in=list(
+                    _get_escopo_trackhub(usuario_wa).values_list('id', flat=True),
+                ),
+            ).exclude(
+                pendencia__status__in=['concluida', 'cancelada'],
+            ).filter(
+                prazo__lt=hoje,
             ).count()
 
             tempos = []
@@ -2589,10 +3148,13 @@ def consultar_usuarios(
                     )
 
             perfil.update({
-                'obras_como_responsavel': sorted(obras_resp),
+                'obras_vinculadas': sorted(obras_vinculadas),
                 'restricoes_abertas': restricoes_abertas,
-                'pedidos_pendentes_aprovacao': pedidos_pendentes,
-                'pendencias_trackhub_atrasadas': pendencias_atrasadas,
+                'pedidos_aguardando_aprovacao': pedidos_pendentes,
+                'pendencias_atrasadas_como_dono': pendencias_resp_pendencia,
+                'pendencias_atrasadas_como_responsavel_etapa': (
+                    pendencias_resp_etapa
+                ),
                 'tempo_medio_aprovacao_dias': (
                     round(sum(tempos) / len(tempos), 1) if tempos else None
                 ),
@@ -3002,6 +3564,8 @@ def consultar_rdos_por_responsavel(
 
     qs = ConstructionDiary.objects.select_related(
         'project', 'created_by',
+    ).filter(
+        project_id__in=_project_ids_escopo(usuario_wa),
     ).order_by('-date')
 
     if responsavel_nome:
@@ -3587,8 +4151,8 @@ def consultar_suprimentos_por_local(
                         'total': s.total,
                         'pendentes': s.pendentes,
                         'entregues': s.entregues,
-                        'sem_sc': s.sem_sc,
-                        'sem_pc': s.sem_pc,
+                        'sem_solicitacao_compra': s.sem_sc,
+                        'sem_pedido_compra': s.sem_pc,
                         'atrasados': s.atrasados,
                         'saude_score': s.saude_score,
                     }
@@ -3641,6 +4205,7 @@ def consultar_mapa_controle_completo(
         versao = AmbienteVersao.objects.filter(
             ambiente=amb,
         ).order_by('-numero').first()
+        kpis_amb = _kpis_ambiente_controle(obra, amb)
 
         resultado_ambientes.append({
             'id': amb.id,
@@ -3649,6 +4214,8 @@ def consultar_mapa_controle_completo(
             'ultima_atualizacao': (
                 str(amb.updated_at.date()) if amb.updated_at else '-'
             ),
+            'percentual_conclusao': kpis_amb['percentual_conclusao'],
+            'quantidade_unidades': kpis_amb['total_unidades'],
             'versao': versao.numero if versao else '-',
             'versao_estado': versao.estado if versao else '-',
         })
@@ -3828,7 +4395,7 @@ def consultar_pendencias_por_responsavel(
 ) -> str:
     from django.contrib.auth import get_user_model
 
-    from trackhub.models import Pendencia
+    from trackhub.models import EtapaPendencia, Pendencia
 
     User = get_user_model()
 
@@ -3843,37 +4410,77 @@ def consultar_pendencias_por_responsavel(
             'erro': f'Responsável "{responsavel_nome}" não encontrado.',
         }, ensure_ascii=False)
 
-    qs = Pendencia.objects.filter(
+    escopo_th = _get_escopo_trackhub(usuario_wa)
+    hoje = timezone.localdate()
+
+    qs_pendencia = Pendencia.objects.filter(
         responsavel_interno__in=usuarios,
-    ).select_related('obra')
+        obra__in=escopo_th,
+    ).select_related('obra', 'responsavel_interno')
 
     if not incluir_concluidas:
-        qs = qs.exclude(status__in=['concluida', 'cancelada'])
+        qs_pendencia = qs_pendencia.exclude(
+            status__in=['concluida', 'cancelada'],
+        )
 
     if obra_nome:
-        obra = _resolver_obra_mapa(
-            obra_nome=obra_nome, usuario_wa=usuario_wa,
-        )
+        obra = escopo_th.filter(nome__icontains=obra_nome).first()
         if obra:
-            qs = qs.filter(obra=obra)
+            qs_pendencia = qs_pendencia.filter(obra=obra)
 
-    hoje = timezone.localdate()
-    resultados = []
-    for p in qs[:20]:
-        resultados.append({
+    pendencias_como_dono = []
+    for p in qs_pendencia.order_by('prazo')[:20]:
+        vencida = p.prazo < hoje if p.prazo else False
+        pendencias_como_dono.append({
             'id': p.id,
             'titulo': p.titulo,
             'tipo': p.tipo,
             'status': p.status,
             'obra': p.obra.nome if p.obra else '-',
             'prazo': str(p.prazo) if p.prazo else '-',
-            'vencida': p.prazo < hoje if p.prazo else False,
+            'vencida': vencida,
+            'dias_atraso': (hoje - p.prazo).days if vencida else None,
+            'tipo_responsabilidade': 'dono da pendência',
+        })
+
+    qs_etapa = EtapaPendencia.objects.filter(
+        responsavel_interno__in=usuarios,
+        pendencia__obra__in=escopo_th,
+        status='pendente',
+    ).exclude(
+        pendencia__status__in=['concluida', 'cancelada'],
+    ).select_related(
+        'pendencia', 'pendencia__obra', 'responsavel_interno',
+    )
+
+    if obra_nome:
+        obra = escopo_th.filter(nome__icontains=obra_nome).first()
+        if obra:
+            qs_etapa = qs_etapa.filter(pendencia__obra=obra)
+
+    pendencias_como_responsavel_etapa = []
+    for et in qs_etapa.order_by('prazo')[:20]:
+        vencida = et.prazo < hoje if et.prazo else False
+        pendencias_como_responsavel_etapa.append({
+            'pendencia_id': et.pendencia_id,
+            'pendencia_titulo': et.pendencia.titulo,
+            'etapa': et.titulo,
+            'obra': (
+                et.pendencia.obra.nome
+                if et.pendencia and et.pendencia.obra else '-'
+            ),
+            'prazo': str(et.prazo) if et.prazo else '-',
+            'vencida': vencida,
+            'dias_atraso': (hoje - et.prazo).days if vencida else None,
+            'tipo_responsabilidade': 'responsável de etapa',
         })
 
     return json.dumps({
         'responsavel': responsavel_nome,
-        'total': qs.count(),
-        'pendencias': resultados,
+        'total_como_dono': qs_pendencia.count(),
+        'total_como_responsavel_etapa': qs_etapa.count(),
+        'pendencias_como_dono': pendencias_como_dono,
+        'pendencias_como_responsavel_etapa': pendencias_como_responsavel_etapa,
     }, ensure_ascii=False)
 
 
@@ -4023,17 +4630,19 @@ def consultar_resumo_mapa_obra(
     summary = get_map_summary(project)
     return json.dumps({
         'obra': project.name,
-        'project_id': project.id,
-        'total': summary['total'],
+        'total_elementos': summary['total'],
         'pontos': summary['points'],
         'linhas': summary['segments'],
         'areas': summary['areas'],
         'progresso_geral_pct': summary['overall_progress_pct'],
         'marcadores_gps': summary['gps_markers'],
-        'vinculos_eap': summary['eap_linked'],
         'rdos_com_gps': summary['diaries_with_gps'],
         'ultima_data_diario': summary['last_diary_date'],
-        'fonte_importacao': summary['import_label'],
+        '_meta': _meta_ia(
+            project_id=project.id,
+            vinculos_eap=summary['eap_linked'],
+            fonte_importacao=summary['import_label'],
+        ),
     }, ensure_ascii=False)
 
 
@@ -4262,6 +4871,42 @@ def comparar_progresso_mapa_datas(
     }, ensure_ascii=False)
 
 
+def _panorama_mapa_geografico_escopo(usuario_wa):
+    """Resumo do mapa geográfico por obra para panorama geral."""
+    if not _pode_consultar_mapa_geo(usuario_wa):
+        return {'disponivel': False}
+
+    from mapa_geo.services import get_map_summary
+
+    project_ids = _project_ids_escopo(usuario_wa)
+    projects = Project.objects.filter(
+        is_active=True,
+        id__in=project_ids,
+    ).order_by('name')
+
+    obras = []
+    for project in projects[:_LIMITE_LISTA]:
+        summary = get_map_summary(project)
+        total = summary['total']
+        item = {
+            'obra': project.name,
+            'tem_elementos': total > 0,
+            'total_elementos': total,
+            'pontos': summary['points'],
+            'marcadores_gps_rdo': summary['gps_markers'],
+            'tem_marcadores_gps': summary['gps_markers'] > 0,
+        }
+        if total == 0:
+            item['descricao'] = 'sem dados geográficos cadastrados'
+        obras.append(item)
+
+    return {
+        'disponivel': True,
+        'total_obras': len(obras),
+        'obras': obras,
+    }
+
+
 def panorama_mapas_obras(usuario_wa=None) -> str:
     if not _pode_consultar_mapa_geo(usuario_wa):
         return _ERRO_SEM_PERMISSAO
@@ -4335,7 +4980,6 @@ def consultar_resumo_rh(usuario_wa=None) -> str:
             'admissoes': resumo['admissoes'],
             'contratos': resumo['contratos'],
         },
-        'dias_antecedencia_documentos': resumo['dias_antecedencia_documentos'],
         'data': str(resumo['hoje']),
     }, ensure_ascii=False)
 
@@ -4560,6 +5204,46 @@ def consultar_alertas_rh_criticos(usuario_wa=None) -> str:
     }, ensure_ascii=False)
 
 
+def _obras_sem_rdo_recente_escopo(
+    projects,
+    *,
+    dias_analise=90,
+    dias_sem_rdo_alerta=7,
+    lacuna_minima_dias=7,
+):
+    """Obras cujo último RDO (qualquer status) está há mais de N dias."""
+    obras = []
+    for project in projects:
+        metricas = _metricas_rdo_frequencia(
+            project,
+            front_id='todas',
+            dias_analise=dias_analise,
+            dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+            lacuna_minima_dias=lacuna_minima_dias,
+        )
+        meta = metricas.get('_meta', {})
+        if not (meta.get('sem_rdo_recente') or meta.get('nunca_teve_rdo')):
+            continue
+        item = {
+            'obra': project.name,
+            'project_id': project.id,
+            'ultimo_rdo_data': metricas.get('ultimo_rdo_data'),
+            'dias_desde_ultimo': metricas.get('dias_desde_ultimo'),
+        }
+        if meta.get('nunca_teve_rdo'):
+            item['nunca_teve_rdo'] = True
+        obras.append(item)
+
+    obras.sort(
+        key=lambda x: (
+            not x.get('nunca_teve_rdo'),
+            -(x.get('dias_desde_ultimo') or 9999),
+            x['obra'],
+        ),
+    )
+    return obras
+
+
 def consultar_frequencia_rdos(
     obra_nome=None,
     obra_id=None,
@@ -4605,10 +5289,16 @@ def consultar_frequencia_rdos(
                 'frente_id': None,
                 **_metricas_rdo_frequencia(
                     project,
-                    front_id=None,
+                    front_id='todas',
                     dias_analise=dias_analise,
                     dias_sem_rdo_alerta=dias_sem_rdo_alerta,
                     lacuna_minima_dias=lacuna_minima_dias,
+                ),
+                'situacao_periodo': _situacao_rdo_periodo(
+                    project,
+                    front_id='todas',
+                    dias_analise=dias_analise,
+                    dias_ag_critico=dias_sem_rdo_alerta,
                 ),
             })
             for front in frentes:
@@ -4622,6 +5312,12 @@ def consultar_frequencia_rdos(
                         dias_sem_rdo_alerta=dias_sem_rdo_alerta,
                         lacuna_minima_dias=lacuna_minima_dias,
                     ),
+                    'situacao_periodo': _situacao_rdo_periodo(
+                        project,
+                        front_id=front.id,
+                        dias_analise=dias_analise,
+                        dias_ag_critico=dias_sem_rdo_alerta,
+                    ),
                 })
         else:
             bloco['segmentos'].append({
@@ -4634,18 +5330,224 @@ def consultar_frequencia_rdos(
                     dias_sem_rdo_alerta=dias_sem_rdo_alerta,
                     lacuna_minima_dias=lacuna_minima_dias,
                 ),
+                'situacao_periodo': _situacao_rdo_periodo(
+                    project,
+                    front_id='todas',
+                    dias_analise=dias_analise,
+                    dias_ag_critico=dias_sem_rdo_alerta,
+                ),
             })
+
+        for seg in bloco['segmentos']:
+            _anotar_alertas_rdo_segmento(
+                seg,
+                dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+            )
 
         resultado_obras.append(bloco)
 
+    obras_sem_rdo_recente = _obras_sem_rdo_recente_escopo(
+        projects,
+        dias_analise=dias_analise,
+        dias_sem_rdo_alerta=dias_sem_rdo_alerta,
+        lacuna_minima_dias=lacuna_minima_dias,
+    )
+
     return json.dumps({
         'total_obras': len(resultado_obras),
-        'parametros': {
-            'dias_sem_rdo_alerta': dias_sem_rdo_alerta,
-            'dias_analise': dias_analise,
-            'lacuna_minima_dias': lacuna_minima_dias,
+        'obras_sem_rdo_recente': {
+            'limite_dias': dias_sem_rdo_alerta,
+            'total': len(obras_sem_rdo_recente),
+            'descricao': (
+                'Obras com último RDO há mais de '
+                f'{dias_sem_rdo_alerta} dias (independente do status)'
+            ),
+            'obras': obras_sem_rdo_recente,
         },
         'obras': resultado_obras,
+    }, ensure_ascii=False)
+
+
+def consultar_situacao_rdo_obra(
+    obra_nome=None,
+    obra_id=None,
+    dias_analise=None,
+    usuario_wa=None,
+) -> str:
+    dias_analise = 90 if dias_analise is None else dias_analise
+    project = _resolver_project(obra_nome, obra_id, usuario_wa)
+    if not project:
+        return json.dumps(
+            {'erro': 'Obra não encontrada.'},
+            ensure_ascii=False,
+        )
+
+    frentes = _frentes_ativas_project(project)
+    segmentos = []
+
+    if frentes:
+        configs = [('todas', 'Obra inteira')] + [
+            (f.id, f.name) for f in frentes
+        ]
+        for front_id, nome in configs:
+            freq = _metricas_rdo_frequencia(
+                project, front_id=front_id, dias_analise=dias_analise,
+            )
+            sit = _situacao_rdo_periodo(
+                project, front_id=front_id, dias_analise=dias_analise,
+            )
+            seg = {'frente': nome, 'frente_id': front_id, **freq, 'situacao': sit}
+            _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=sit)
+            segmentos.append(seg)
+    else:
+        freq = _metricas_rdo_frequencia(
+            project, front_id='todas', dias_analise=dias_analise,
+        )
+        sit = _situacao_rdo_periodo(
+            project, front_id='todas', dias_analise=dias_analise,
+        )
+        seg = {'frente': 'Obra', **freq, 'situacao': sit}
+        _anotar_alertas_rdo_segmento(seg, dias_sem_rdo_alerta=7, situacao=sit)
+        segmentos.append(seg)
+
+    return json.dumps({
+        'obra': project.name,
+        'segmentos': segmentos,
+    }, ensure_ascii=False)
+
+
+def consultar_situacao_geral_obras(usuario_wa=None) -> str:
+    """
+    Panorama consolidado: RDO + pedidos + restrições + suprimentos +
+    mapa de controle + mapa geográfico + TrackHub (inclui Sede).
+    """
+    hoje = timezone.localdate()
+    rdo = json.loads(consultar_frequencia_rdos(usuario_wa=usuario_wa))
+    pedidos = json.loads(
+        consultar_situacao_pedidos_obras(usuario_wa=usuario_wa),
+    )
+    restricoes = _restricoes_por_obra_escopo(usuario_wa)
+    suprimentos = json.loads(consultar_panorama_suprimentos(usuario_wa=usuario_wa))
+    mapa = json.loads(consultar_panorama_mapa_controle(usuario_wa=usuario_wa))
+    mapa_geo = _panorama_mapa_geografico_escopo(usuario_wa)
+
+    obras_th = list(_get_escopo_trackhub(usuario_wa).order_by('nome'))
+    trackhub_obras = []
+    total_abertas_th = 0
+    total_vencidas_th = 0
+    for obra in obras_th:
+        item = _agregar_pendencias_obra(obra, hoje)
+        trackhub_obras.append(item)
+        total_abertas_th += item['total_abertas']
+        total_vencidas_th += item['vencidas']
+    trackhub_obras.sort(
+        key=lambda x: (-x['vencidas'], -x['total_abertas'], x['obra']),
+    )
+
+    obras_escopo = list(
+        _get_escopo_obras(usuario_wa).order_by('nome').values_list('nome', flat=True),
+    )
+    com_alerta = _obras_com_alerta_panorama(
+        rdo,
+        pedidos,
+        restricoes,
+        suprimentos,
+        mapa,
+        trackhub_obras,
+        obras_escopo,
+    )
+    obras_sem_alertas = [n for n in obras_escopo if n not in com_alerta]
+    todas_obras_com_alerta = bool(obras_escopo) and not obras_sem_alertas
+
+    resumo_obras_ok = {
+        'total_obras_escopo': len(obras_escopo),
+        'obras_sem_alertas': obras_sem_alertas,
+        'total_sem_alertas': len(obras_sem_alertas),
+        'todas_obras_com_alerta': todas_obras_com_alerta,
+    }
+    if todas_obras_com_alerta:
+        resumo_obras_ok['mensagem'] = (
+            'Todas as obras apresentam pelo menos um alerta em algum módulo'
+        )
+    elif obras_sem_alertas:
+        resumo_obras_ok['mensagem'] = (
+            f'{len(obras_sem_alertas)} obra(s) sem alerta em nenhum módulo: '
+            + ', '.join(obras_sem_alertas)
+        )
+
+    obras_com_alerta_rdo = []
+    for obra in rdo.get('obras', []):
+        for seg in obra.get('segmentos', []):
+            if seg.get('alerta') or seg.get('alerta_ag_atrasado'):
+                obras_com_alerta_rdo.append({
+                    'obra': obra['obra'],
+                    'frente': seg.get('frente'),
+                    'alerta': (
+                        seg.get('alerta') or seg.get('alerta_ag_atrasado')
+                    ),
+                })
+
+    return json.dumps({
+        'modulos': [
+            'rdos', 'pedidos', 'restricoes', 'suprimentos',
+            'mapa_controle', 'mapa_geografico', 'trackhub',
+        ],
+        'resumo_obras_ok': resumo_obras_ok,
+        'rdos': {
+            'total_obras': rdo.get('total_obras', 0),
+            'obras_com_alerta': obras_com_alerta_rdo,
+            'detalhe': rdo,
+        },
+        'pedidos': {
+            'total_obras': pedidos.get('total_obras', 0),
+            'total_pedidos_atrasados': pedidos.get('total_pedidos_atrasados', 0),
+            'pedidos_mais_atrasados': pedidos.get(
+                'pedidos_mais_atrasados', [],
+            )[:8],
+            'detalhe': pedidos,
+        },
+        'restricoes': {
+            'total_abertas': restricoes['total_abertas'],
+            'total_vencidas': restricoes['total_vencidas'],
+            'total_criticas_altas': restricoes['total_criticas_altas'],
+            'obras': restricoes['obras'],
+        },
+        'suprimentos': {
+            'obras_sem_itens': suprimentos.get('obras_sem_itens', []),
+            'aviso': suprimentos.get('aviso'),
+            'detalhe': suprimentos,
+        },
+        'mapa_controle': {
+            'obras': [
+                {
+                    'obra': o['obra'],
+                    'total_mapas': o['total_mapas'],
+                    'tem_mapa_controle': o['tem_mapa_controle'],
+                    'mapas': o['mapas'],
+                    **(
+                        {'percentual_conclusao': o['percentual_conclusao']}
+                        if o.get('percentual_conclusao') is not None else {}
+                    ),
+                    **(
+                        {'_meta': o['_meta']}
+                        if o.get('_meta') else {}
+                    ),
+                }
+                for o in mapa.get('obras', [])
+            ],
+            'detalhe': mapa,
+        },
+        'mapa_geografico': mapa_geo,
+        'trackhub': {
+            'data_referencia': str(hoje),
+            'inclui_sede': True,
+            'totais': {
+                'obras': len(trackhub_obras),
+                'abertas': total_abertas_th,
+                'vencidas': total_vencidas_th,
+            },
+            'obras': trackhub_obras,
+        },
     }, ensure_ascii=False)
 
 
@@ -4699,10 +5601,10 @@ def consultar_situacao_pedidos_obras(
             **ag,
         }
         obras_resultado.append(item)
-        for critico in ag['pedidos_criticos']:
-            critico_com_obra = dict(critico)
-            critico_com_obra['obra'] = obra_g.nome
-            todos_criticos.append(critico_com_obra)
+        for pedido_atrasado in ag['pedidos_atrasados']:
+            pedido_com_obra = dict(pedido_atrasado)
+            pedido_com_obra['obra'] = obra_g.nome
+            todos_criticos.append(pedido_com_obra)
 
     todos_criticos.sort(
         key=lambda x: (x.get('prazo_vencido', False), x.get('dias_em_aberto', 0)),
@@ -4710,10 +5612,9 @@ def consultar_situacao_pedidos_obras(
     )
 
     payload = {
-        'dias_aprovacao_alerta': dias_aprovacao_alerta,
         'total_obras': len(obras_resultado),
         'obras': obras_resultado,
-        'top_pedidos_criticos': todos_criticos[:15],
+        'pedidos_mais_atrasados': todos_criticos[:15],
     }
 
     if not (obra_id or obra_nome):
@@ -4864,6 +5765,8 @@ FUNCOES_DISPONIVEIS = {
     'listar_obras_ativas': listar_obras_ativas,
     'consultar_obras_sem_rdo': consultar_obras_sem_rdo,
     'consultar_frequencia_rdos': consultar_frequencia_rdos,
+    'consultar_situacao_rdo_obra': consultar_situacao_rdo_obra,
+    'consultar_situacao_geral_obras': consultar_situacao_geral_obras,
     'consultar_situacao_pedidos_obras': consultar_situacao_pedidos_obras,
     'listar_frentes_obra': listar_frentes_obra,
     'resumo_frente_obra': resumo_frente_obra,

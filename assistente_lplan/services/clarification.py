@@ -8,14 +8,27 @@ from django.contrib.auth.models import User
 
 from assistente_lplan.schemas import AssistantResponse
 from assistente_lplan.services.intents import (
+    INTENT_ALERTAS_MAPA_GEOGRAFICO,
+    INTENT_CONSULTAR_PENDENCIAS_TRACKHUB,
+    INTENT_CONSULTAR_RESTRICOES_OBRA,
     INTENT_INTELIGENCIA_INTEGRADA,
+    INTENT_ITENS_ATRASADOS_SUPRIMENTOS,
+    INTENT_LISTAR_AMBIENTES_OPERACIONAIS,
+    INTENT_LISTAR_FRENTES_OBRA,
     INTENT_LIST_OBRA_PENDING,
+    INTENT_MARCADORES_GPS_RDO,
     INTENT_OBRA_BOTTLENECKS,
     INTENT_OBRA_SUMMARY,
+    INTENT_PANORAMA_MAPA_CONTROLE,
+    INTENT_PANORAMA_PIPELINE_SUPRIMENTOS,
+    INTENT_PEDIDOS_POR_FRENTE,
     INTENT_RELATORIO_LOCAL_MAPA,
     INTENT_RELATORIO_RDO_PERIOD,
+    INTENT_RESUMO_MAPA_GEOGRAFICO,
+    INTENT_RESTRICOES_POR_RESPONSAVEL,
     INTENT_USER_STATUS,
 )
+from assistente_lplan.services.obra_entity import obra_display_name
 from assistente_lplan.services.permissions import AssistantPermissionService, UserScope
 from core.models import Project
 from assistente_lplan.services.llm_provider import LLMProvider
@@ -34,6 +47,18 @@ INTENTS_REQUIRING_OBRA_CHOICE: frozenset[str] = frozenset(
         INTENT_OBRA_SUMMARY,
         INTENT_RELATORIO_LOCAL_MAPA,
         INTENT_RELATORIO_RDO_PERIOD,
+        INTENT_PANORAMA_PIPELINE_SUPRIMENTOS,
+        INTENT_ITENS_ATRASADOS_SUPRIMENTOS,
+        INTENT_CONSULTAR_RESTRICOES_OBRA,
+        INTENT_PANORAMA_MAPA_CONTROLE,
+        INTENT_LISTAR_AMBIENTES_OPERACIONAIS,
+        INTENT_RESUMO_MAPA_GEOGRAFICO,
+        INTENT_ALERTAS_MAPA_GEOGRAFICO,
+        INTENT_MARCADORES_GPS_RDO,
+        INTENT_CONSULTAR_PENDENCIAS_TRACKHUB,
+        INTENT_LISTAR_FRENTES_OBRA,
+        INTENT_PEDIDOS_POR_FRENTE,
+        INTENT_RESTRICOES_POR_RESPONSAVEL,
     }
 )
 
@@ -56,6 +81,18 @@ _CLARIFY_CHIP: dict[str, str | list[str]] = {
         "Gerar relatorio em PDF do diario (ultimos dias) obra {code}",
         "Baixar PDF consolidado do RDO na obra {code}",
     ],
+    INTENT_PANORAMA_PIPELINE_SUPRIMENTOS: "Panorama do pipeline de suprimentos da obra {code}",
+    INTENT_ITENS_ATRASADOS_SUPRIMENTOS: "Itens atrasados no suprimentos da obra {code}",
+    INTENT_CONSULTAR_RESTRICOES_OBRA: "Restricoes abertas na obra {code}",
+    INTENT_PANORAMA_MAPA_CONTROLE: "Percentual do mapa de controle da obra {code}",
+    INTENT_LISTAR_AMBIENTES_OPERACIONAIS: "Ambientes operacionais da obra {code}",
+    INTENT_RESUMO_MAPA_GEOGRAFICO: "Resumo do mapa geografico da obra {code}",
+    INTENT_ALERTAS_MAPA_GEOGRAFICO: "Alertas do mapa geografico da obra {code}",
+    INTENT_MARCADORES_GPS_RDO: "Marcadores GPS de RDO no mapa da obra {code}",
+    INTENT_CONSULTAR_PENDENCIAS_TRACKHUB: "Pendencias TrackHub na obra {code}",
+    INTENT_LISTAR_FRENTES_OBRA: "Frentes ativas da obra {code}",
+    INTENT_PEDIDOS_POR_FRENTE: "Pedidos pendentes na frente da obra {code}",
+    INTENT_RESTRICOES_POR_RESPONSAVEL: "Restricoes por responsavel na obra {code}",
 }
 
 
@@ -81,8 +118,23 @@ def accessible_projects_for_scope(scope: UserScope, limit: int = 18):
         qs = qs.filter(id__in=scope.project_ids)
     rows = []
     for p in qs[:limit]:
-        rows.append({"id": p.id, "code": p.code, "name": (p.name or p.code)[:80]})
+        rows.append(
+            {
+                "id": p.id,
+                "code": p.code,
+                "name": (p.name or p.code)[:80],
+                "sigla": (p.sigla or "").strip()[:40],
+                "display_name": obra_display_name(p),
+            }
+        )
     return rows
+
+
+def _project_chip_label(project: dict) -> str:
+    display = (project.get("display_name") or "").strip()
+    if display:
+        return display
+    return obra_display_name(project)
 
 
 def inject_single_project_if_unique(entities: dict, scope: UserScope) -> dict:
@@ -109,7 +161,7 @@ def build_obra_clarification_response(
     suggested = []
     for i, p in enumerate(projects):
         tmpl = templates[i % len(templates)]
-        suggested.append(tmpl.format(code=p["code"]))
+        suggested.append(tmpl.format(code=_project_chip_label(p)))
     suggested = suggested[:12]
 
     intro = None
@@ -120,13 +172,13 @@ def build_obra_clarification_response(
             projects=projects,
         )
     if not intro:
-        codes = ", ".join(p["code"] for p in projects[:8])
+        names = ", ".join(_project_chip_label(p) for p in projects[:8])
         intro = (
             "Para cruzar Diario de Obra, Mapa de Suprimentos e GestControll (pedidos), "
             "preciso saber qual obra. Voce tem varias no seu acesso."
-            f" Obras: {codes}"
+            f" Obras: {names}"
             + ("…" if len(projects) > 8 else "")
-            + " Use um dos atalhos abaixo ou digite o codigo na pergunta."
+            + " Use um dos atalhos abaixo ou digite o nome da obra na pergunta."
         )
 
     return AssistantResponse(
@@ -135,7 +187,7 @@ def build_obra_clarification_response(
         alerts=[
             {
                 "level": "info",
-                "message": "Selecione um atalho com o codigo da obra ou informe a obra na frase.",
+                "message": "Selecione um atalho com o nome da obra ou cite a obra na frase.",
             }
         ],
         suggested_replies=suggested[:12],

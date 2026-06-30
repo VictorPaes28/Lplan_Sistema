@@ -14,10 +14,12 @@ from whatsapp_ia.ia_functions import (
     _dias_em_aberto_pedido,
     _frentes_ativas_project,
     _get_escopo_obras,
+    _get_escopo_trackhub,
     _metricas_rdo_frequencia,
     _pedido_prazo_vencido,
     _project_ids_escopo,
     _queryset_workorders_escopo,
+    _restricoes_totais_obra,
 )
 
 DIAS_RDO_ALERTA = 7
@@ -35,35 +37,6 @@ def _briefing_cache_ttl() -> int:
     return int(getattr(settings, 'WHATSAPP_IA_BRIEFING_CACHE_TTL', 300))
 
 
-def _restricoes_totais_obra(obra_gestao) -> dict:
-    from impedimentos.models import Impedimento, StatusImpedimento
-
-    if not obra_gestao:
-        return {'total_abertas': 0, 'vencidas': 0, 'criticas_altas': 0}
-
-    status_final = StatusImpedimento.objects.filter(
-        obra=obra_gestao,
-    ).order_by('-ordem').first()
-    qs = Impedimento.objects.filter(
-        obra=obra_gestao,
-        parent__isnull=True,
-    )
-    if status_final:
-        qs = qs.exclude(status_id=status_final.id)
-
-    hoje = timezone.localdate()
-    return {
-        'total_abertas': qs.count(),
-        'vencidas': qs.filter(
-            prazo__isnull=False,
-            prazo__lt=hoje,
-        ).count(),
-        'criticas_altas': qs.filter(
-            prioridade__in=['ALTA', 'CRITICA'],
-        ).count(),
-    }
-
-
 def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> list[dict]:
     project_ids = _project_ids_escopo(usuario_wa)
     projects = Project.objects.filter(
@@ -75,7 +48,7 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
     for project in projects:
         frentes = _frentes_ativas_project(project)
         segmentos = (
-            [None] + [f.id for f in frentes]
+            ['todas'] + [f.id for f in frentes]
             if frentes
             else ['todas']
         )
@@ -89,10 +62,11 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
                 front_id=seg,
                 dias_sem_rdo_alerta=dias_alerta,
             )
-            if metricas['nunca_teve_rdo']:
+            meta = metricas.get('_meta', {})
+            if meta.get('nunca_teve_rdo'):
                 nunca = True
                 alerta = True
-            if metricas['sem_rdo_recente']:
+            if meta.get('sem_rdo_recente'):
                 alerta = True
                 dias = metricas['dias_desde_ultimo']
                 if dias is not None and (pior_dias is None or dias > pior_dias):
@@ -101,14 +75,14 @@ def _rdos_atrasados_escopo(usuario_wa, hoje, dias_alerta=DIAS_RDO_ALERTA) -> lis
         if alerta:
             item = {'obra': project.name}
             if nunca:
-                item['nunca_teve_rdo'] = True
+                item['sem_historico_rdo'] = True
             if pior_dias is not None:
                 item['dias_desde_ultimo'] = pior_dias
             atrasados.append(item)
 
     atrasados.sort(
         key=lambda x: (
-            not x.get('nunca_teve_rdo'),
+            not x.get('sem_historico_rdo'),
             -(x.get('dias_desde_ultimo') or 9999),
         ),
     )
@@ -175,7 +149,7 @@ def _restricoes_escopo(usuario_wa) -> dict:
 def _pendencias_vencidas_escopo(usuario_wa, hoje) -> dict:
     from trackhub.models import Pendencia
 
-    escopo = _get_escopo_obras(usuario_wa)
+    escopo = _get_escopo_trackhub(usuario_wa)
     qs = Pendencia.objects.filter(
         obra__in=escopo,
         prazo__isnull=False,
@@ -250,7 +224,7 @@ def _compute_briefing(usuario_wa) -> dict:
                 'total': len(rdos_atrasados),
                 'obras': rdos_atrasados[:TOP_OBRAS_RESTRICOES],
             },
-            'pedidos_criticos': {
+            'pedidos_atrasados': {
                 'total': len(pedidos_criticos),
                 'top': pedidos_criticos[:TOP_PEDIDOS_CRITICOS],
             },

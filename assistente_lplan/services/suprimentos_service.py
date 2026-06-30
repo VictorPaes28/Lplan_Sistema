@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db.models import Q, Sum, Value
 from django.db.models.functions import Coalesce
 
+from assistente_lplan.services.obra_entity import obra_display_name
 from assistente_lplan.schemas import AssistantResponse
 from assistente_lplan.services.llm_provider import LLMProvider
 from assistente_lplan.services.obras_service import ObrasAssistantService
@@ -12,12 +13,16 @@ from suprimentos.services.local_mapa_relatorio_service import (
     LocalMapaRelatorioService,
     find_local_obra,
 )
+from suprimentos.services.mapa_controle_service import MapaControleFilters, MapaControleService
 from .messages import MessageCatalog
 
 
 class SuprimentosAssistantService:
     def __init__(self, scope):
         self.scope = scope
+
+    def _obra_label(self, project=None, obra=None) -> str:
+        return obra_display_name(project or obra)
 
     def localizar_insumo(self, entities: dict) -> AssistantResponse:
         term = (entities.get("insumo") or "").strip()
@@ -55,7 +60,7 @@ class SuprimentosAssistantService:
             alocado = item.total_alocado or Decimal("0")
             rows.append(
                 {
-                    "obra": item.obra.nome if item.obra else "-",
+                    "obra": obra_display_name(item.obra) if item.obra else "-",
                     "insumo": item.insumo.descricao if item.insumo else "-",
                     "local": (item.local_aplicacao.nome if item.local_aplicacao else "Sem local"),
                     "planejado": str(planejado),
@@ -107,7 +112,7 @@ class SuprimentosAssistantService:
         for item in qs:
             rows.append(
                 {
-                    "obra": item.obra.nome if item.obra else "-",
+                    "obra": obra_display_name(item.obra) if item.obra else "-",
                     "insumo": item.insumo.descricao if item.insumo else "-",
                     "local": item.local_aplicacao.nome if item.local_aplicacao else "Sem local",
                     "prioridade": item.prioridade,
@@ -180,9 +185,9 @@ class SuprimentosAssistantService:
         project = self._resolve_project(entities)
         if not project:
             return AssistantResponse(
-                summary="Nao foi possivel identificar a obra (projeto). Informe o codigo da obra ou selecione na sessao.",
+                summary="Nao foi possivel identificar a obra (projeto). Informe o nome da obra ou selecione na sessao.",
                 badges=["Suprimentos", "Mapa"],
-                alerts=[{"level": "warning", "message": "Use Selecionar obra ou mencione o codigo na pergunta."}],
+                alerts=[{"level": "warning", "message": "Use Selecionar obra ou mencione o nome na pergunta."}],
                 raw_data={"reason": "sem_projeto"},
             )
 
@@ -190,11 +195,11 @@ class SuprimentosAssistantService:
         if not obra:
             return AssistantResponse(
                 summary=(
-                    f"O projeto {project.code} nao tem obra de mapa vinculada pelo codigo Sienge. "
-                    "Confira se o codigo do projeto bate com o cadastro em Mapa de Suprimentos."
+                    f"A obra {obra_display_name(project)} nao tem cadastro vinculado no Mapa de Suprimentos. "
+                    "Confira o vinculo no modulo de suprimentos."
                 ),
                 badges=["Suprimentos", "Mapa"],
-                alerts=[{"level": "warning", "message": "Ajuste codigo Sienge da obra ou cadastre a obra no mapa."}],
+                alerts=[{"level": "warning", "message": "Ajuste o cadastro da obra no mapa de suprimentos."}],
                 raw_data={"project_code": project.code},
             )
 
@@ -226,13 +231,13 @@ class SuprimentosAssistantService:
                 .values_list("nome", flat=True)[:18]
             )
             chips = [
-                f"Como esta o local {nome} no mapa de controle da obra {project.code}?"
+                f"Como esta o local {nome} no mapa de controle da obra {obra_display_name(project)}?"
                 for nome in locais
                 if nome
             ]
             return AssistantResponse(
                 summary=(
-                    f"Nao identifiquei qual local na obra {project.code}. "
+                    f"Nao identifiquei qual local na obra {obra_display_name(project)}. "
                     "Diga o nome do apartamento ou unidade como aparece no mapa (ex.: Bloco A - Apto 302), "
                     "ou use um dos atalhos."
                 ),
@@ -259,7 +264,7 @@ class SuprimentosAssistantService:
         else:
             nivel = ver.get("nivel", "atencao")
             summary = (
-                f"Local {local.nome} ({local.get_tipo_display()}) na obra {obra.codigo_sienge}. "
+                f"Local {local.nome} ({local.get_tipo_display()}) na obra {self._obra_label(project, obra)}. "
                 f"Indice de saude operacional: {kpis['saude_score']}/100 (nivel: {nivel}). "
                 f"Linhas no mapa: {kpis['total_itens']}; "
                 f"{kpis['pendentes']} pendentes; "
@@ -319,10 +324,153 @@ class SuprimentosAssistantService:
                 "columns": ["insumo", "status", "aloc_pct", "atraso"],
                 "rows": rows,
             },
-            badges=["Mapa de controle", "Por local", obra.codigo_sienge],
+            badges=["Mapa de controle", "Por local", self._obra_label(project, obra)],
             alerts=alerts,
             actions=[{"label": "Abrir mapa filtrado", "url": "/engenharia/mapa/", "style": "primary"}],
             links=[{"label": "Mapa de Suprimentos", "url": "/engenharia/mapa/"}],
             raw_data={"facts": facts, "project_id": project.id, "narrative_llm": bool(narrative)},
+        )
+
+    def panorama_pipeline(self, entities: dict) -> AssistantResponse:
+        project = self._resolve_project(entities)
+        obra = self._resolve_mapa_obra(project) if project else None
+        if not obra:
+            return AssistantResponse(
+                summary="Informe a obra para o panorama do pipeline de suprimentos.",
+                badges=["Suprimentos"],
+                alerts=[{"level": "warning", "message": "Cite o nome da obra."}],
+            )
+
+        summary = MapaControleService(obra, MapaControleFilters()).build_summary_payload()
+        kpis = summary.get("kpis", {})
+        dist = summary.get("distribuicao_status", {})
+
+        return AssistantResponse(
+            summary=(
+                f"Pipeline suprimentos obra {self._obra_label(project, obra)}: "
+                f"{kpis.get('total_itens', 0)} itens; "
+                f"{kpis.get('sem_sc', 0)} sem SC; "
+                f"{kpis.get('sem_pc', 0)} sem PC; "
+                f"{kpis.get('sem_entrega', 0)} sem entrega; "
+                f"{kpis.get('atrasados', 0)} atrasados."
+            ),
+            cards=[
+                {"title": "Total itens", "value": str(kpis.get("total_itens", 0)), "tone": "info"},
+                {"title": "Sem SC", "value": str(kpis.get("sem_sc", 0)), "tone": "warning"},
+                {"title": "Sem PC", "value": str(kpis.get("sem_pc", 0)), "tone": "warning"},
+                {"title": "Atrasados", "value": str(kpis.get("atrasados", 0)), "tone": "danger"},
+            ],
+            badges=["Suprimentos", "Pipeline", self._obra_label(project, obra)],
+            alerts=[
+                {"level": "warning", "message": f"Sem alocacao: {kpis.get('sem_alocacao', 0)} item(ns)."}
+            ]
+            if kpis.get("sem_alocacao")
+            else [],
+            actions=[{"label": "Abrir Painel Pipeline", "url": "/engenharia/dashboard-2/", "style": "primary"}],
+            links=[
+                {"label": "Mapa de Suprimentos", "url": "/engenharia/mapa/"},
+                {"label": "Dashboard Pipeline", "url": "/engenharia/dashboard-2/"},
+            ],
+            raw_data={"distribuicao_status": dist, "kpis": kpis},
+        )
+
+    def itens_atrasados(self, entities: dict) -> AssistantResponse:
+        project = self._resolve_project(entities)
+        obra = self._resolve_mapa_obra(project) if project else None
+        if not obra:
+            return AssistantResponse(
+                summary="Informe a obra para listar itens atrasados no suprimentos.",
+                badges=["Suprimentos"],
+            )
+
+        payload = MapaControleService(
+            obra, MapaControleFilters(status="atrasado", limit=30)
+        ).build_items_payload()
+        items = payload.get("items") or []
+        rows = []
+        for item in items[:30]:
+            rows.append(
+                {
+                    "insumo": str(item.get("insumo", item.get("descricao", "-")))[:50],
+                    "local": str(item.get("local", "-"))[:30],
+                    "etapa": str(item.get("status_etapa", item.get("status", "-")))[:30],
+                    "sc": str(item.get("numero_sc", "-"))[:20],
+                    "cobrar": str(item.get("quem_cobrar", "-"))[:30],
+                }
+            )
+
+        if not rows:
+            svc = MapaControleService(obra, MapaControleFilters())
+            all_items = svc._filtered_items()
+            for item in [i for i in all_items if i.is_atrasado][:30]:
+                rows.append(
+                    {
+                        "insumo": (item.insumo.descricao if item.insumo else "-")[:50],
+                        "local": item.local_aplicacao.nome if item.local_aplicacao else "-",
+                        "etapa": (item.status_etapa or "-")[:30],
+                        "sc": (item.numero_sc or "-")[:20],
+                        "cobrar": (item.quem_cobrar or "-")[:30],
+                    }
+                )
+
+        if not rows:
+            return AssistantResponse(
+                summary=f"Obra {self._obra_label(project, obra)}: nenhum item atrasado no pipeline.",
+                badges=["Suprimentos"],
+            )
+
+        return AssistantResponse(
+            summary=f"{len(rows)} item(ns) atrasado(s) na obra {self._obra_label(project, obra)}.",
+            table={
+                "caption": "Itens atrasados",
+                "columns": ["insumo", "local", "etapa", "sc", "cobrar"],
+                "rows": rows,
+            },
+            badges=["Suprimentos", "Atrasados"],
+            alerts=[{"level": "error", "message": "Itens atrasados exigem cobranca ao fornecedor ou compras."}],
+            actions=[{"label": "Abrir Mapa", "url": "/engenharia/mapa/", "style": "primary"}],
+        )
+
+    def panorama_geral(self, entities: dict) -> AssistantResponse:
+        obras_qs = self._obras_scope_qs().order_by("nome")[:25]
+        rows = []
+        sem_itens = 0
+        for obra in obras_qs:
+            summary = MapaControleService(obra, MapaControleFilters()).build_summary_payload()
+            kpis = summary.get("kpis", {})
+            total = kpis.get("total_itens", 0)
+            if total == 0:
+                sem_itens += 1
+            rows.append(
+                {
+                    "obra": obra_display_name(obra),
+                    "itens": str(total),
+                    "atrasados": str(kpis.get("atrasados", 0)),
+                    "sem_sc": str(kpis.get("sem_sc", 0)),
+                }
+            )
+
+        if not rows:
+            return AssistantResponse(
+                summary="Nenhuma obra de suprimentos no seu escopo.",
+                badges=["Suprimentos"],
+            )
+
+        return AssistantResponse(
+            summary=(
+                f"Panorama suprimentos: {len(rows)} obra(s); "
+                f"{sem_itens} sem itens cadastrados."
+            ),
+            cards=[
+                {"title": "Obras", "value": str(len(rows)), "tone": "info"},
+                {"title": "Sem cadastro", "value": str(sem_itens), "tone": "warning"},
+            ],
+            table={
+                "caption": "Panorama por obra",
+                "columns": ["obra", "itens", "atrasados", "sem_sc"],
+                "rows": rows,
+            },
+            badges=["Suprimentos", "Panorama"],
+            actions=[{"label": "Abrir Mapa", "url": "/engenharia/mapa/", "style": "primary"}],
         )
 

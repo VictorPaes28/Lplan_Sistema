@@ -1,3 +1,4 @@
+from assistente_lplan.services.obra_entity import obra_display_name, resolve_project_from_entities
 from assistente_lplan.schemas import AssistantResponse
 from core.kpi_queries import (
     count_diarios_nao_aprovados,
@@ -39,7 +40,9 @@ class CrossDomainAssistantService:
             alerts.append({"level": "error", "message": "Ha itens sem alocacao no Mapa de Suprimentos."})
 
         if not alerts:
-            msg = MessageCatalog.resolve("assistant.cross.bottlenecks_empty", {"domain": "cross_domain", "obra": project.code})
+            msg = MessageCatalog.resolve(
+                "assistant.cross.bottlenecks_empty", {"domain": "cross_domain", "obra": obra_display_name(project)}
+            )
             return AssistantResponse(
                 summary=msg["text"],
                 badges=["Sem dados suficientes"],
@@ -48,7 +51,7 @@ class CrossDomainAssistantService:
             )
 
         response = AssistantResponse(
-            summary=f"Principais gargalos da obra {project.code} consolidados entre Diario, Aprovacao e Suprimentos.",
+            summary=f"Principais gargalos da obra {obra_display_name(project)} consolidados entre Diario, Aprovacao e Suprimentos.",
             cards=[
                 {"title": "Diarios em aberto", "value": str(diarios_abertos), "tone": "warning"},
                 {"title": "Aprovacoes pendentes", "value": str(aprov_pend), "tone": "warning"},
@@ -112,8 +115,8 @@ class CrossDomainAssistantService:
     def _facts_for_narrative(project: Project, radar: RadarResult) -> dict:
         rc = radar.raw_components or {}
         facts = {
-            "codigo_obra": project.code,
-            "nome_obra": project.name,
+            "obra": obra_display_name(project),
+            "nome_obra": obra_display_name(project),
             "score_radar": radar.score,
             "nivel_risco": radar.level,
             "tendencia": radar.trend,
@@ -130,33 +133,12 @@ class CrossDomainAssistantService:
     def _fallback_inteligencia_text(project: Project, radar: RadarResult) -> str:
         causas = "; ".join(radar.causes or []) or "Sem causas ranqueadas."
         return (
-            f"Obra {project.code} ({project.name}): score {radar.score}, risco {radar.level}, "
+            f"Obra {obra_display_name(project)}: score {radar.score}, risco {radar.level}, "
             f"tendencia {radar.trend}. Pontos: {causas}"
         )
 
     def _resolve_project(self, entities: dict):
-        project_id = entities.get("project_id")
-        if project_id:
-            try:
-                pid = int(project_id)
-            except (TypeError, ValueError):
-                pid = None
-            if pid:
-                qs_by_id = Project.objects.filter(is_active=True, id=pid)
-                if self.scope.role != "admin":
-                    qs_by_id = qs_by_id.filter(id__in=self.scope.project_ids)
-                p = qs_by_id.first()
-                if p:
-                    return p
-
-        term = (entities.get("obra") or "").strip()
-        qs = Project.objects.filter(is_active=True)
-        if self.scope.role != "admin":
-            qs = qs.filter(id__in=self.scope.project_ids)
-        if term:
-            project = qs.filter(code__icontains=term).first() or qs.filter(name__icontains=term).first()
-            return project
-        return qs.order_by("-created_at").first()
+        return resolve_project_from_entities(entities, self.scope, allow_default=True)
 
     def _attach_radar(self, response: AssistantResponse, project: Project) -> AssistantResponse:
         radar = RadarObraService(project).build()
