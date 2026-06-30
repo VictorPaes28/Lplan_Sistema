@@ -351,6 +351,10 @@
         showToast('Informe a data de emissão do documento.', 'error');
         return false;
       }
+      if (window.RhDocEmissao && !window.RhDocEmissao.valido(dateInput)) {
+        showToast('Confira a data de emissão informada.', 'error');
+        return false;
+      }
       if (!fileInput || !fileInput.files.length) {
         showToast('Selecione um arquivo antes de enviar.', 'error');
         return false;
@@ -398,6 +402,11 @@
     var approveForm = e.target.closest('.js-rh-doc-ajax-approve');
     if (approveForm) {
       e.preventDefault();
+      var approveDate = approveForm.querySelector('.js-rh-emissao-input');
+      if (approveDate && window.RhDocEmissao && !window.RhDocEmissao.valido(approveDate)) {
+        showToast('Confira a data de emissão informada.', 'error');
+        return;
+      }
       var approveBtn = approveForm.querySelector('button[type="submit"]');
       postFormAjax(approveForm, approveBtn)
         .then(function (res) {

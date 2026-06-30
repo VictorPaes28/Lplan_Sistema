@@ -20,6 +20,7 @@ class DocGrupoItem:
     instrucoes_portal: str = ''
     tem_arquivo: bool = False
     tem_validade: bool = False
+    dias_validade: int | None = None
     data_emissao: object = None
     vencimento: object = None
     arquivo_url: str = ''
@@ -184,6 +185,7 @@ def montar_grupos_documentos(colaborador: Colaborador) -> list[DocGrupo]:
                 instrucoes_portal=instrucoes,
                 tem_arquivo=bool(doc.arquivo),
                 tem_validade=doc.tipo.tem_validade,
+                dias_validade=doc.tipo.dias_validade,
                 data_emissao=doc.data_emissao,
                 vencimento=doc.vencimento,
                 arquivo_url=meta.get('url', ''),

@@ -852,7 +852,9 @@
           if (doc.tem_validade && !doc.data_emissao) {
             html += '<div class="rh-doc-approve-panel__field">';
             html += '<label for="modal-doc-emissao-' + doc.id + '">Data de emissão</label>';
-            html += '<input type="date" name="data_emissao" id="modal-doc-emissao-' + doc.id + '" class="rh-input rh-doc-upload-panel__date" required>';
+            html += '<input type="date" name="data_emissao" id="modal-doc-emissao-' + doc.id + '" class="rh-input rh-doc-upload-panel__date js-rh-emissao-input" min="2000-01-01" max="' + new Date().toISOString().slice(0, 10) + '" data-dias-validade="' + (doc.dias_validade || '') + '" required>';
+            html += '<p class="rh-doc-venc-preview" data-role="venc-preview" hidden></p>';
+            html += '<p class="rh-doc-emissao-error" data-role="emissao-error" role="alert" hidden></p>';
             html += '</div>';
           }
           html += '<button type="submit" class="rh-btn rh-btn-primary rh-btn-sm"><i class="fas fa-check"></i> Aprovar</button>';

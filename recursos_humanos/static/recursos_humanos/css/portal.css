@@ -297,6 +297,20 @@ body.portal-body {
   line-height: 1.4;
 }
 
+.portal-doc-venc-preview {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.portal-doc-venc-preview::before {
+  content: "\f274";
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+  font-weight: 900;
+  margin-right: 0.35rem;
+}
+
 .portal-doc-item--with-emissao > .portal-doc-upload {
   grid-column: 1 / -1;
   grid-row: 2;

@@ -8,7 +8,9 @@
   <div class="rh-doc-upload-panel__form">
     <div class="rh-doc-upload-panel__field">
       <label for="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}">Data de emissão</label>
-      <input type="date" name="data_emissao" id="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}" class="rh-input rh-doc-upload-panel__date" required>
+      <input type="date" name="data_emissao" id="rh-doc-emissao-{{ id_prefix }}-{{ doc_pk }}" class="rh-input rh-doc-upload-panel__date js-rh-emissao-input" min="2000-01-01" max="{% now 'Y-m-d' %}" data-dias-validade="{{ dias_validade|default:'' }}" required>
+      <p class="rh-doc-venc-preview" data-role="venc-preview" hidden></p>
+      <p class="rh-doc-emissao-error" data-role="emissao-error" role="alert" hidden></p>
     </div>
     <div class="rh-doc-upload-panel__field rh-doc-upload-panel__field--file">
       <span class="rh-doc-upload-panel__field-label" id="rh-doc-file-label-{{ id_prefix }}-{{ doc_pk }}">Arquivo</span>

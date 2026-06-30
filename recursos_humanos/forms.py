@@ -3,6 +3,28 @@ import re
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+
+EMISSAO_ANO_MINIMO = 2000
+
+
+def validar_data_emissao(value):
+    """Valida a data de emissão de um documento.
+
+    Evita anos implausíveis (ex.: o seletor de data aceita um ano digitado
+    parcialmente como «2», gerando 0002 e um vencimento absurdo como 0003) e
+    datas no futuro. Retorna a mensagem de erro ou None se a data for válida.
+    """
+    if value is None:
+        return None
+    if value.year < EMISSAO_ANO_MINIMO:
+        return (
+            f'Data de emissão inválida ({value.strftime("%d/%m/%Y")}). '
+            f'Confira o ano informado.'
+        )
+    if value > timezone.localdate():
+        return 'A data de emissão não pode ser uma data futura.'
+    return None
 
 from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, PapelFluxoAdmissao, PrazoContrato, TipoDocumento
 from .services.admissao import formatar_salario_br
@@ -536,6 +558,13 @@ class DocumentoUploadForm(forms.Form):
         if f.size > PORTAL_UPLOAD_MAX_BYTES:
             raise ValidationError(f'Arquivo muito grande (máx. {PORTAL_UPLOAD_MAX_MB} MB).')
         return f
+
+    def clean_data_emissao(self):
+        value = self.cleaned_data.get('data_emissao')
+        erro = validar_data_emissao(value)
+        if erro:
+            raise ValidationError(erro)
+        return value
 
     def clean(self):
         cleaned = super().clean()

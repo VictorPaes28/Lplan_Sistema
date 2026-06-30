@@ -271,10 +271,10 @@
           {% if not somente_leitura and admissao_ctx.usuario_rh_pode %}
           {% if doc.tem_validade and doc.status != 'ok' and not doc.tem_arquivo %}
           {% url 'recursos_humanos:documento_upload' doc.pk as doc_upload_url %}
-          {% include "recursos_humanos/includes/rh_doc_upload_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk upload_url=doc_upload_url %}
+          {% include "recursos_humanos/includes/rh_doc_upload_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk upload_url=doc_upload_url dias_validade=doc.dias_validade %}
           {% elif doc.aguardando_aprovacao and doc.tem_validade and not doc.data_emissao %}
           {% url 'recursos_humanos:documento_aprovar' doc.pk as doc_approve_url %}
-          {% include "recursos_humanos/includes/rh_doc_aprovar_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk approve_url=doc_approve_url %}
+          {% include "recursos_humanos/includes/rh_doc_aprovar_com_emissao.html" with doc_pk=doc.pk id_prefix="adm" admissao_id=selecionado.pk approve_url=doc_approve_url dias_validade=doc.dias_validade %}
           {% endif %}
           {% endif %}
         </div>

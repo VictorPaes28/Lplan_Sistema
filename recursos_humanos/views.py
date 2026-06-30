@@ -532,6 +532,7 @@ def colaborador_json_view(request, pk):
             'obrigatorio': doc.tipo.obrigatorio,
             'tem_arquivo': bool(doc.arquivo),
             'tem_validade': doc.tipo.tem_validade,
+            'dias_validade': doc.tipo.dias_validade,
             'url_arquivo': doc.arquivo.url if doc.arquivo else None,
         })
 
@@ -1133,11 +1134,15 @@ def documento_aprovar_view(request, pk):
     raw_emissao = (request.POST.get('data_emissao') or '').strip()
     if raw_emissao:
         from django.forms import DateField
+        from .forms import validar_data_emissao
         data_emissao = DateField().to_python(raw_emissao)
         if data_emissao is None:
             return _responder_documento_acao(
                 request, next_url, False, 'Data de emissão inválida.',
             )
+        erro_emissao = validar_data_emissao(data_emissao)
+        if erro_emissao:
+            return _responder_documento_acao(request, next_url, False, erro_emissao)
 
     if doc.tipo.tem_validade and not data_emissao:
         if doc.data_emissao:

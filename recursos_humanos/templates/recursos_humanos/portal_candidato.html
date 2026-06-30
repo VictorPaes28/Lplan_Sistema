@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
 
-  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}?v=4">
+  <link rel="stylesheet" href="{% static 'recursos_humanos/css/portal.css' %}?v=5">
 
 </head>
 
@@ -603,6 +603,57 @@
         });
       }
 
+      function pad2Portal(n) { return n < 10 ? '0' + n : '' + n; }
+      function parseISOPortal(value) {
+        var m = /^(\d{1,5})-(\d{2})-(\d{2})$/.exec(value || '');
+        if (!m) return null;
+        var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        if (d.getFullYear() !== Number(m[1]) || d.getMonth() !== Number(m[2]) - 1) return null;
+        return d;
+      }
+      // Retorna mensagem de erro da data de emissão (ou '' se válida).
+      function erroEmissao(input, fileSelecionado) {
+        var value = input ? input.value : '';
+        if (!value) {
+          return fileSelecionado ? 'Informe a data de emissão deste documento.' : '';
+        }
+        var date = parseISOPortal(value);
+        if (!date) return 'Data de emissão inválida.';
+        if (date.getFullYear() < 2000) return 'Confira o ano informado (data muito antiga).';
+        var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        if (date > hoje) return 'A data de emissão não pode ser uma data futura.';
+        return '';
+      }
+      function atualizarPreviewEmissao(input) {
+        var block = input.closest('.portal-doc-upload');
+        if (!block) return;
+        var preview = block.querySelector('[data-role="venc-preview"]');
+        var erroEl = block.querySelector('[data-role="emissao-error"]');
+        var msg = erroEmissao(input, true);
+        if (msg && input.value) {
+          if (erroEl) { erroEl.textContent = msg; erroEl.classList.remove('portal-is-hidden'); }
+          if (preview) preview.hidden = true;
+          return;
+        }
+        if (erroEl && input.value) { erroEl.textContent = ''; erroEl.classList.add('portal-is-hidden'); }
+        if (!preview) return;
+        var dias = parseInt(input.getAttribute('data-dias-validade'), 10);
+        var date = parseISOPortal(input.value);
+        if (date && dias > 0) {
+          var venc = new Date(date.getTime());
+          venc.setDate(venc.getDate() + dias);
+          preview.textContent = 'Vencimento: ' + pad2Portal(venc.getDate()) + '/' + pad2Portal(venc.getMonth() + 1) + '/' + venc.getFullYear();
+          preview.hidden = false;
+        } else {
+          preview.hidden = true;
+        }
+      }
+      submitForm.addEventListener('input', function (e) {
+        if (e.target.classList.contains('portal-doc-emissao-input')) {
+          atualizarPreviewEmissao(e.target);
+        }
+      });
+
       submitForm.addEventListener('submit', function (event) {
         limparErrosTamanho();
         submitForm.querySelectorAll('[data-role="emissao-error"]').forEach(function (el) {
@@ -621,7 +672,8 @@
           if (!file) {
             return;
           }
-          if (!emissaoInput || emissaoInput.value) {
+          var msg = erroEmissao(emissaoInput, true);
+          if (!msg) {
             return;
           }
           var item = block.closest('.portal-doc-item');
@@ -630,6 +682,7 @@
           emissaoInvalidos.push({
             item: item,
             erro: erro,
+            msg: msg,
             label: nomeDoc ? nomeDoc.textContent.trim() : 'Documento',
           });
         });
@@ -641,7 +694,7 @@
               entry.item.classList.add('portal-doc-item--upload-error');
             }
             if (entry.erro) {
-              entry.erro.textContent = 'Informe a data de emissão deste documento.';
+              entry.erro.textContent = entry.msg;
               entry.erro.classList.remove('portal-is-hidden');
             }
           });

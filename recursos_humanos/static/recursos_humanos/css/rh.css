@@ -2106,6 +2106,33 @@
   color: var(--rh-muted);
 }
 
+.rh-doc-venc-preview {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.rh-doc-venc-preview::before {
+  content: "\f274";
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free";
+  font-weight: 900;
+  margin-right: 0.35rem;
+}
+
+.rh-doc-emissao-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.rh-input--invalid,
+.rh-input--invalid:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.18);
+}
+
 .rh-doc-row-end {
   display: flex;
   align-items: center;

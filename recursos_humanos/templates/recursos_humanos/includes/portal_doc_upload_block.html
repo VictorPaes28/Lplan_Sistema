@@ -7,9 +7,13 @@
       name="doc_emissao_{{ doc.pk }}"
       id="doc-emissao-{{ doc.pk }}"
       class="portal-input portal-doc-emissao-input"
+      min="2000-01-01"
+      max="{% now 'Y-m-d' %}"
+      data-dias-validade="{{ doc.tipo.dias_validade|default:'' }}"
       {% if doc.portal_pode_enviar %}required{% endif %}
     >
     <p class="portal-doc-emissao-hint">Informe quando o documento foi emitido — o vencimento será calculado automaticamente.</p>
+    <p class="portal-doc-venc-preview" data-role="venc-preview" hidden></p>
   </div>
   {% endif %}
   <input type="file" name="doc_{{ doc.pk }}" id="doc-file-{{ doc.pk }}" class="portal-file-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>

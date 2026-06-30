@@ -1,10 +1,101 @@
 (function () {
+  var EMISSAO_ANO_MINIMO = 2000;
+
   function formatFileSize(bytes) {
     if (!bytes && bytes !== 0) return '';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
+
+  function pad2(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+
+  function formatBR(date) {
+    return pad2(date.getDate()) + '/' + pad2(date.getMonth() + 1) + '/' + date.getFullYear();
+  }
+
+  function parseISODate(value) {
+    var m = /^(\d{1,5})-(\d{2})-(\d{2})$/.exec(value || '');
+    if (!m) return null;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (d.getFullYear() !== Number(m[1]) || d.getMonth() !== Number(m[2]) - 1) return null;
+    return d;
+  }
+
+  // Valida a data de emissão e atualiza preview de vencimento + erro inline.
+  // Mantém a mesma regra do servidor (ano >= 2000 e não futura).
+  function refreshEmissaoField(input) {
+    if (!input) return true;
+    var container = input.parentElement;
+    var preview = container && container.querySelector('[data-role="venc-preview"]');
+    var errorEl = container && container.querySelector('[data-role="emissao-error"]');
+
+    function setError(msg) {
+      input.setAttribute('aria-invalid', 'true');
+      input.classList.add('rh-input--invalid');
+      if (errorEl) {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+      }
+      if (preview) preview.hidden = true;
+    }
+    function clearError() {
+      input.removeAttribute('aria-invalid');
+      input.classList.remove('rh-input--invalid');
+      if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.hidden = true;
+      }
+    }
+
+    var value = input.value;
+    if (!value) {
+      clearError();
+      if (preview) preview.hidden = true;
+      return true;
+    }
+
+    var date = parseISODate(value);
+    if (!date) {
+      setError('Data de emissão inválida.');
+      return false;
+    }
+    if (date.getFullYear() < EMISSAO_ANO_MINIMO) {
+      setError('Confira o ano informado (data muito antiga).');
+      return false;
+    }
+    var hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    if (date > hoje) {
+      setError('A data de emissão não pode ser uma data futura.');
+      return false;
+    }
+
+    clearError();
+    var dias = parseInt(input.getAttribute('data-dias-validade'), 10);
+    if (preview) {
+      if (dias > 0) {
+        var venc = new Date(date.getTime());
+        venc.setDate(venc.getDate() + dias);
+        preview.textContent = 'Vencimento: ' + formatBR(venc);
+        preview.hidden = false;
+      } else {
+        preview.hidden = true;
+      }
+    }
+    return true;
+  }
+
+  function emissaoFieldValido(input) {
+    return refreshEmissaoField(input);
+  }
+
+  window.RhDocEmissao = {
+    refresh: refreshEmissaoField,
+    valido: emissaoFieldValido,
+  };
 
   var iconByExt = {
     pdf: 'fa-file-pdf',
@@ -50,6 +141,7 @@
     var dateInput = form.querySelector('input[type="date"]');
     var fileInput = form.querySelector('input[type="file"]');
     if (!dateInput || !dateInput.value || !fileInput || !fileInput.files.length) return;
+    if (!refreshEmissaoField(dateInput)) return;
 
     if (form.classList.contains('js-rh-doc-ajax-upload')) {
       form.dispatchEvent(new CustomEvent('rh-doc-panel-autosubmit', { bubbles: true }));
@@ -77,8 +169,17 @@
     updateUploadPanelFileUi(clearForm, null);
   });
 
+  document.addEventListener('input', function (e) {
+    if (e.target.matches('.js-rh-emissao-input')) {
+      refreshEmissaoField(e.target);
+    }
+  });
+
   document.addEventListener('change', function (e) {
     var input = e.target;
+    if (input.matches('.js-rh-emissao-input')) {
+      refreshEmissaoField(input);
+    }
     if (input.matches('.rh-doc-upload-panel input[type="file"]')) {
       var form = input.closest('.rh-doc-upload-panel');
       var file = input.files && input.files[0];

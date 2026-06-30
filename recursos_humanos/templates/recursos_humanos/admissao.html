@@ -225,7 +225,7 @@
 </div>
 {% if selecionado and etapa_exibida == 2 and not somente_leitura and admissao_ctx and admissao_ctx.usuario_rh_pode %}
 {% include "recursos_humanos/includes/admissao_doc_reject_modal.html" %}
-<script src="{% static 'recursos_humanos/js/rh-admissao-docs.js' %}?v=5" defer></script>
+<script src="{% static 'recursos_humanos/js/rh-admissao-docs.js' %}?v=6" defer></script>
 {% endif %}
 {% if rh_requisicao_edicao %}
 {{ rh_requisicao_edicao|json_script:"rh-requisicao-edicao-data" }}

@@ -395,58 +395,44 @@ def create_mapa_and_recebimentos(obras_mapa, insumos, user, dry_run=False):
 
 def create_mapa_servico_controle(obras_mapa, dry_run=False):
     """
-    Gera linhas de mapa de serviço (controle físico) com blocos × pavimentos × aptos e
-    percentuais variados — alimenta heatmap e KPIs do BI da Obra.
+    Gera linhas de mapa de serviço (controle físico) alinhadas à matriz demo
+    (setor × bloco × pavimento × apto × atividades).
     """
+    from core.demo_mapa_controle_data import (
+        ATIVIDADES_MAPA,
+        iter_unidades_demo,
+        pct_celula_decimal,
+        status_from_pct,
+    )
+
     if dry_run:
         return 0
     rng = random.Random(42)
-    blocos = ["A", "B", "C"]
-    pavs = ["TÉRREO", "1", "2"]
-    aptos = ["101", "102", "201"]
-    atividades = [
-        "Alvenaria de vedação",
-        "Instalações elétricas",
-        "Instalações hidráulicas",
-        "Revestimento cerâmico",
-        "Pintura interna",
-        "Forro de gesso",
-    ]
-    situacoes = [
-        ("Concluído", Decimal("1.000")),
-        ("Em execução", Decimal("0.550")),
-        ("Em execução", Decimal("0.220")),
-        ("Não iniciado", Decimal("0")),
-        ("Parcial", Decimal("0.400")),
-        ("Aguardando material", Decimal("0.080")),
-        ("", Decimal("0.350")),
-    ]
     created = 0
     for obra in obras_mapa:
         n = 0
-        for b in blocos:
-            for p in pavs:
-                for apto in aptos:
-                    for act in atividades:
-                        stxt, spct = situacoes[n % len(situacoes)]
-                        n += 1
-                        uid = f"DEMO|MOCK|{obra.pk}|{b}|{p}|{apto}|{act}"[:255]
-                        ItemMapaServico.objects.update_or_create(
-                            obra=obra,
-                            chave_uid=uid,
-                            defaults={
-                                "setor": "EDIFÍCIO",
-                                "bloco": b,
-                                "pavimento": p,
-                                "apto": apto,
-                                "atividade": act[:200],
-                                "grupo_servicos": "OBRA" if n % 2 else "ACABAMENTO",
-                                "status_texto": stxt,
-                                "status_percentual": spct,
-                            },
-                        )
-                        created += 1
-        for act in atividades:
+        for setor, bloco, pav, apto in iter_unidades_demo():
+            for act_idx, act in enumerate(ATIVIDADES_MAPA):
+                spct = pct_celula_decimal(obra.id, setor, bloco, pav, apto, act_idx)
+                stxt, spct = status_from_pct(spct)
+                n += 1
+                uid = f"DEMO|MOCK|{obra.pk}|{setor}|{bloco}|{pav}|{apto}|{act}"[:255]
+                ItemMapaServico.objects.update_or_create(
+                    obra=obra,
+                    chave_uid=uid,
+                    defaults={
+                        "setor": setor[:120],
+                        "bloco": bloco,
+                        "pavimento": pav,
+                        "apto": apto,
+                        "atividade": act[:200],
+                        "grupo_servicos": "OBRA" if act_idx < 4 else "ACABAMENTO",
+                        "status_texto": stxt,
+                        "status_percentual": spct,
+                    },
+                )
+                created += 1
+        for act in ATIVIDADES_MAPA:
             key = act.upper()[:220]
             ItemMapaServicoStatusRef.objects.update_or_create(
                 obra=obra,
