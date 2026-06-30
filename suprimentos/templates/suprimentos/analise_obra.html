@@ -152,6 +152,11 @@
                 <i class="fas fa-chart-pie w-5 mr-3"></i>
                 <span class="font-medium">Dashboard</span>
             </a>
+            <a href="{% url 'engenharia:analise_obra_portfolio' %}"
+               class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra_portfolio' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
+                <i class="fas fa-th-large w-5 mr-3"></i>
+                <span class="font-medium">Portfólio de obras</span>
+            </a>
             <a href="{% url 'engenharia:analise_obra' %}"
                class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 transition-all duration-200 {% if request.resolver_match.url_name == 'analise_obra' %}sidebar-item-active text-white{% else %}text-gray-300 hover:bg-slate-700 hover:text-white{% endif %}">
                 <i class="fas fa-layer-group w-5 mr-3"></i>
@@ -359,29 +364,42 @@
     <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filters-bar">
       <div class="filter-field filter-field--obra">
         <label class="filter-label" for="select-obra">Obra</label>
-        <select name="obra" class="filter-select" id="select-obra" onchange="trocarObra(this)" aria-label="Obra">
-          {% for o in obras %}
-          <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
-          {% endfor %}
-        </select>
+        <div class="filter-obra-row">
+          <select name="obra" class="filter-select" id="select-obra" onchange="trocarObra(this)" aria-label="Obra">
+            {% for o in obras %}
+            <option value="{{ o.id }}" {% if obra_selecionada and o.id == obra_selecionada.id %}selected{% endif %}>{{ o.nome }}</option>
+            {% endfor %}
+          </select>
+          <a href="{% url 'engenharia:analise_obra_portfolio' %}" class="btn-portfolio-link" title="Visão consolidada de todas as obras">Todas as obras</a>
+        </div>
       </div>
       <div class="filter-field filter-field--frente">
         {% include "mapa_obras/includes/seletor_frente.html" with select_class="filter-select" compact=True help_text="Filtra Diário e restrições no BI. Suprimentos e mapa permanecem consolidados por obra." %}
       </div>
+      <div class="filter-field filter-field--periodo">
+        <label class="filter-label" for="filtro-periodo-preset">Período</label>
+        <select id="filtro-periodo-preset" name="periodo" class="filter-select" onchange="aplicarPeriodoRapido(this)" aria-label="Período rápido">
+          <option value="" {% if not filtros_get.periodo %}selected{% endif %}>Personalizado</option>
+          <option value="30" {% if filtros_get.periodo == '30' %}selected{% endif %}>Últimos 30 dias</option>
+          <option value="60" {% if filtros_get.periodo == '60' %}selected{% endif %}>Últimos 60 dias</option>
+          <option value="90" {% if filtros_get.periodo == '90' %}selected{% endif %}>Últimos 90 dias</option>
+          <option value="todos" {% if filtros_get.periodo == 'todos' %}selected{% endif %}>Desde o início da obra</option>
+        </select>
+      </div>
       <div class="filter-field">
         <label class="filter-label" for="filtro-data-inicio">Data inicial</label>
-        <input id="filtro-data-inicio" type="date" name="data_inicio" class="filter-select" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
+        <input id="filtro-data-inicio" type="date" name="data_inicio" class="filter-select filter-date-manual" value="{% if filtros_get.data_inicio %}{{ filtros_get.data_inicio }}{% elif analise_payload %}{{ analise_payload.meta.periodo.inicio }}{% endif %}">
       </div>
       <div class="filter-field">
         <label class="filter-label" for="filtro-data-fim">Data final</label>
-        <input id="filtro-data-fim" type="date" name="data_fim" class="filter-select" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
+        <input id="filtro-data-fim" type="date" name="data_fim" class="filter-select filter-date-manual" value="{% if filtros_get.data_fim %}{{ filtros_get.data_fim }}{% elif analise_payload %}{{ analise_payload.meta.periodo.fim }}{% endif %}">
       </div>
       <button type="submit" class="btn-apply">Aplicar</button>
       <button type="button" class="btn-filtros-mais" id="btn-filtros-mais" onclick="toggleFiltrosAvancados()" aria-expanded="{% if filtros_avancados_ativos %}true{% else %}false{% endif %}">
         Mais filtros{% if filtros_avancados_ativos %} · ativos{% endif %}
       </button>
       {% if analise_payload %}
-      <a href="{% url 'engenharia:analise_obra_resumo' %}?obra={{ obra_selecionada.id }}{% if filtros_get.data_inicio %}&amp;data_inicio={{ filtros_get.data_inicio }}{% endif %}{% if filtros_get.data_fim %}&amp;data_fim={{ filtros_get.data_fim }}{% endif %}" class="btn-export-resumo" target="_blank" rel="noopener">Resumo PDF</a>
+      <a href="{% url 'engenharia:analise_obra_resumo' %}?obra={{ obra_selecionada.id }}{% if filtros_get.periodo %}&amp;periodo={{ filtros_get.periodo }}{% elif filtros_get.data_inicio %}&amp;data_inicio={{ filtros_get.data_inicio }}{% endif %}{% if not filtros_get.periodo and filtros_get.data_fim %}&amp;data_fim={{ filtros_get.data_fim }}{% endif %}" class="btn-export-resumo" target="_blank" rel="noopener">Resumo PDF</a>
       {% endif %}
     </form>
 
@@ -390,8 +408,12 @@
       <form method="get" action="{% url 'engenharia:analise_obra' %}" class="filtros-avancados-grid">
         <input type="hidden" name="obra" value="{{ obra_selecionada.id }}">
         {% if filtros_get.front %}<input type="hidden" name="front" value="{{ filtros_get.front }}">{% endif %}
+        {% if filtros_get.periodo %}
+        <input type="hidden" name="periodo" value="{{ filtros_get.periodo }}">
+        {% else %}
         <input type="hidden" name="data_inicio" value="{{ filtros_get.data_inicio }}">
         <input type="hidden" name="data_fim" value="{{ filtros_get.data_fim }}">
+        {% endif %}
         <div class="filter-field">
           <label class="filter-label" for="filtro-setor">Setor</label>
           <select id="filtro-setor" name="setor" class="filter-select">
@@ -518,20 +540,6 @@
         </div>
       </div>
       <div id="bi-priority-bar" class="bi-priority-bar"></div>
-      {% with bl=analise_payload.meta.baseline_planejamento %}
-      {% if bl.disponivel %}
-      <div class="bi-baseline-card bi-baseline-card--{{ bl.situacao }}" id="bi-baseline">
-        <div class="bi-baseline-title">Planejado × real <span class="card-tag tag-obra">PRAZO</span></div>
-        <div class="bi-baseline-metrics">
-          <div><span class="bi-baseline-num">{{ bl.pct_real }}%</span><span class="bi-baseline-lbl">físico real</span></div>
-          <div class="bi-baseline-vs">vs</div>
-          <div><span class="bi-baseline-num">{{ bl.pct_esperado }}%</span><span class="bi-baseline-lbl">esperado no tempo</span></div>
-          <div class="bi-baseline-desvio {% if bl.desvio < -5 %}neg{% elif bl.desvio > 5 %}pos{% endif %}">{{ bl.desvio|floatformat:1 }} pp</div>
-        </div>
-        <div class="bi-baseline-sub">{{ bl.rotulo }} · {{ bl.data_inicio }} → {{ bl.data_fim }} ({{ bl.dias_decorridos }}/{{ bl.dias_totais }} dias)</div>
-      </div>
-      {% endif %}
-      {% endwith %}
 {% else %}
       <div id="hero" style="text-align:center;padding:40px;color:var(--bi-text3);background:var(--bi-card);border:1px solid var(--bi-border);border-radius:14px;margin-bottom:18px">
         Selecione uma obra para visualizar o BI
@@ -649,17 +657,11 @@
 
       <div class="sec-header" id="bloco-2">
         <div class="sec-title"><div class="sec-num">2</div>Pedidos & Aprovações</div>
-        <div class="sec-right"><div class="sec-source">GestControll · Central</div><a href="{% url 'gestao:list_workorders' %}" class="nav-link">Abrir GestControll <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
+        <div class="sec-right"><div class="sec-source">GestControll</div><a href="{% url 'gestao:list_workorders' %}" class="nav-link">Abrir GestControll <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a></div>
       </div>
       {% if obra_selecionada %}
       <div class="analise-secao-lazy" data-secao="gestcontroll" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
         <div class="analise-loading-skeleton">Carregando pedidos e aprovações…</div>
-      </div>
-      <div class="bi-subsec" id="bloco-2b">
-        <div class="bi-subsec-title">Central de Aprovações <span class="card-tag tag-gest">WORKFLOW</span></div>
-        <div class="analise-secao-lazy" data-secao="workflow_central" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
-          <div class="analise-loading-skeleton">Carregando fila da Central…</div>
-        </div>
       </div>
       {% endif %}
 
@@ -713,12 +715,12 @@
         <div class="sec-right">
           <div class="sec-source">DP / RH</div>
           <a href="{% url 'recursos_humanos:colaboradores' %}" class="nav-link">Abrir RH <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>
-        </div>
-      </div>
+    </div>
+  </div>
       {% if obra_selecionada %}
       <div class="analise-secao-lazy" data-secao="rh" data-obra="{{ obra_selecionada.id }}" data-periodo-inicio="{{ filtros_get.data_inicio }}" data-periodo-fim="{{ filtros_get.data_fim }}">
         <div class="analise-loading-skeleton">Carregando colaboradores e alertas…</div>
-      </div>
+    </div>
       {% endif %}
 
       <div class="sec-header" id="bloco-8">
@@ -770,8 +772,6 @@ window.__AO_URLS__ = {
   trackhub_pendencia_prefix: "{% url 'trackhub:pendencia_detalhe' 999999 %}".replace("999999", ""),
   rh_colaboradores: "{% url 'recursos_humanos:colaboradores' %}",
   rh_alertas: "{% url 'recursos_humanos:alertas' %}",
-  workflow_pending: "{% url 'workflow_aprovacao:pending' %}",
-  workflow_process_prefix: "{% url 'workflow_aprovacao:process_detail' 999999 %}".replace("999999", ""),
   mapa_geo_home: "{% url 'mapa_geo:mapa' %}",
   mapa_geo_relatorio: "{% url 'mapa_geo:relatorio' %}",
   mapa_engenharia: "{% url 'engenharia:mapa' %}",

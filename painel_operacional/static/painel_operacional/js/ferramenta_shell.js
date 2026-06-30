@@ -28,7 +28,34 @@
     return String(value || "").trim() === "mapa_controle";
   }
 
+  function mapaControleAtivoNaObra(items) {
+    return (items || []).find((item) => isMapaControleType(item.tipo));
+  }
+
+  function syncMapaControleCreateGuard(items) {
+    const existente = mapaControleAtivoNaObra(items);
+    const mapaOption = selectType
+      ? Array.from(selectType.options).find((opt) => isMapaControleType(opt.value))
+      : null;
+    if (mapaOption) {
+      mapaOption.disabled = !!existente;
+      if (existente && isMapaControleType(selectType.value)) {
+        const fallback = Array.from(selectType.options).find((opt) => !opt.disabled && !isMapaControleType(opt.value));
+        if (fallback) selectType.value = fallback.value;
+      }
+    }
+    if (btnOpenCreateModal) {
+      btnOpenCreateModal.disabled = false;
+    }
+    if (existente && createModalEl) {
+      createModalEl.dataset.mapaControleExistenteId = String(existente.id);
+    } else if (createModalEl) {
+      delete createModalEl.dataset.mapaControleExistenteId;
+    }
+  }
+
   function syncCreateModalContext() {
+    syncMapaControleCreateGuard(currentItems);
     const showImport = isMapaControleType(selectType && selectType.value);
     if (createImportWrap) createImportWrap.classList.toggle("d-none", !showImport);
     if (!showImport && createImportFile) createImportFile.value = "";
@@ -373,6 +400,7 @@
       `;
       tableBody.appendChild(tr);
     });
+    syncMapaControleCreateGuard(currentItems);
   }
 
   async function loadAmbientes() {
@@ -382,7 +410,11 @@
     const url = `${context.endpoints.list}${sep}_ts=${Date.now()}`;
     try {
       const data = await requestJson(url, { credentials: "same-origin" });
-      renderRows(data.items || []);
+      const items = data.items || [];
+      if (data.mapa_controle_ativo && !items.some((row) => Number(row.id) === Number(data.mapa_controle_ativo.id))) {
+        items.unshift(data.mapa_controle_ativo);
+      }
+      renderRows(items);
     } finally {
       setTableLoading(false);
     }
@@ -390,10 +422,19 @@
 
   async function createAmbiente() {
     hideAlert();
+    const tipo = selectType ? selectType.value : "mapa_controle";
+    const existente = mapaControleAtivoNaObra(currentItems);
+    if (isMapaControleType(tipo) && existente) {
+      showAlert(
+        `Esta obra já possui o Mapa de Controle "${existente.nome || "ativo"}". Abra-o na lista ou exclua-o antes de criar outro.`,
+        "warning",
+      );
+      return;
+    }
     setButtonLoading(btnCreate, true, "Criando...");
     const payload = {
       nome: (inputName && inputName.value ? inputName.value : "").trim() || "Novo ambiente",
-      tipo: selectType ? selectType.value : "mapa_controle",
+      tipo,
     };
     try {
       const data = await requestJson(context.endpoints.create, {

@@ -363,8 +363,57 @@ function formatStatusEtapaCurto(statusEtapa) {
     return statusEtapa;
 }
 
+function applyCardPatch(itemId, patch) {
+    if (!patch) return;
+    var card = document.querySelector('.supply-card[data-item-id="' + itemId + '"]');
+    if (!card) return;
+
+    var unidade = patch.unidade || '';
+    var saldoRaw = patch.saldo_raw || '0';
+    var saldoNum = parseFloat(String(saldoRaw).replace(',', '.')) || 0;
+
+    if (patch.saldo_a_alocar !== undefined) {
+        card.querySelectorAll('.supply-card-field').forEach(function (field) {
+            var lbl = field.querySelector('.supply-card-label');
+            var val = field.querySelector('.supply-card-value');
+            if (!lbl || !val) return;
+            if ((lbl.textContent || '').trim().toLowerCase() === 'saldo') {
+                val.textContent = (patch.saldo_a_alocar || '0,00') + ' ' + unidade;
+            }
+        });
+    }
+
+    if (patch.percentual_pct !== undefined) {
+        var fill = card.querySelector('.supply-card-progress-fill');
+        var txt = card.querySelector('.supply-card-progress-text');
+        if (fill) fill.style.width = patch.percentual_pct + '%';
+        if (txt) txt.textContent = patch.percentual_pct + '%';
+    }
+
+    var btn = card.querySelector('.btn-alocar');
+    if (btn) {
+        btn.setAttribute('data-saldo', saldoRaw);
+        btn.setAttribute('data-alocado', patch.alocado_raw || '0');
+        if (patch.planejado_raw !== undefined) {
+            btn.setAttribute('data-planejado', patch.planejado_raw);
+        }
+        btn.setAttribute('data-unidade', unidade);
+        btn.setAttribute('title', saldoNum > 0 ? 'Alocar' : 'Revisar alocações');
+        btn.innerHTML = '<i class="bi ' + (saldoNum > 0 ? 'bi-plus-lg' : 'bi-sliders') + '"></i>';
+    }
+
+    if (patch.status_etapa !== undefined) {
+        card.setAttribute('data-status-etapa', patch.status_etapa);
+        var cardBadge = card.querySelector('.supply-card-badge');
+        if (cardBadge && patch.status_etapa) {
+            cardBadge.textContent = patch.status_etapa;
+        }
+    }
+}
+
 function applyRowPatch(itemId, patch) {
     if (!patch) return;
+    applyCardPatch(itemId, patch);
     var row = document.querySelector('tr[data-item-id="' + itemId + '"]');
     if (!row) return;
 

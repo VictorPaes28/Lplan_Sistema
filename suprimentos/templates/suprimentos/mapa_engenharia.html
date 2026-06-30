@@ -1488,7 +1488,7 @@ window.__MAPA_ENG_CFG__ = {
                             btnRemoverTodas.style.display = 'block';
                             btnRemoverTodas.onclick = function() {
                                 if (confirm(`Tem certeza que deseja remover TODAS as ${data.alocacoes.length} alocações (${totalAlocado.toLocaleString('pt-BR', {minimumFractionDigits: 2})} ${unidade})?`)) {
-                                    removerAlocacao(itemId, true);
+                                    removerAlocacao(itemId, true, null, btnRemoverTodas);
                                 }
                             };
                         } else {
@@ -1501,15 +1501,28 @@ window.__MAPA_ENG_CFG__ = {
                 })
                 .catch(error => {
                     console.error('Erro ao carregar alocações:', error);
-                    document.getElementById('alocacoes_existentes').style.display = 'none';
+                    const container = document.getElementById('alocacoes_existentes');
+                    const btnRemoverTodas = document.getElementById('btnRemoverTodas');
+                    if (container) container.style.display = 'none';
+                    if (btnRemoverTodas) btnRemoverTodas.style.display = 'none';
                 });
         }
         
         // Função para remover alocação
-        function removerAlocacao(itemId, removerTodas = false, alocacaoId = null) {
+        let removendoAlocacao = false;
+        function removerAlocacao(itemId, removerTodas = false, alocacaoId = null, triggerBtn = null) {
+            if (removendoAlocacao) return;
+            removendoAlocacao = true;
             const csrftoken = getCsrfToken();
             const url = `{% url 'suprimentos:item_remover_alocacao' 0 %}`.replace('0', itemId);
-            
+
+            let btnOriginalHtml = '';
+            if (triggerBtn) {
+                btnOriginalHtml = triggerBtn.innerHTML;
+                triggerBtn.disabled = true;
+                triggerBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Removendo...';
+            }
+
             fetch(url, {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -1540,6 +1553,13 @@ window.__MAPA_ENG_CFG__ = {
             .catch(error => {
                 console.error('Erro:', error);
                 alert('❌ Erro ao remover alocação. Tente novamente.');
+            })
+            .finally(() => {
+                removendoAlocacao = false;
+                if (triggerBtn) {
+                    triggerBtn.disabled = false;
+                    triggerBtn.innerHTML = btnOriginalHtml;
+                }
             });
         }
         
@@ -1551,7 +1571,7 @@ window.__MAPA_ENG_CFG__ = {
                 const itemId = btn.dataset.itemId;
                 const alocacaoId = btn.dataset.alocacaoId;
                 if (confirm('Tem certeza que deseja remover esta alocação?')) {
-                    removerAlocacao(itemId, false, alocacaoId);
+                    removerAlocacao(itemId, false, alocacaoId, btn);
                 }
             }
         });
@@ -1642,13 +1662,13 @@ window.__MAPA_ENG_CFG__ = {
                     aplicarEstadoLinhaAposAlocacao(itemId, data);
                 } else {
                     alert('❌ Erro: ' + (data.error || 'Erro desconhecido'));
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
                 }
             })
             .catch(error => {
                 console.error('Erro:', error);
                 alert('Erro ao alocar: ' + (error.error || error.message || 'Tente novamente'));
+            })
+            .finally(() => {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             });

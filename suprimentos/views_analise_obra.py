@@ -17,8 +17,9 @@ from accounts.groups import GRUPOS
 from core.models import Project
 from mapa_obras.models import Obra
 from mapa_obras.contexto_obra import resolve_obra_context
-from mapa_obras.views import _user_can_access_obra
+from mapa_obras.views import _get_obras_for_user, _user_can_access_obra
 from django.utils import timezone
+from suprimentos.services.analise_obra_portfolio_service import AnaliseObraPortfolioService
 from suprimentos.services.analise_obra_service import (
     AnaliseObraFilters,
     AnaliseObraPeriodo,
@@ -29,6 +30,7 @@ from suprimentos.services.analise_obra_service import (
 # Shell/seções são dados por obra+filtros (não por usuário); TTL maior reduz cold starts.
 ANALISE_OBRA_SHELL_CACHE_TTL_SECONDS = 300
 ANALISE_OBRA_SECTION_CACHE_TTL_SECONDS = 180
+ANALISE_OBRA_PORTFOLIO_CACHE_TTL_SECONDS = 300
 # Sem data_inicio na URL, limita varredura do diário (obra com anos de histórico).
 BI_DEFAULT_MAX_PERIOD_DAYS = 90
 
@@ -65,9 +67,76 @@ def _default_data_inicio_obra(obra: Obra | None):
     return date.today() - timedelta(days=30)
 
 
-def _effective_periodo_analise(request, obra: Obra | None):
-    """Período efetivo: querystring ou padrão (início da obra + fim = hoje)."""
+def _default_portfolio_data_inicio(obras: list[Obra]) -> date:
+    """Início do período 'todos' no portfólio: menor data entre as obras do escopo."""
+    if not obras:
+        return date.today() - timedelta(days=30)
+    return min(_default_data_inicio_obra(o) for o in obras)
+
+
+def _periodo_from_preset(preset: str, obra: Obra | None) -> tuple[date, date] | None:
+    """Converte atalho de período (30/60/90/todos) em (início, fim)."""
     hoje = date.today()
+    if preset == "30":
+        return hoje - timedelta(days=30), hoje
+    if preset == "60":
+        return hoje - timedelta(days=60), hoje
+    if preset == "90":
+        return hoje - timedelta(days=90), hoje
+    if preset == "todos":
+        return _default_data_inicio_obra(obra), hoje
+    return None
+
+
+def _periodo_from_preset_portfolio(
+    preset: str,
+    obras: list[Obra],
+) -> tuple[date, date] | None:
+    """Atalhos de período no portfólio multi-obra."""
+    hoje = date.today()
+    if preset == "30":
+        return hoje - timedelta(days=30), hoje
+    if preset == "60":
+        return hoje - timedelta(days=60), hoje
+    if preset == "90":
+        return hoje - timedelta(days=90), hoje
+    if preset == "todos":
+        return _default_portfolio_data_inicio(obras), hoje
+    return None
+
+
+def _detect_periodo_preset(
+    ini: date,
+    fim: date,
+    obra: Obra | None,
+    explicit: str = "",
+) -> str:
+    """Infere qual atalho está ativo (para o select); vazio = personalizado."""
+    if explicit in ("30", "60", "90", "todos"):
+        return explicit
+    hoje = date.today()
+    if fim != hoje:
+        return ""
+    days = (fim - ini).days
+    if days == 30:
+        return "30"
+    if days == 60:
+        return "60"
+    if days == 90:
+        return "90"
+    if ini == _default_data_inicio_obra(obra):
+        return "todos"
+    return ""
+
+
+def _effective_periodo_analise(request, obra: Obra | None):
+    """Período efetivo: atalho periodo=, querystring manual ou padrão (início da obra + fim = hoje)."""
+    hoje = date.today()
+    preset = (request.GET.get("periodo") or "").strip().lower()
+    from_preset = _periodo_from_preset(preset, obra)
+    if from_preset is not None:
+        return from_preset
+
     ini, fim = _parse_periodo(request)
     tem_ini_qs = bool((request.GET.get("data_inicio") or "").strip())
     tem_fim_qs = bool((request.GET.get("data_fim") or "").strip())
@@ -90,6 +159,25 @@ def _effective_periodo_analise(request, obra: Obra | None):
     if not tem_ini_qs and (fim - ini).days > BI_DEFAULT_MAX_PERIOD_DAYS:
         ini = fim - timedelta(days=BI_DEFAULT_MAX_PERIOD_DAYS)
     return ini, fim
+
+
+def _effective_periodo_portfolio(request, obras: list[Obra]) -> tuple[date, date, str]:
+    """Período do portfólio: preset na URL ou padrão 30 dias."""
+    hoje = date.today()
+    preset = (request.GET.get("periodo") or "").strip().lower()
+    if not preset:
+        preset = "30"
+    from_preset = _periodo_from_preset_portfolio(preset, obras)
+    if from_preset is not None:
+        return from_preset[0], from_preset[1], preset
+    ini, fim = _parse_periodo(request)
+    if ini is None:
+        ini = hoje - timedelta(days=30)
+    if fim is None:
+        fim = hoje
+    if fim < ini:
+        fim = hoje
+    return ini, fim, ""
 
 
 def _parse_filtros(request, frente_ctx=None) -> AnaliseObraFilters:
@@ -255,6 +343,8 @@ def analise_obra(request):
         "busca_diario_texto", "responsavel_texto",
     )
     filtros_avancados_ativos = any((filtros_dict.get(k) or "").strip() for k in advanced_keys)
+    periodo_explicit = (request.GET.get("periodo") or "").strip().lower()
+    periodo_preset = _detect_periodo_preset(ini, fim, obra, periodo_explicit)
     return render(
         request,
         "suprimentos/analise_obra.html",
@@ -264,10 +354,52 @@ def analise_obra(request):
             "filtros_get": {
                 "data_inicio": ini.isoformat() if ini else "",
                 "data_fim": fim.isoformat() if fim else "",
+                "periodo": periodo_preset,
                 **filtros_dict,
             },
             "filtros_avancados_ativos": filtros_avancados_ativos,
             **ctx.to_template_context(),
+        },
+    )
+
+
+@login_required
+@require_group(GRUPOS.BI_DA_OBRA)
+@ensure_csrf_cookie
+@cache_control(no_store=True, no_cache=True, must_revalidate=True, max_age=0)
+def analise_obra_portfolio(request):
+    """Portfólio multi-obra — ranking e alertas; drill-down para BI por obra."""
+    obras_qs = _get_obras_for_user(request)
+    obras_list = list(obras_qs.filter(ativa=True).order_by("nome"))
+    somente_alerta = (request.GET.get("somente_alerta") or "").strip() in ("1", "true", "sim")
+    ini, fim, periodo_preset = _effective_periodo_portfolio(request, obras_list)
+    periodo = AnaliseObraPeriodo(data_inicio=ini, data_fim=fim)
+    cache_key = (
+        f"analise_obra:portfolio:u{request.user.pk}:alerta{int(somente_alerta)}"
+        f":p{periodo_preset}:{ini.isoformat()}:{fim.isoformat()}"
+    )
+    payload = cache.get(cache_key)
+    if payload is None:
+        payload = AnaliseObraPortfolioService(
+            obras_qs,
+            somente_alerta=somente_alerta,
+            periodo=periodo,
+            periodo_preset=periodo_preset,
+        ).build()
+        cache.set(cache_key, payload, ANALISE_OBRA_PORTFOLIO_CACHE_TTL_SECONDS)
+
+    return render(
+        request,
+        "suprimentos/analise_obra_portfolio.html",
+        {
+            "portfolio_payload": payload,
+            "somente_alerta": somente_alerta,
+            "obras": obras_list,
+            "filtros_get": {
+                "periodo": periodo_preset,
+                "data_inicio": ini.isoformat(),
+                "data_fim": fim.isoformat(),
+            },
         },
     )
 
@@ -284,6 +416,8 @@ def analise_obra_resumo(request):
     ini, fim = _effective_periodo_analise(request, obra)
     if obra:
         payload = _get_cached_payload_or_build(request, obra, ini, fim, filtros, shell=True)
+    periodo_explicit = (request.GET.get("periodo") or "").strip().lower()
+    periodo_preset = _detect_periodo_preset(ini, fim, obra, periodo_explicit)
     return render(
         request,
         "suprimentos/analise_obra_resumo.html",
@@ -293,6 +427,7 @@ def analise_obra_resumo(request):
             "filtros_get": {
                 "data_inicio": ini.isoformat() if ini else "",
                 "data_fim": fim.isoformat() if fim else "",
+                "periodo": periodo_preset,
                 **filtros.to_dict(),
             },
             **ctx.to_template_context(),
@@ -342,7 +477,6 @@ def analise_obra_api(request):
             "trackhub",
             "rh",
             "mapa_geo",
-            "workflow_central",
         }
     )
     if secao not in validas:

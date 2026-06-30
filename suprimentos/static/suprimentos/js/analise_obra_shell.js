@@ -171,15 +171,49 @@ function toggleAtrasadas() {
 
 function trocarObra(select) {
   const obraId = select.value;
-  // Redirecionar para a mesma URL mas com a nova obra e sem datas
-  // (sem datas o servidor vai usar o padrão: data_inicio da obra e hoje)
   const url = new URL(window.location.href);
   url.searchParams.set('obra', obraId);
   url.searchParams.delete('front');
   url.searchParams.delete('data_inicio');
   url.searchParams.delete('data_fim');
+  url.searchParams.delete('periodo');
   window.location.href = url.toString();
 }
+
+function aplicarPeriodoRapido(select) {
+  var form = select.closest('form');
+  if (!form) return;
+  var val = (select.value || '').trim();
+  if (!val) return;
+  form.querySelectorAll('.filter-date-manual').forEach(function(el) {
+    el.disabled = true;
+  });
+  form.submit();
+}
+
+function marcarPeriodoPersonalizado() {
+  var preset = document.getElementById('filtro-periodo-preset');
+  if (preset) preset.value = '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.filter-date-manual').forEach(function(el) {
+    el.addEventListener('change', marcarPeriodoPersonalizado);
+  });
+  var filtersForm = document.querySelector('.filters-bar');
+  if (filtersForm) {
+    filtersForm.addEventListener('submit', function() {
+      var preset = document.getElementById('filtro-periodo-preset');
+      if (preset && !preset.value) {
+        preset.disabled = true;
+      } else if (preset && preset.value) {
+        filtersForm.querySelectorAll('.filter-date-manual').forEach(function(el) {
+          el.disabled = true;
+        });
+      }
+    });
+  }
+});
 
 document.addEventListener('click', function(e) {
   const panel = document.getElementById('bi-index');

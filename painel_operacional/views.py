@@ -1275,6 +1275,8 @@ def editar_mapa_controle(request, ambiente_id: int):
 @require_http_methods(["GET"])
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
 def api_listar_ambientes(request):
+    from painel_operacional.mapa_controle_obra import mapa_controle_ativos_qs
+
     obras, obra = _resolver_obra(request)
     if not obra:
         return JsonResponse({"success": True, "items": [], "message": "Nenhuma obra disponível."})
@@ -1283,8 +1285,14 @@ def api_listar_ambientes(request):
         _serializar_ambiente(amb)
         for amb in AmbienteOperacional.objects.filter(obra=obra, ativo=True).order_by("-updated_at")[:100]
     ]
+    mapa_controle = mapa_controle_ativos_qs(obra.id).order_by("created_at", "id").first()
     return JsonResponse(
-        {"success": True, "items": items, "obra": {"id": obra.id, "nome": obra.nome, "codigo": obra.codigo_sienge}}
+        {
+            "success": True,
+            "items": items,
+            "obra": {"id": obra.id, "nome": obra.nome, "codigo": obra.codigo_sienge},
+            "mapa_controle_ativo": _serializar_ambiente(mapa_controle) if mapa_controle else None,
+        }
     )
 
 
@@ -1334,6 +1342,8 @@ def api_detalhe_ambiente(request, ambiente_id: int):
 @require_group(GRUPOS.FERRAMENTA_OPERACIONAL)
 @require_http_methods(["POST"])
 def api_criar_ambiente(request):
+    from painel_operacional.mapa_controle_obra import mapa_controle_ativos_qs, obra_ja_tem_mapa_controle
+
     payload = _parse_json_body(request)
     _, obra = _resolver_obra(request)
     if not obra:
@@ -1344,6 +1354,20 @@ def api_criar_ambiente(request):
     tipos_validos = {choice[0] for choice in AmbienteTipo.choices}
     if tipo not in tipos_validos:
         tipo = AmbienteTipo.CUSTOM
+    if tipo == AmbienteTipo.MAPA_CONTROLE and obra_ja_tem_mapa_controle(obra.id):
+        existente = mapa_controle_ativos_qs(obra.id).order_by("created_at", "id").first()
+        return JsonResponse(
+            {
+                "success": False,
+                "codigo": "mapa_controle_ja_existe",
+                "error": (
+                    "Esta obra já possui um Mapa de Controle ativo. "
+                    "Abra o existente na lista ou exclua-o antes de criar outro."
+                ),
+                "ambiente_existente": _serializar_ambiente(existente) if existente else None,
+            },
+            status=409,
+        )
     modo_editor = (
         AmbienteModoEditor.MAPA_DEDICADO
         if tipo == AmbienteTipo.MAPA_CONTROLE

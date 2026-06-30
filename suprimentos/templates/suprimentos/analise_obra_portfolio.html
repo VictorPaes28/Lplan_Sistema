@@ -1,0 +1,422 @@
+{% load static %}
+{% load core_tags %}
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfólio — BI da Obra — LPLAN</title>
+  <link rel="stylesheet" href="{% static 'core/css/tailwind-utilities.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'core/css/base.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'core/css/mobile.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'core/css/notifications.css' %}">{% endif %}
+  <link rel="stylesheet" href="{% static 'suprimentos/css/analise_obra.css' %}?v={{ lplan_static_version }}">
+  <link rel="stylesheet" href="{% static 'suprimentos/css/analise_obra_ux.css' %}?v={{ lplan_static_version }}">
+</head>
+<body class="bi-portfolio-body">
+<div id="lplan-nav-progress" class="lplan-nav-progress" hidden aria-hidden="true"></div>
+
+    <div id="mobile-app-header" class="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-slate-900 to-slate-800 text-white z-50 flex items-center justify-between px-4 shadow-lg">
+        <button id="mobile-sidebar-toggle" type="button" class="mobile-menu-btn text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800 rounded-lg transition-colors" style="position:relative;" aria-label="Abrir menu de navegação" aria-expanded="false">
+            <svg class="mobile-menu-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
+        <div class="mobile-brand-center flex items-center space-x-3">
+            <div class="logo-white-box w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+                <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain">
+            </div>
+            <span class="text-lg font-bold">Portfólio</span>
+        </div>
+        <div class="mobile-header-spacer" aria-hidden="true"></div>
+    </div>
+
+    <div id="mobile-sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" style="display: none;"></div>
+
+    <aside id="sidebar" data-default-collapsed="1" class="fixed top-0 left-0 h-full w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col flex-shrink-0">
+        <div class="h-20 flex items-center justify-center border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 px-4 relative">
+            <div class="flex items-center justify-center w-full">
+                <div class="logo-white-box w-12 h-12 bg-white rounded-lg flex items-center justify-center p-1 flex-shrink-0">
+                    <img src="{% static 'core/images/lplan-logo2.png' %}" alt="LPLAN" class="w-full h-full object-contain">
+                </div>
+                <div class="flex-1 min-w-0 ml-3 text-center sidebar-brand-text">
+                    <h1 class="text-xl font-bold text-white tracking-tight mb-1">LPLAN</h1>
+                    <p class="text-xs text-gray-400 truncate">Mapa e Suprimentos</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 px-3 pt-4 overflow-y-auto sidebar-nav">
+            <a href="{% url 'select-system' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-home w-5 mr-3"></i><span class="font-medium">Home</span>
+            </a>
+            <div class="my-3 border-t border-slate-600"></div>
+            <a href="{% url 'engenharia:dashboard_2' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-chart-pie w-5 mr-3"></i><span class="font-medium">Dashboard</span>
+            </a>
+            <a href="{% url 'engenharia:analise_obra_portfolio' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 sidebar-item-active text-white transition-all duration-200">
+                <i class="fas fa-th-large w-5 mr-3"></i><span class="font-medium">Portfólio de obras</span>
+            </a>
+            <a href="{% url 'engenharia:analise_obra' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-layer-group w-5 mr-3"></i><span class="font-medium">BI da Obra</span>
+            </a>
+            <a href="{% url 'engenharia:mapa' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-table w-5 mr-3"></i><span class="font-medium">Mapa</span>
+            </a>
+            <a href="{% url 'engenharia:ferramenta_shell' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-magic w-5 mr-3"></i><span class="font-medium">Ferramenta</span>
+            </a>
+            <a href="{% url 'mapa_obras:home' %}" class="sidebar-link flex items-center px-4 py-3 rounded-lg mb-2 text-gray-300 hover:bg-slate-700 hover:text-white transition-all duration-200">
+                <i class="fas fa-exchange-alt w-5 mr-3"></i><span class="font-medium">Trocar Obra</span>
+            </a>
+        </nav>
+    </aside>
+
+    <div class="main-content-wrapper">
+        <main class="main-content main-content--bi-obra main-content--portfolio">
+            <div class="top-bar-container fade-in">
+                <div class="top-bar-heading-group">
+                    <a href="{% url 'engenharia:analise_obra' %}" class="back-link-layer inline-flex items-center gap-2 text-sm font-medium w-fit rounded-lg py-2 px-3 transition-all duration-200">
+                        <i class="fas fa-arrow-left"></i><span>BI por obra</span>
+                    </a>
+                    <div class="top-bar-heading-text">
+                        <h2 class="top-bar-title"><span>Portfólio de obras</span></h2>
+                        <p class="top-bar-subtitle"><span style="font-size:11px;opacity:.6;">Fila de resolução · gargalos exec×suprimento · links diretos aos módulos</span></p>
+                    </div>
+                </div>
+                {% if user.is_authenticated %}
+                <div class="flex items-center space-x-2 md:space-x-4">
+                    {% get_unread_notifications_count user as unread_notifications %}
+                    <a href="{% url 'notifications' %}"
+                       class="notif-bell-link relative p-2 text-gray-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                       aria-label="Notificações{% if unread_notifications > 0 %}. {{ unread_notifications }} não lida{{ unread_notifications|pluralize }}{% endif %}">
+                        <i class="fas fa-bell text-lg md:text-xl" aria-hidden="true"></i>
+                        {% if unread_notifications > 0 %}
+                        <span class="notif-count-badge">{{ unread_notifications }}</span>
+                        {% endif %}
+                    </a>
+                    <div class="relative" id="user-menu-container">
+                        <button type="button" id="user-menu-button"
+                                class="flex items-center space-x-2 focus:outline-none bg-white hover:bg-gray-50 p-1.5 md:p-2 rounded-lg transition-all duration-200 no-underline"
+                                aria-expanded="false" aria-haspopup="true">
+                            <div class="w-8 h-8 md:w-9 md:h-9 bg-blue-600 rounded-full flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
+                                <span class="text-white font-semibold text-xs leading-none">
+                                    {{ user.get_full_name|default:user.username|first|upper }}{{ user.get_full_name|default:user.username|slice:"1:2"|upper|default:"" }}
+                                </span>
+                            </div>
+                            <span class="top-bar-user-name hidden md:inline" title="{{ user.get_full_name|default:user.username }}">{{ user.get_full_name|default:user.username }}</span>
+                            <i class="fas fa-chevron-down text-gray-400 text-xs hidden md:block transition-transform duration-200" id="user-menu-chevron"></i>
+                        </button>
+                        <div id="user-menu-dropdown"
+                             class="absolute right-0 mt-2 w-56 glass-effect rounded-lg shadow-xl py-1 z-50 border border-slate-100"
+                             style="display: none;">
+                            <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
+                                <p class="text-sm font-semibold text-slate-800 truncate">{{ user.get_full_name|default:user.username|title }}</p>
+                                <p class="text-xs text-gray-500 truncate mt-0.5">{{ user.email }}</p>
+                            </div>
+                            <a href="{% url 'profile' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-user mr-3 text-gray-400 w-4"></i> Perfil
+                            </a>
+                            <a href="{% url 'logout' %}" class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-slate-50 transition-colors flex items-center">
+                                <i class="fas fa-sign-out-alt mr-3 text-gray-400 w-4"></i> Sair
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+<div class="bi-area">
+    <form method="get" action="{% url 'engenharia:analise_obra_portfolio' %}" class="filters-bar">
+      <div class="filter-field filter-field--periodo">
+        <label class="filter-label" for="filtro-periodo-preset">Período</label>
+        <select id="filtro-periodo-preset" name="periodo" class="filter-select" onchange="aplicarPeriodoRapido(this)" aria-label="Período rápido">
+          <option value="30" {% if filtros_get.periodo == '30' or not filtros_get.periodo %}selected{% endif %}>Últimos 30 dias</option>
+          <option value="60" {% if filtros_get.periodo == '60' %}selected{% endif %}>Últimos 60 dias</option>
+          <option value="90" {% if filtros_get.periodo == '90' %}selected{% endif %}>Últimos 90 dias</option>
+          <option value="todos" {% if filtros_get.periodo == 'todos' %}selected{% endif %}>Desde o início das obras</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label" for="filtro-alerta">Exibir</label>
+        <select name="somente_alerta" id="filtro-alerta" class="filter-select">
+          <option value="" {% if not somente_alerta %}selected{% endif %}>Todas as obras</option>
+          <option value="1" {% if somente_alerta %}selected{% endif %}>Somente com alerta</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-apply">Aplicar</button>
+      <a href="{% url 'engenharia:analise_obra' %}" class="btn-export-resumo">Abrir BI por obra</a>
+    </form>
+
+    <div class="bi-main">
+      {% with resumo=portfolio_payload.resumo %}
+      <div class="hero" id="hero">
+        <div>
+          <div class="hero-label">Portfólio operacional</div>
+          <div class="hero-title">{{ resumo.total_obras }} obra{{ resumo.total_obras|pluralize }}</div>
+          <div class="hero-code">
+            {{ resumo.obras_alerta }} em alerta · {{ resumo.obras_criticas }} crítica{{ resumo.obras_criticas|pluralize }}
+            {% if resumo.media_avanco_fisico != None %} · média avanço {{ resumo.media_avanco_fisico|floatformat:1 }}%{% endif %}
+            {% if resumo.itens_resolver %} · <a href="#fila-resolver" class="hero-fila-link">{{ resumo.itens_resolver }} para resolver</a>{% endif %}
+          </div>
+          <div class="hero-period">
+            Atualizado {{ portfolio_payload.gerado_em|slice:":16"|default:"agora" }}
+            · período {{ portfolio_payload.periodo.inicio }} → {{ portfolio_payload.periodo.fim }}
+            ({{ portfolio_payload.periodo.dias }} dias)
+          </div>
+        </div>
+        <div class="hero-kpis">
+          <a href="#fila-resolver" class="hkpi hkpi--action" title="Ir para fila de resolução">
+            <div class="hkpi-source obra">Execução</div><div class="hkpi-value">{% if resumo.media_avanco_fisico != None %}{{ resumo.media_avanco_fisico|floatformat:1 }}%{% else %}—{% endif %}</div><div class="hkpi-label">Média física</div>
+          </a>
+          <a href="#fila-resolver" class="hkpi hkpi--action" title="Ir para fila de resolução">
+            <div class="hkpi-source restricoes">Restrições</div><div class="hkpi-value">{{ resumo.totais.restricoes_abertas }}</div><div class="hkpi-label">{{ resumo.totais.restricoes_vencidas }} vencida{{ resumo.totais.restricoes_vencidas|pluralize }}</div>
+          </a>
+          <a href="#fila-resolver" class="hkpi hkpi--action" title="Ir para fila de resolução">
+            <div class="hkpi-source suprimentos">Suprimentos</div><div class="hkpi-value">{{ resumo.totais.suprimentos_atrasados }}</div><div class="hkpi-label">Atrasados / {{ resumo.totais.suprimentos_total }} itens</div>
+          </a>
+          <a href="#fila-resolver" class="hkpi hkpi--action" title="Ir para fila de resolução">
+            <div class="hkpi-source diario">TrackHub</div><div class="hkpi-value">{{ resumo.totais.trackhub_vencidas }}</div><div class="hkpi-label">{{ resumo.totais.trackhub_abertas }} aberta{{ resumo.totais.trackhub_abertas|pluralize }} · {{ resumo.totais.rdos_pendentes }} RDO pend.</div>
+          </a>
+        </div>
+      </div>
+      {% endwith %}
+
+      {% if portfolio_payload.fila_resolver %}
+      <div class="sec-header" id="fila-resolver">
+        <div class="sec-title"><div class="sec-num">!</div>Resolver agora</div>
+        <div class="sec-right"><div class="sec-source">{{ portfolio_payload.resumo.itens_resolver }} ação(ões) priorizadas · clique para ir direto ao módulo</div></div>
+      </div>
+      <div class="card bi-fila-resolver">
+        <div class="bi-fila-resolver-scroll">
+          <table class="bi-fila-resolver-table">
+            <thead>
+              <tr>
+                <th>Prior.</th>
+                <th>Obra</th>
+                <th>O que resolver</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in portfolio_payload.fila_resolver %}
+              <tr class="bi-fila-row bi-fila-row--{{ item.prioridade|lower }}">
+                <td><span class="bi-fila-pri bi-fila-pri--{{ item.prioridade|lower }}">{{ item.prioridade }}</span></td>
+                <td class="bi-fila-obra"><strong>{{ item.obra_codigo }}</strong><span>{{ item.obra_nome|truncatechars:36 }}</span></td>
+                <td>
+                  <div class="bi-fila-titulo">{{ item.titulo }}</div>
+                  {% if item.subtitulo %}<div class="bi-fila-sub">{{ item.subtitulo }}</div>{% endif %}
+                </td>
+                <td class="bi-fila-acoes">
+                  <div class="bi-fila-acoes-inner">
+                    <a href="{{ item.url }}" class="bi-btn-resolver bi-btn-resolver--primary">Resolver</a>
+                    {% if item.url_secundaria %}
+                    <a href="{{ item.url_secundaria }}" class="bi-btn-resolver">{{ item.label_secundaria|default:"Alternativo" }}</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="sec-header">
+        <div class="sec-title"><div class="sec-num">∑</div>Obras no escopo</div>
+        <div class="sec-right"><div class="sec-source">{{ portfolio_payload.obras|length }} card{{ portfolio_payload.obras|length|pluralize }} · clique para abrir o BI</div></div>
+      </div>
+
+      {% if portfolio_payload.obras %}
+      <div class="bi-portfolio-grid">
+        {% for row in portfolio_payload.obras %}
+        <article class="bi-portfolio-card bi-portfolio-card--{{ row.situacao }}">
+          <header class="bi-portfolio-card-head">
+            <div class="bi-portfolio-card-head-left">
+              <span class="bi-portfolio-badge bi-portfolio-badge--{{ row.situacao }}">{{ row.situacao_label }}</span>
+              <div>
+                <div class="bi-portfolio-card-codigo">{{ row.codigo }}</div>
+                <h3 class="bi-portfolio-card-nome">{{ row.nome }}</h3>
+                {% if row.cliente %}<div class="bi-portfolio-card-meta">{{ row.cliente }}{% if row.responsavel %} · {{ row.responsavel }}{% endif %}</div>{% endif %}
+              </div>
+            </div>
+            <div class="bi-portfolio-card-avanco">
+              {% if row.avanco_fisico_pct != None %}
+              <span class="bi-portfolio-card-avanco-val">{{ row.avanco_fisico_pct|floatformat:1 }}%</span>
+              <span class="bi-portfolio-card-avanco-lbl">avanço físico</span>
+              {% if row.avanco_delta_7d != None %}
+              <span class="bi-portfolio-delta {% if row.avanco_delta_7d >= 0 %}up{% else %}down{% endif %}">
+                {% if row.avanco_delta_7d >= 0 %}+{% endif %}{{ row.avanco_delta_7d|floatformat:1 }}pp / 7d
+              </span>
+              {% endif %}
+              {% else %}
+              <span class="bi-portfolio-card-avanco-val">—</span>
+              {% endif %}
+            </div>
+          </header>
+
+          {% if row.motivos %}
+          <ul class="bi-portfolio-motivos">
+            {% for m in row.motivos %}<li>{{ m }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if row.gargalo_principal %}
+          <div class="bi-gargalo-box">
+            <div class="bi-gargalo-head">
+              <span class="bi-gargalo-label">Gargalo principal</span>
+              <span class="bi-gargalo-pri bi-gargalo-pri--{{ row.gargalo_principal.prioridade|lower }}">{{ row.gargalo_principal.prioridade }}</span>
+            </div>
+            <div class="bi-gargalo-title">{{ row.gargalo_principal.rotulo }}</div>
+            <p class="bi-gargalo-leitura">{{ row.gargalo_principal.leitura }}</p>
+            <div class="bi-gargalo-metrics">
+              {% if row.gargalo_principal.exec_pct != None %}<span>Exec. {{ row.gargalo_principal.exec_pct|floatformat:1 }}%</span>{% endif %}
+              {% if row.gargalo_principal.sup_pendencias %}<span>{{ row.gargalo_principal.sup_pendencias }} pend. suprimento</span>{% endif %}
+            </div>
+            <div class="bi-gargalo-actions">
+              {% if row.gargalo_principal.url_mapa %}
+              <a href="{{ row.gargalo_principal.url_mapa }}" class="bi-btn-resolver bi-btn-resolver--primary">Abrir no mapa</a>
+              {% endif %}
+              <a href="{{ row.gargalo_principal.url_bi_cruzamento|default:row.links.bi_cruzamento }}" class="bi-btn-resolver">Cruzamento no BI</a>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if row.resolver %}
+          <div class="bi-resolver-card-list">
+            {% for ac in row.resolver %}
+            <a href="{{ ac.url }}" class="bi-resolver-card bi-resolver-card--{{ ac.prioridade|lower }}">
+              <span class="bi-resolver-card-pri">{{ ac.prioridade }}</span>
+              <span class="bi-resolver-card-text">{{ ac.titulo }}</span>
+              <span class="bi-resolver-card-go">›</span>
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="bi-quick-links">
+            {% if row.restricoes_vencidas and row.links.impedimentos %}
+            <a href="{{ row.links.impedimentos }}" class="bi-quick-link bi-quick-link--urgente">Restrições vencidas ({{ row.restricoes_vencidas }})</a>
+            {% elif row.restricoes_abertas %}
+            <a href="{{ row.links.impedimentos|default:row.links.bi_restricoes }}" class="bi-quick-link">Restrições ({{ row.restricoes_abertas }})</a>
+            {% endif %}
+            {% if row.suprimentos.atrasados %}
+            <a href="{{ row.links.mapa_atrasados }}" class="bi-quick-link">Supr. atrasados ({{ row.suprimentos.atrasados }})</a>
+            {% endif %}
+            {% if row.links.bi_cruzamento %}
+            <a href="{{ row.links.bi_cruzamento }}" class="bi-quick-link">Exec × suprimento</a>
+            {% endif %}
+            {% if row.rdos_pendentes %}
+            <a href="{{ row.links.bi_diario }}" class="bi-quick-link">RDOs ({{ row.rdos_pendentes }})</a>
+            {% endif %}
+            {% if row.pendentes_gestcontroll %}
+            <a href="{{ row.links.gestao_pedidos }}" class="bi-quick-link">Pedidos ({{ row.pendentes_gestcontroll }})</a>
+            {% endif %}
+            {% if row.trackhub.vencidas %}
+            <a href="{{ row.links.trackhub }}" class="bi-quick-link bi-quick-link--urgente">TrackHub vencidas ({{ row.trackhub.vencidas }})</a>
+            {% elif row.trackhub.abertas %}
+            <a href="{{ row.links.trackhub }}" class="bi-quick-link">TrackHub ({{ row.trackhub.abertas }})</a>
+            {% endif %}
+          </div>
+
+          <div class="bi-portfolio-sparks-row">
+            <div class="bi-portfolio-spark-block">
+              <span class="bi-portfolio-spark-label">Avanço 7d</span>
+              <div class="bi-portfolio-spark">
+                {% for v in row.sparkline_avanco %}
+                <span class="bi-portfolio-spark-bar" style="height: {% if v %}{{ v|floatformat:0 }}%{% else %}6%{% endif %}; opacity: {% if v %}1{% else %}0.2{% endif %};"></span>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="bi-portfolio-spark-block">
+              <span class="bi-portfolio-spark-label">Restrições 7d</span>
+              <div class="bi-portfolio-spark bi-portfolio-spark--restr">
+                {% for v in row.sparkline_restricoes %}
+                <span class="bi-portfolio-spark-bar" style="height: {% if v %}{% widthratio v 1 8 %}%{% else %}6%{% endif %}; max-height: 100%; opacity: {% if v %}1{% else %}0.2{% endif %};"></span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="bi-portfolio-modulos">
+            <section class="bi-portfolio-mod">
+              <div class="bi-portfolio-mod-title"><span class="card-tag tag-obra">Execução</span> Mapa de controle</div>
+              {% if row.execucao.sem_dados or not row.tem_mapa_controle %}
+              <p class="bi-portfolio-mod-empty">{% if not row.tem_mapa_controle %}Sem mapa publicado{% else %}Sem medição no mapa{% endif %}</p>
+              {% else %}
+              <div class="bi-portfolio-chips">
+                <span class="chip chip-green">✓ {{ row.execucao.concluidos }} concl.</span>
+                <span class="chip chip-blue">↻ {{ row.execucao.em_andamento }} and.</span>
+                <span class="chip chip-gray">○ {{ row.execucao.nao_iniciados }} não iniciados</span>
+              </div>
+              {% if row.execucao.piores_blocos %}
+              <ul class="bi-portfolio-list bi-portfolio-list--links">
+                {% for b in row.execucao.piores_blocos %}
+                <li>
+                  <a href="{{ b.url|default:row.mapa_url }}"><span>{{ b.rotulo }}</span><strong>{{ b.pct|floatformat:1 }}%</strong></a>
+                </li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {% if row.execucao.atividades_criticas %}
+              <div class="bi-portfolio-subtitle">Atividades mais críticas</div>
+              <ul class="bi-portfolio-list bi-portfolio-list--compact">
+                {% for a in row.execucao.atividades_criticas %}
+                <li><span>{{ a.nome|truncatechars:28 }}</span><strong>{{ a.pct|floatformat:1 }}%</strong></li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {% endif %}
+            </section>
+
+            <section class="bi-portfolio-mod">
+              <div class="bi-portfolio-mod-title"><span class="card-tag tag-suprimentos">Suprimentos</span> Mapa</div>
+              <div class="bi-portfolio-kpi-row">
+                <div><span class="k">Total</span><strong>{{ row.suprimentos.total }}</strong></div>
+                <div><span class="k">Atrasados</span><strong class="warn">{% if row.suprimentos.atrasados %}{{ row.suprimentos.atrasados }}{% else %}0{% endif %}</strong></div>
+                <div><span class="k">Sem aloc.</span><strong>{{ row.suprimentos.sem_alocacao }}</strong></div>
+                <div><span class="k">Parciais</span><strong>{{ row.suprimentos.parciais }}</strong></div>
+              </div>
+            </section>
+
+            <section class="bi-portfolio-mod">
+              <div class="bi-portfolio-mod-title"><span class="card-tag tag-diario">Operacional</span> Diário · Gestão</div>
+              <div class="bi-portfolio-kpi-row">
+                <div><span class="k">Restrições</span><strong>{% if row.restricoes_abertas %}{{ row.restricoes_abertas }}{% else %}0{% endif %}{% if row.restricoes_vencidas %} <em class="warn">({{ row.restricoes_vencidas }} venc.)</em>{% endif %}</strong></div>
+                <div><span class="k">Pedidos</span><strong>{{ row.pendentes_gestcontroll }}</strong></div>
+                <div><span class="k">RDOs</span><strong>{{ row.rdos_pendentes }}</strong></div>
+                <div><span class="k">TrackHub</span><strong>{% if row.trackhub.abertas %}{{ row.trackhub.abertas }}{% else %}0{% endif %}{% if row.trackhub.vencidas %} <em class="warn">({{ row.trackhub.vencidas }} venc.)</em>{% endif %}</strong></div>
+                <div><span class="k">Ocorr. período</span><strong>{{ row.diario.ocorrencias_periodo }}</strong></div>
+              </div>
+              {% if row.valor_em_aprovacao %}
+              <div class="bi-portfolio-mod-foot">Em aprovação: R$ {{ row.valor_em_aprovacao|format_brl }}</div>
+              {% endif %}
+            </section>
+          </div>
+
+          <footer class="bi-portfolio-card-foot">
+            <a href="{{ row.bi_url }}" class="nav-link">BI completo ›</a>
+            {% if row.tem_mapa_controle %}<a href="{{ row.mapa_url }}" class="nav-link">Mapa de controle ›</a>{% endif %}
+            <a href="{{ row.links.mapa_atrasados }}" class="nav-link">Mapa suprimentos ›</a>
+            {% if row.trackhub.abertas %}<a href="{{ row.links.trackhub }}" class="nav-link">TrackHub ›</a>{% endif %}
+            {% if row.snapshot_data %}<span class="bi-portfolio-snap">Snapshot {{ row.snapshot_data }}</span>{% endif %}
+          </footer>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card"><p class="bi-portfolio-empty">Nenhuma obra no escopo{% if somente_alerta %} com alerta{% endif %}.</p></div>
+      {% endif %}
+
+      <p class="bi-portfolio-footnote bi-portfolio-footnote--page">Use <strong>Resolver agora</strong> para ir direto ao impedimento, mapa atrasado ou cruzamento exec×suprimento. Gargalos cruzam bloco lento com material pendente no mesmo eixo.</p>
+    </div>
+</div>
+        </main>
+    </div>
+
+<script src="{% static 'suprimentos/js/analise_obra_shell.js' %}?v={{ lplan_static_version }}"></script>
+</body>
+</html>

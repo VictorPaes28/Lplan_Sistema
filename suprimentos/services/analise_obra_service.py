@@ -30,7 +30,11 @@ from suprimentos.services.mapa_controle_service import MapaControleFilters, Mapa
 from suprimentos.services.mapa_controle_viewmodel import (
     _append_pct_for_average,
     _cell_pct_for_average,
+    _extract_axis_map_from_meta,
+    _forward_fill_hierarchy_axes,
     _is_total_header_label,
+    _resolve_activity_col_indices,
+    _supplement_axis_map_from_header,
 )
 
 
@@ -242,6 +246,89 @@ def _parse_layout_matrix_rows(layout: dict | None) -> list[list[str]]:
                 out.append([str(row or "").strip()])
         return out
     return []
+
+
+def _parse_layout_rows_semantic(layout: dict | None) -> list[dict[str, Any]]:
+    """
+    Interpreta a matriz do ambiente com a mesma semântica do Mapa de Controle dedicado:
+    ``importMeta`` (eixos, colunas de atividade), forward-fill hierárquico e ordem
+    física das linhas/colunas após movimentações no editor.
+    """
+    from suprimentos.views_controle import _extract_first_matrix_rows_from_layout
+
+    matrix, matrix_meta = _extract_first_matrix_rows_from_layout(layout if isinstance(layout, dict) else {})
+    if not matrix:
+        return []
+
+    header = matrix[0] if isinstance(matrix[0], list) else []
+    body_rows = [
+        list(r) if isinstance(r, list) else [str(r or "")]
+        for r in (matrix[1:] if len(matrix) > 1 else [])
+    ]
+    meta = matrix_meta if isinstance(matrix_meta, dict) else {}
+
+    axis_map = _supplement_axis_map_from_header(header, _extract_axis_map_from_meta(meta))
+    axis_cols = sorted({idx for idx in axis_map.values() if isinstance(idx, int)})
+    activity_indices = _resolve_activity_col_indices(header, meta, axis_cols)
+    activity_cols: list[tuple[int, str]] = [
+        (idx, str(header[idx] or "").strip() or f"Atividade {idx}")
+        for idx in activity_indices
+        if isinstance(idx, int) and 0 <= idx < len(header)
+    ]
+
+    _forward_fill_hierarchy_axes(body_rows, axis_map)
+
+    idx_setor = axis_map.get("setor")
+    idx_bloco = axis_map.get("bloco")
+    idx_pav = axis_map.get("pavimento")
+    idx_apto = axis_map.get("apto")
+
+    parsed: list[dict[str, Any]] = []
+    for row in body_rows:
+        if not row:
+            continue
+        while len(row) < len(header):
+            row.append("")
+
+        apto = (
+            str(row[idx_apto] if isinstance(idx_apto, int) and idx_apto < len(row) else "")
+            .strip()
+        )
+        if not apto:
+            continue
+
+        setor = (
+            str(row[idx_setor] if isinstance(idx_setor, int) and idx_setor < len(row) else "")
+            .strip()
+        )
+        bloco = (
+            str(row[idx_bloco] if isinstance(idx_bloco, int) and idx_bloco < len(row) else "")
+            .strip()
+        )
+        pavimento = (
+            str(row[idx_pav] if isinstance(idx_pav, int) and idx_pav < len(row) else "")
+            .strip()
+        )
+
+        atividades: dict[str, str] = {}
+        for col_idx, col_name in activity_cols:
+            if col_idx < len(row):
+                atividades[col_name] = str(row[col_idx] or "").strip()
+
+        total_pct = _avg_pct_from_activity_values(atividades)
+
+        parsed.append(
+            {
+                "setor": setor,
+                "bloco": bloco,
+                "pavimento": pavimento,
+                "apto": apto,
+                "total_pct": total_pct,
+                "atividades": atividades,
+                "activity_pcts": _collect_activity_pcts_from_values(atividades),
+            }
+        )
+    return parsed
 
 
 def _parse_total_pct_cell(value: object) -> float | None:
@@ -646,7 +733,7 @@ class AnaliseObraService:
         bundle = self._load_controle_bundle()
         if not bundle:
             return "sem_mapa"
-        updated = bundle.get("ambiente_updated_at")
+        updated = bundle.get("versao_updated_at") or bundle.get("ambiente_updated_at")
         ambiente_id = bundle.get("ambiente_id")
         if updated is not None:
             try:
@@ -662,116 +749,27 @@ class AnaliseObraService:
         return self._controle_bundle_cache
 
     def controle_base_from_ambiente(self, obra: Obra) -> dict[str, Any] | None:
-        from painel_operacional.models import AmbienteOperacional, AmbienteTipo, AmbienteVersao, VersaoEstado
+        from painel_operacional.mapa_controle_obra import resolver_mapa_controle_obra, versao_layout_atual
 
-        ambiente = (
-            AmbienteOperacional.objects.filter(
-                obra_id=obra.id,
-                tipo=AmbienteTipo.MAPA_CONTROLE,
-                ativo=True,
-            )
-            .order_by("-updated_at")
-            .first()
-        )
+        ambiente = resolver_mapa_controle_obra(obra)
         if not ambiente:
             return None
 
-        versao = (
-            ambiente.versoes.filter(estado=VersaoEstado.DRAFT).order_by("-numero").first()
-        )
-        if not versao:
-            versao = (
-                ambiente.versoes.filter(estado=VersaoEstado.PUBLISHED).order_by("-numero").first()
-            )
+        versao = versao_layout_atual(ambiente)
         if not versao:
             return None
 
         rows = self._parse_layout_rows(versao.layout if isinstance(versao.layout, dict) else {})
         return {
             "ambiente_id": ambiente.id,
+            "ambiente_nome": ambiente.nome,
             "ambiente_updated_at": ambiente.updated_at,
+            "versao_updated_at": versao.updated_at,
             "rows": rows,
         }
 
     def _parse_layout_rows(self, layout: dict) -> list[dict[str, Any]]:
-        matrix = _parse_layout_matrix_rows(layout)
-        if not matrix:
-            return []
-
-        header = matrix[0]
-        idx_setor = _find_header_col(header, "SETOR", "REGIAO")
-        idx_bloco = _find_header_col(header, "BLOCO", "TORRE", "LOCAL")
-        idx_pav = _find_header_col(header, "PAVIMENTO", "PAV", "ANDAR", "NIVEL")
-        idx_apto = _find_header_col(header, "APTO", "UNIDADE", "UND", "LOCAL")
-
-        idx_total = None
-        for idx, cell in enumerate(header):
-            if _is_total_header_label(str(cell or "")):
-                idx_total = idx
-                break
-        if idx_total is None and len(header) > 0:
-            idx_total = len(header) - 1
-
-        axis_max = max(
-            [i for i in (idx_setor, idx_bloco, idx_pav, idx_apto) if isinstance(i, int)],
-            default=-1,
-        )
-        activity_cols: list[tuple[int, str]] = []
-        for idx in range(axis_max + 1, len(header)):
-            if idx == idx_total:
-                continue
-            label = str(header[idx] or "").strip() or f"Atividade {idx}"
-            if _is_total_header_label(label):
-                continue
-            activity_cols.append((idx, label))
-
-        parsed: list[dict[str, Any]] = []
-        for row in matrix[1:]:
-            if not row:
-                continue
-            while len(row) < len(header):
-                row.append("")
-
-            apto = (
-                str(row[idx_apto] if isinstance(idx_apto, int) and idx_apto < len(row) else "")
-                .strip()
-            )
-            if not apto:
-                continue
-
-            setor = (
-                str(row[idx_setor] if isinstance(idx_setor, int) and idx_setor < len(row) else "")
-                .strip()
-            )
-            bloco = (
-                str(row[idx_bloco] if isinstance(idx_bloco, int) and idx_bloco < len(row) else "")
-                .strip()
-            )
-            pavimento = (
-                str(row[idx_pav] if isinstance(idx_pav, int) and idx_pav < len(row) else "")
-                .strip()
-            )
-
-            atividades: dict[str, str] = {}
-            for col_idx, col_name in activity_cols:
-                if col_idx < len(row):
-                    atividades[col_name] = str(row[col_idx] or "").strip()
-
-            # Ignora Total gravado no JSON — recalcula como média das colunas de atividade (mapa clássico).
-            total_pct = _avg_pct_from_activity_values(atividades)
-
-            parsed.append(
-                {
-                    "setor": setor,
-                    "bloco": bloco,
-                    "pavimento": pavimento,
-                    "apto": apto,
-                    "total_pct": total_pct,
-                    "atividades": atividades,
-                    "activity_pcts": _collect_activity_pcts_from_values(atividades),
-                }
-            )
-        return parsed
+        return _parse_layout_rows_semantic(layout)
 
     def _filter_controle_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         f = self.filtros
@@ -1440,108 +1438,6 @@ class AnaliseObraService:
             "alertas_count": int(alerts_payload.get("count") or len(alertas_top)),
         }
 
-    def _build_workflow_central(self) -> dict[str, Any]:
-        """Processos da Central de Aprovações (workflow) para o projeto da obra."""
-        from django.db.models import Count
-
-        from workflow_aprovacao.models import (
-            ApprovalConfigBacklog,
-            ApprovalConfigBacklogStatus,
-            ApprovalProcess,
-            ProcessStatus,
-        )
-
-        empty: dict[str, Any] = {
-            "origem": "workflow_aprovacao",
-            "vinculo_projeto": False,
-            "mensagem": "Projeto não vinculado — Central de Aprovações indisponível.",
-            "kpis": {
-                "aguardando": 0,
-                "aprovados_periodo": 0,
-                "reprovados_periodo": 0,
-                "backlog_config": 0,
-            },
-            "por_categoria": [],
-            "processos_aguardando": [],
-        }
-
-        project = _resolve_project_for_obra(self.obra)
-        if not project:
-            return empty
-
-        tz = timezone.get_current_timezone()
-        start_dt = timezone.make_aware(datetime.combine(self.periodo.data_inicio, time.min), tz)
-        end_exclusive = timezone.make_aware(
-            datetime.combine(self.periodo.data_fim + timedelta(days=1), time.min),
-            tz,
-        )
-        now = timezone.now()
-
-        base = ApprovalProcess.objects.filter(project=project)
-        aguardando = base.filter(status=ProcessStatus.AWAITING_STEP).count()
-        aprovados_periodo = base.filter(
-            status=ProcessStatus.APPROVED,
-            updated_at__gte=start_dt,
-            updated_at__lt=end_exclusive,
-        ).count()
-        reprovados_periodo = base.filter(
-            status=ProcessStatus.REJECTED,
-            updated_at__gte=start_dt,
-            updated_at__lt=end_exclusive,
-        ).count()
-        backlog_config = ApprovalConfigBacklog.objects.filter(
-            project=project,
-            status=ApprovalConfigBacklogStatus.PENDING,
-        ).count()
-
-        por_categoria: list[dict[str, Any]] = []
-        for row in (
-            base.filter(status=ProcessStatus.AWAITING_STEP)
-            .values("category__name", "category__code")
-            .annotate(total=Count("id"))
-            .order_by("-total")[:8]
-        ):
-            por_categoria.append(
-                {
-                    "nome": row["category__name"] or row["category__code"] or "—",
-                    "codigo": row["category__code"] or "",
-                    "total": int(row["total"] or 0),
-                }
-            )
-
-        processos_aguardando: list[dict[str, Any]] = []
-        for proc in (
-            base.filter(status=ProcessStatus.AWAITING_STEP)
-            .select_related("category", "current_step")
-            .order_by("updated_at")[:12]
-        ):
-            ref = proc.updated_at or proc.created_at
-            dias = max(0, (now - ref).days) if ref else 0
-            processos_aguardando.append(
-                {
-                    "id": proc.id,
-                    "titulo": (proc.title or "").strip() or (proc.category.name if proc.category_id else "—"),
-                    "categoria": proc.category.name if proc.category_id else "",
-                    "dias_aguardando": dias,
-                    "origem": (proc.external_system or "manual").strip(),
-                }
-            )
-
-        return {
-            "origem": "workflow_aprovacao",
-            "vinculo_projeto": True,
-            "projeto_id": project.id,
-            "projeto_codigo": project.code,
-            "kpis": {
-                "aguardando": aguardando,
-                "aprovados_periodo": aprovados_periodo,
-                "reprovados_periodo": reprovados_periodo,
-                "backlog_config": backlog_config,
-            },
-            "por_categoria": por_categoria,
-            "processos_aguardando": processos_aguardando,
-        }
-
     def build_filtros_payload(self) -> dict[str, Any]:
         """Opções de dropdown e valores aplicados (para UI e API)."""
         bundle = self._load_controle_bundle()
@@ -1636,7 +1532,6 @@ class AnaliseObraService:
                 gestcontroll=gestcontroll,
                 diario=diario,
             ),
-            "baseline_planejamento": self._build_baseline_planejamento(project, controle),
         }
 
     def build_shell_payload(self) -> dict[str, Any]:
@@ -1671,7 +1566,6 @@ class AnaliseObraService:
         trackhub = self._build_trackhub()
         rh = self._build_rh()
         mapa_geo = self._build_mapa_geo()
-        workflow_central = self._build_workflow_central()
         payload: dict[str, Any] = {
             "meta": self._build_meta_block(
                 project=project,
@@ -1690,7 +1584,6 @@ class AnaliseObraService:
             "trackhub": trackhub,
             "rh": rh,
             "mapa_geo": mapa_geo,
-            "workflow_central": workflow_central,
         }
         if include_optional:
             payload["heatmap"] = self._build_heatmap()
@@ -1750,8 +1643,6 @@ class AnaliseObraService:
             return {"rh": self._build_rh()}
         if s == "mapa_geo":
             return {"mapa_geo": self._build_mapa_geo()}
-        if s == "workflow_central":
-            return {"workflow_central": self._build_workflow_central()}
         return None
 
     def _build_suprimentos(self, *, include_extras: bool = False) -> dict[str, Any]:
@@ -2567,62 +2458,6 @@ class AnaliseObraService:
                 "ocorrencias_dia": ocorrencias_hoje,
             },
         )
-
-    def _build_baseline_planejamento(
-        self, project: Project | None, controle: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Comparativo avanço físico real × curva linear do prazo do projeto (Project)."""
-        unavailable: dict[str, Any] = {
-            "disponivel": False,
-            "mensagem": (
-                "Cadastre data de início e término no projeto do Diário para exibir "
-                "o comparativo planejado × real."
-            ),
-        }
-        if project is None:
-            return unavailable
-        data_inicio = getattr(project, "start_date", None)
-        data_fim = getattr(project, "end_date", None)
-        if not data_inicio or not data_fim or data_fim <= data_inicio:
-            return unavailable
-
-        pct_raw = (controle.get("kpis") or {}).get("percentual_medio")
-        pct_real = float(pct_raw) if pct_raw is not None else 0.0
-        hoje = timezone.localdate()
-        duracao_total = (data_fim - data_inicio).days
-        decorrido = max(0, min(duracao_total, (hoje - data_inicio).days))
-        pct_esperado = (decorrido / float(duracao_total)) * 100.0
-        desvio = pct_real - pct_esperado
-
-        if desvio < -20:
-            situacao = "atrasado"
-            rotulo = "Execução abaixo do previsto"
-        elif desvio < -5:
-            situacao = "atencao"
-            rotulo = "Levemente abaixo do previsto"
-        elif desvio > 10:
-            situacao = "adiantado"
-            rotulo = "À frente do previsto"
-        else:
-            situacao = "ok"
-            rotulo = "Alinhado ao prazo linear"
-
-        return {
-            "disponivel": True,
-            "pct_real": round(pct_real, 1),
-            "pct_esperado": round(pct_esperado, 1),
-            "desvio": round(desvio, 1),
-            "situacao": situacao,
-            "rotulo": rotulo,
-            "data_inicio": data_inicio.isoformat(),
-            "data_fim": data_fim.isoformat(),
-            "dias_decorridos": decorrido,
-            "dias_totais": duracao_total,
-            "mensagem": (
-                f"Curva linear: {pct_esperado:.1f}% esperado no tempo vs "
-                f"{pct_real:.1f}% de avanço físico no mapa."
-            ),
-        }
 
     def _build_acoes_prioritarias(
         self,

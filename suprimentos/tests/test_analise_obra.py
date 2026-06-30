@@ -15,6 +15,7 @@ from suprimentos.models import BiObraKpiSnapshot
 from suprimentos.services.analise_obra_service import (
     AnaliseObraPeriodo,
     AnaliseObraService,
+    _parse_layout_rows_semantic,
 )
 
 
@@ -61,15 +62,6 @@ class TestAnaliseObraService(TestCase):
         self.assertIn("avanco", meta["hero_drawer"])
         self.assertEqual(len(meta["sparklines"]["avanco"]), 7)
 
-    def test_baseline_disponivel_com_projeto(self):
-        svc = self._service()
-        controle = {"kpis": {"percentual_medio": 42.5}}
-        bl = svc._build_baseline_planejamento(self.project, controle)
-        self.assertTrue(bl["disponivel"])
-        self.assertIn("pct_real", bl)
-        self.assertIn("pct_esperado", bl)
-        self.assertIn("desvio", bl)
-
     def test_record_kpi_snapshot_cria_registro(self):
         svc = self._service()
         controle = {"kpis": {"percentual_medio": 33.3}}
@@ -114,12 +106,101 @@ class TestAnaliseObraService(TestCase):
         self.assertEqual(lines["avanco"][0], 10.0)
         self.assertEqual(lines["avanco"][-1], 40.0)
 
+    def test_parse_layout_respeita_activity_cols_nao_contiguas(self):
+        """Colunas movidas/inseridas: índices vêm do importMeta, não do intervalo posicional."""
+        layout = {
+            "sections": [
+                {
+                    "kind": "matrix_table",
+                    "data": {
+                        "rows": [
+                            ["BLOCO", "PAVIMENTO", "APTO", "Alvenaria", "Vazio", "Revest", "Total"],
+                            ["A", "1", "101", "50", "", "80", ""],
+                        ],
+                        "importMeta": {
+                            "axis_cols_interpreted": [0, 1, 2],
+                            "axis_headers_interpreted": ["BLOCO", "PAVIMENTO", "APTO"],
+                            "activity_cols_interpreted": [3, 5],
+                        },
+                    },
+                }
+            ],
+        }
+        rows = _parse_layout_rows_semantic(layout)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["atividades"].get("Alvenaria"), "50")
+        self.assertEqual(rows[0]["atividades"].get("Revest"), "80")
+        self.assertNotIn("Vazio", rows[0]["atividades"])
+
+    def test_parse_layout_forward_fill_apos_movimentacao_linhas(self):
+        """Linhas de continuação herdam bloco/pav/apto após reorder no editor."""
+        layout = {
+            "sections": [
+                {
+                    "kind": "matrix_table",
+                    "data": {
+                        "rows": [
+                            ["BLOCO", "PAVIMENTO", "APTO", "Serviço", "Total"],
+                            ["A", "1", "101", "50", ""],
+                            ["", "", "", "60", ""],
+                        ],
+                        "importMeta": {
+                            "axis_cols_interpreted": [0, 1, 2],
+                            "activity_cols_interpreted": [3],
+                        },
+                    },
+                }
+            ],
+        }
+        rows = _parse_layout_rows_semantic(layout)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[1]["apto"], "101")
+        self.assertEqual(rows[1]["atividades"].get("Serviço"), "60")
+
     def test_analise_obra_page_ok(self):
         url = reverse("engenharia:analise_obra")
         r = self.client.get(url, {"obra": self.obra.id})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "BI da Obra")
         self.assertContains(r, "Mais filtros")
+        self.assertContains(r, "Todas as obras")
+
+    def test_analise_obra_portfolio_ok(self):
+        BiObraKpiSnapshot.objects.create(
+            obra=self.obra,
+            data=timezone.localdate(),
+            avanco_fisico_pct=Decimal("42.5"),
+            restricoes_abertas=1,
+            pendentes_gestcontroll=0,
+            rdos_pendentes=0,
+            ocorrencias_dia=0,
+        )
+        url = reverse("engenharia:analise_obra_portfolio")
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Portfólio de obras")
+        self.assertContains(r, "Obra BI Teste")
+        self.assertContains(r, "bi-portfolio-card")
+        self.assertContains(r, "Execução")
+        self.assertContains(r, "Resolver agora")
+        self.assertContains(r, "bi-btn-resolver")
+        self.assertContains(r, "status=atrasados")
+        self.assertContains(r, "mobile-app-header")
+        self.assertContains(r, "filtro-periodo-preset")
+        self.assertContains(r, "TrackHub")
+
+    def test_analise_obra_portfolio_periodo_60(self):
+        url = reverse("engenharia:analise_obra_portfolio")
+        r = self.client.get(url, {"periodo": "60"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'value="60" selected')
+
+    def test_analise_obra_portfolio_somente_alerta(self):
+        url = reverse("engenharia:analise_obra_portfolio")
+        r = self.client.get(url, {"somente_alerta": "1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Portfólio de obras")
+        self.assertContains(r, "bi-portfolio-card")
 
     def test_analise_obra_resumo_ok(self):
         url = reverse("engenharia:analise_obra_resumo")
@@ -142,3 +223,22 @@ class TestAnaliseObraService(TestCase):
         data = r.json()
         self.assertTrue(data.get("success"))
         self.assertIn("heatmap", data["data"])
+
+    def test_periodo_preset_30_dias(self):
+        from suprimentos.views_analise_obra import _effective_periodo_analise
+
+        hoje = timezone.localdate()
+        ini, fim = _effective_periodo_analise(
+            type("R", (), {"GET": {"periodo": "30"}})(),
+            self.obra,
+        )
+        self.assertEqual(fim, hoje)
+        self.assertEqual((fim - ini).days, 30)
+
+    def test_periodo_preset_todos(self):
+        from suprimentos.views_analise_obra import _effective_periodo_analise
+
+        req = type("R", (), {"GET": {"periodo": "todos"}})()
+        ini, fim = _effective_periodo_analise(req, self.obra)
+        self.assertEqual(ini, self.project.start_date)
+        self.assertEqual(fim, timezone.localdate())

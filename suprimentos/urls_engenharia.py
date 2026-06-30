@@ -25,6 +25,7 @@ urlpatterns = [
     path('dashboard/', RedirectView.as_view(pattern_name='engenharia:dashboard_2', permanent=True), name='dashboard_redirect'),
     path('dashboard-2/', views_engenharia.dashboard_2, name='dashboard_2'),
     path('analise-obra/', views_analise_obra.analise_obra, name='analise_obra'),
+    path('analise-obra/portfolio/', views_analise_obra.analise_obra_portfolio, name='analise_obra_portfolio'),
     path('analise-obra/resumo/', views_analise_obra.analise_obra_resumo, name='analise_obra_resumo'),
     path('ferramenta/', views_painel_operacional.ferramenta_shell, name='ferramenta_shell'),
     path(

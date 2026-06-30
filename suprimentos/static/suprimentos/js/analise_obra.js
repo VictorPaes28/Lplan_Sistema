@@ -836,7 +836,7 @@
         esc((a.colaborador_nome || "").slice(0, 28)) +
         '<div style="font-size:10px;color:var(--bi-text3)">' +
         esc(a.tipo || a.detalhe || "") +
-        "</div></div><div class="stat-row-value" style="font-size:10px">' +
+        '</div></div><div class="stat-row-value" style="font-size:10px">' +
         esc(a.prazo || "") +
         "</div></div>";
     });
@@ -850,7 +850,7 @@
         '<div style="font-size:10px;color:var(--bi-text3)">' +
         esc(c.cargo || "") +
         (c.etapa_admissao ? " · etapa " + num(c.etapa_admissao) : "") +
-        "</div></div><div class="stat-row-value" style="font-size:10px">' +
+        '</div></div><div class="stat-row-value" style="font-size:10px">' +
         esc(c.status || "") +
         "</div></div>";
     });
@@ -994,91 +994,6 @@
     );
   }
 
-  function renderWorkflowCentral(wf) {
-    if (!wf) return '<p class="analise-loading-skeleton">Sem dados da Central de Aprovações.</p>';
-    if (!wf.vinculo_projeto) {
-      return '<div class="card"><div class="big-sub" style="color:var(--bi-text3)">' + esc(wf.mensagem || "Sem vínculo de projeto.") + "</div></div>";
-    }
-    var kpis = wf.kpis || {};
-    var projId = wf.projeto_id || "";
-    var filaUrl = (window.__AO_URLS__ && window.__AO_URLS__.workflow_pending) || "/aprovacoes/fila/";
-    if (projId) filaUrl += (filaUrl.indexOf("?") >= 0 ? "&" : "?") + "project=" + encodeURIComponent(projId) + "&aba=pendente";
-    var detailPrefix = (window.__AO_URLS__ && window.__AO_URLS__.workflow_process_prefix) || "/aprovacoes/processo/";
-
-    var cats = "";
-    (wf.por_categoria || []).forEach(function (c, i) {
-      var dot = i === 0 ? "var(--bi-red)" : i === 1 ? "var(--bi-yellow)" : "var(--bi-blue)";
-      cats +=
-        '<div class="stat-row"><div class="stat-row-label"><div class="stat-dot" style="background:' +
-        dot +
-        '"></div>' +
-        esc(c.nome) +
-        '</div><div class="stat-row-value">' +
-        num(c.total) +
-        "</div></div>";
-    });
-    if (!cats) cats = '<div class="big-sub" style="color:var(--bi-text3)">Nenhum processo aguardando</div>';
-
-    var fila = "";
-    (wf.processos_aguardando || []).slice(0, 8).forEach(function (p) {
-      var dias = num(p.dias_aguardando);
-      fila +=
-        '<div class="pedido-row" onclick="location.href=\'' +
-        esc(detailPrefix + p.id + "/") +
-        '\'">' +
-        '<div class="pedido-code">' +
-        esc((p.categoria || "—").slice(0, 12)) +
-        "</div>" +
-        '<div class="pedido-credor">' +
-        esc((p.titulo || "—").slice(0, 48)) +
-        '<div style="font-size:10px;color:var(--bi-text3)">' +
-        esc(p.origem || "") +
-        " · há " +
-        dias +
-        " dias" +
-        (dias > 5 ? " ⚠️" : "") +
-        "</div></div>" +
-        '<div class="pedido-badge pend">Aguardando</div><div class="pedido-arrow">›</div></div>";
-    });
-    if (!fila) fila = '<div style="font-size:12px;color:var(--bi-text3);padding:12px 0">Fila vazia para esta obra</div>';
-
-    return (
-      '<div class="grid-4" style="margin-bottom:12px">' +
-      '<div class="card"><div class="card-title">Aguardando <span class="card-tag tag-gest">CENTRAL</span></div>' +
-      '<div class="big-num yellow">' +
-      num(kpis.aguardando) +
-      '</div><div class="big-sub">na alçada atual</div>' +
-      '<a href="' +
-      esc(filaUrl) +
-      '" class="nav-link">Ver fila ' +
-      NAV_SVG +
-      "</a></div>" +
-      '<div class="card"><div class="card-title">Aprovados <span class="card-tag tag-gest">CENTRAL</span></div>' +
-      '<div class="big-num green">' +
-      num(kpis.aprovados_periodo) +
-      '</div><div class="big-sub">no período</div></div>' +
-      '<div class="card"><div class="card-title">Reprovados <span class="card-tag tag-gest">CENTRAL</span></div>' +
-      '<div class="big-num red">' +
-      num(kpis.reprovados_periodo) +
-      '</div><div class="big-sub">no período</div></div>' +
-      '<div class="card"><div class="card-title">Sem fluxo <span class="card-tag tag-gest">CONFIG</span></div>' +
-      '<div class="big-num ' +
-      (num(kpis.backlog_config) > 0 ? "red" : "gray") +
-      '">' +
-      num(kpis.backlog_config) +
-      '</div><div class="big-sub">integrações sem alçada</div></div></div>' +
-      '<div class="grid-2">' +
-      '<div class="card"><div class="card-title">Por categoria (aguardando) <span class="card-tag tag-gest">CENTRAL</span></div>' +
-      cats +
-      '</div><div class="card"><div class="card-title">Processos na fila <span class="card-tag tag-gest">CENTRAL</span></div>' +
-      fila +
-      (num(kpis.aguardando) > 0
-        ? '<a href="' + esc(filaUrl) + '" class="nav-link">Ver todos ' + num(kpis.aguardando) + " na fila " + NAV_SVG + "</a>"
-        : "") +
-      "</div></div>"
-    );
-  }
-
   function renderSecao(secao, payload, el) {
     var data = payload && payload.data ? payload.data : payload;
     if (!data) return '<p style="color:var(--bi-red)">Resposta vazia.</p>';
@@ -1091,7 +1006,6 @@
     if (secao === "cruzamento") return renderCruzamento(data.cruzamento);
     if (secao === "rh") return renderRh(data.rh);
     if (secao === "mapa_geo") return renderMapaGeo(data.mapa_geo, el);
-    if (secao === "workflow_central") return renderWorkflowCentral(data.workflow_central);
     return '<p>Seção não suportada: ' + esc(secao) + "</p>";
   }
 
