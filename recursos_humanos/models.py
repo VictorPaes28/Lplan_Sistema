@@ -59,6 +59,21 @@ class CargoCatalogo(models.Model):
         return self.nome
 
 
+class EmpresaResponsavel(models.Model):
+    """Empresas responsáveis cadastradas para seleção na requisição."""
+
+    nome = models.CharField('Nome', max_length=200, unique=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Empresa responsável'
+        verbose_name_plural = 'Empresas responsáveis'
+        ordering = ['nome']
+
+    def __str__(self):
+        return self.nome
+
+
 class TipoDocumento(models.Model):
     class AplicaA(models.TextChoices):
         TODOS = 'todos', 'Todos os colaboradores'
@@ -139,6 +154,7 @@ class Colaborador(models.Model):
     data_nascimento = models.DateField('Data de nascimento', null=True, blank=True)
     endereco = models.CharField('Endereço', max_length=300, blank=True)
     dados_bancarios = models.CharField('Conta bancária', max_length=200, blank=True)
+    pix = models.CharField('Chave PIX', max_length=140, blank=True)
     pis = models.CharField('PIS', max_length=20, blank=True)
     escolaridade = models.CharField('Escolaridade', max_length=120, blank=True)
     tamanho_camisa = models.CharField('Tamanho camisa', max_length=10, blank=True)
@@ -239,6 +255,17 @@ class Colaborador(models.Model):
         verbose_name='Requisição criada por',
     )
     motivo_admissao = models.CharField('Motivo admissão', max_length=120, blank=True)
+    indicacao = models.CharField(
+        'Indicação (quem indicou)',
+        max_length=200,
+        blank=True,
+        help_text='Preencha com o nome de quem indicou o candidato, se houver indicação.',
+    )
+    vale_transporte_valor = models.CharField(
+        'Valor do vale-transporte',
+        max_length=40,
+        blank=True,
+    )
     observacoes_requisicao = models.TextField('Observações da requisição', blank=True)
     obras = models.ManyToManyField(ObraLocal, blank=True, related_name='colaboradores')
     token_portal = models.CharField(

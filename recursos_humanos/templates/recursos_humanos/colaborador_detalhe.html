@@ -101,7 +101,8 @@
           <div><span class="rh-field-label">E-mail</span><span class="rh-field-value">{{ colaborador.email|default:"—" }}</span></div>
           <div><span class="rh-field-label">Telefone</span><span class="rh-field-value">{{ colaborador.telefone|default:"—" }}</span></div>
           <div class="rh-field-full"><span class="rh-field-label">Endereço</span><span class="rh-field-value">{{ colaborador.endereco|default:"—" }}</span></div>
-          <div class="rh-field-full"><span class="rh-field-label">Conta bancária</span><span class="rh-field-value">{{ colaborador.dados_bancarios|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Conta bancária</span><span class="rh-field-value">{{ colaborador.dados_bancarios|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Chave PIX</span><span class="rh-field-value">{{ colaborador.pix|default:"—" }}</span></div>
           <div><span class="rh-field-label">Escolaridade</span><span class="rh-field-value">{{ colaborador.escolaridade|default:"—" }}</span></div>
           <div><span class="rh-field-label">Tam. camisa</span><span class="rh-field-value">{{ colaborador.tamanho_camisa|default:"—" }}</span></div>
           <div><span class="rh-field-label">Tam. bota</span><span class="rh-field-value">{{ colaborador.tamanho_bota|default:"—" }}</span></div>
@@ -115,6 +116,8 @@
           <div><span class="rh-field-label">Empresa responsável</span><span class="rh-field-value">{{ colaborador.empresa|default:"—" }}</span></div>
           <div><span class="rh-field-label">Tipo de contrato</span><span class="rh-field-value">{{ colaborador.tipo_contrato|default:"—" }}</span></div>
           <div><span class="rh-field-label">Salário</span><span class="rh-field-value">{{ colaborador.salario|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Vale-transporte</span><span class="rh-field-value">{{ colaborador.vale_transporte_valor|default:"—" }}</span></div>
+          <div><span class="rh-field-label">Indicação</span><span class="rh-field-value">{{ colaborador.indicacao|default:"—" }}</span></div>
           <div><span class="rh-field-label">Origem (de onde vem)</span><span class="rh-field-value">{{ colaborador.deslocamento_origem|default:"—" }}</span></div>
           <div><span class="rh-field-label">Destino (para onde vai)</span><span class="rh-field-value">{{ colaborador.deslocamento_destino|default:"—" }}</span></div>
           <div class="rh-field-full">
@@ -148,7 +151,8 @@
             <div class="rh-form-field"><label for="{{ form_colaborador.email.id_for_label }}">E-mail</label>{{ form_colaborador.email }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.telefone.id_for_label }}">Telefone / WhatsApp</label>{{ form_colaborador.telefone }}</div>
             <div class="rh-form-field rh-form-field-full"><label for="{{ form_colaborador.endereco.id_for_label }}">Endereço</label>{{ form_colaborador.endereco }}</div>
-            <div class="rh-form-field rh-form-field-full"><label for="{{ form_colaborador.dados_bancarios.id_for_label }}">Conta bancária</label>{{ form_colaborador.dados_bancarios }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.dados_bancarios.id_for_label }}">Conta bancária</label>{{ form_colaborador.dados_bancarios }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.pix.id_for_label }}">Chave PIX</label>{{ form_colaborador.pix }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.escolaridade.id_for_label }}">Escolaridade</label>{{ form_colaborador.escolaridade }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.tamanho_camisa.id_for_label }}">Tam. camisa</label>{{ form_colaborador.tamanho_camisa }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.tamanho_bota.id_for_label }}">Tam. bota</label>{{ form_colaborador.tamanho_bota }}</div>
@@ -164,6 +168,8 @@
             <div class="rh-form-field"><label for="{{ form_colaborador.empresa.id_for_label }}">Empresa responsável</label>{{ form_colaborador.empresa }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.tipo_contrato.id_for_label }}">Tipo de contrato</label>{{ form_colaborador.tipo_contrato }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.salario.id_for_label }}">Salário</label>{{ form_colaborador.salario }}</div>
+            <div class="rh-form-field"><label for="{{ form_colaborador.vale_transporte_valor.id_for_label }}">Vale-transporte (R$)</label>{{ form_colaborador.vale_transporte_valor }}</div>
+            <div class="rh-form-field rh-form-field-full"><label for="{{ form_colaborador.indicacao.id_for_label }}">Houve indicação? Se sim, quem indicou?</label>{{ form_colaborador.indicacao }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.deslocamento_origem.id_for_label }}">Cidade de origem</label>{{ form_colaborador.deslocamento_origem }}</div>
             <div class="rh-form-field"><label for="{{ form_colaborador.deslocamento_destino.id_for_label }}">Cidade de destino</label>{{ form_colaborador.deslocamento_destino }}</div>
             <div class="rh-form-field rh-form-field-full">

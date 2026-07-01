@@ -160,6 +160,7 @@ CAMPOS_DADOS_PORTAL = (
     'pis',
     'endereco',
     'dados_bancarios',
+    'pix',
     'escolaridade',
     'tamanho_camisa',
     'tamanho_bota',
@@ -181,6 +182,7 @@ LABELS_CAMPOS_PORTAL = {
     'pis': 'PIS/PASEP',
     'endereco': 'Endereço completo',
     'dados_bancarios': 'Conta bancária',
+    'pix': 'Chave PIX',
     'escolaridade': 'Escolaridade',
     'tamanho_camisa': 'Tamanho de camisa',
     'tamanho_bota': 'Tamanho de bota',
@@ -517,6 +519,7 @@ def _dados_candidato_opcionais_payload(cleaned_data: dict) -> dict:
         'pis': (cleaned_data.get('pis') or '').strip(),
         'endereco': (cleaned_data.get('endereco') or '').strip(),
         'dados_bancarios': (cleaned_data.get('dados_bancarios') or '').strip(),
+        'pix': (cleaned_data.get('pix') or '').strip(),
         'escolaridade': (cleaned_data.get('escolaridade') or '').strip(),
         'tamanho_camisa': (cleaned_data.get('tamanho_camisa') or '').strip(),
         'tamanho_bota': (cleaned_data.get('tamanho_bota') or '').strip(),
@@ -531,6 +534,7 @@ def _aplicar_dados_candidato_opcionais(colaborador: Colaborador, cleaned_data: d
     colaborador.pis = dados['pis']
     colaborador.endereco = dados['endereco']
     colaborador.dados_bancarios = dados['dados_bancarios']
+    colaborador.pix = dados['pix']
     colaborador.escolaridade = dados['escolaridade']
     colaborador.tamanho_camisa = dados['tamanho_camisa']
     colaborador.tamanho_bota = dados['tamanho_bota']
@@ -558,6 +562,7 @@ def criar_requisicao(form, user) -> Colaborador:
         pis=dados_opc['pis'],
         endereco=dados_opc['endereco'],
         dados_bancarios=dados_opc['dados_bancarios'],
+        pix=dados_opc['pix'],
         escolaridade=dados_opc['escolaridade'],
         tamanho_camisa=dados_opc['tamanho_camisa'],
         tamanho_bota=dados_opc['tamanho_bota'],
@@ -577,6 +582,8 @@ def criar_requisicao(form, user) -> Colaborador:
         requisicao_motivo_reprovacao='',
         requisicao_criada_por=user if getattr(user, 'is_authenticated', False) else None,
         motivo_admissao=cleaned_data['motivo'],
+        indicacao=(cleaned_data.get('indicacao') or '').strip(),
+        vale_transporte_valor=(cleaned_data.get('vale_transporte_valor') or '').strip(),
         observacoes_requisicao=cleaned_data.get('observacoes', ''),
     )
     colab.obras.set(obras)
@@ -668,6 +675,8 @@ def atualizar_requisicao(colaborador: Colaborador, cleaned_data, user) -> Colabo
     colaborador.deslocamento_destino = (cleaned_data.get('deslocamento_destino') or '').strip()
     colaborador.reembolsos = cleaned_data.get('reembolsos') or []
     colaborador.motivo_admissao = cleaned_data['motivo']
+    colaborador.indicacao = (cleaned_data.get('indicacao') or '').strip()
+    colaborador.vale_transporte_valor = (cleaned_data.get('vale_transporte_valor') or '').strip()
     colaborador.observacoes_requisicao = cleaned_data.get('observacoes', '')
     _aplicar_dados_candidato_opcionais(colaborador, cleaned_data)
     colaborador.requisicao_reprovada = False

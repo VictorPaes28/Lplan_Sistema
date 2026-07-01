@@ -33,6 +33,7 @@ from .models import (
     CargoRH,
     Colaborador,
     DocumentoColaborador,
+    EmpresaResponsavel,
     ObraLocal,
     PrazoContrato,
     TipoDocumento,
@@ -108,6 +109,7 @@ def _salvar_rascunho_requisicao(request, form=None, exc_msg=None):
         'pis': request.POST.get('pis', ''),
         'endereco': request.POST.get('endereco', ''),
         'dados_bancarios': request.POST.get('dados_bancarios', ''),
+        'pix': request.POST.get('pix', ''),
         'escolaridade': request.POST.get('escolaridade', ''),
         'tamanho_camisa': request.POST.get('tamanho_camisa', ''),
         'tamanho_bota': request.POST.get('tamanho_bota', ''),
@@ -118,6 +120,8 @@ def _salvar_rascunho_requisicao(request, form=None, exc_msg=None):
         'aprovadores': request.POST.getlist('aprovadores'),
         'tipo_contrato': request.POST.get('tipo_contrato', 'CLT'),
         'salario': request.POST.get('salario', ''),
+        'vale_transporte_valor': request.POST.get('vale_transporte_valor', ''),
+        'indicacao': request.POST.get('indicacao', ''),
         'deslocamento_origem': request.POST.get('deslocamento_origem', ''),
         'deslocamento_destino': request.POST.get('deslocamento_destino', ''),
         'reembolsos_json': request.POST.get('reembolsos_json', '[]'),
@@ -162,6 +166,7 @@ def _rh_nav_context(request, alertas_count=None):
         'rh_form_requisicao': form_requisicao,
         'rh_cargos_catalogo': cargos_catalogo,
         'rh_cargos_rh': CargoRH.objects.all(),
+        'rh_empresas_responsaveis': EmpresaResponsavel.objects.all(),
         'rh_solicitante_nome': solicitante,
         'rh_requisicao_draft': requisicao_draft,
         'rh_escolaridade_choices': [c for c in ESCOLARIDADE_CHOICES if c[0]],
@@ -588,6 +593,7 @@ def colaborador_json_view(request, pk):
         'data_nascimento_fmt': colaborador.data_nascimento.strftime('%d/%m/%Y') if colaborador.data_nascimento else '',
         'endereco': colaborador.endereco,
         'dados_bancarios': colaborador.dados_bancarios,
+        'pix': colaborador.pix,
         'pis': colaborador.pis,
         'escolaridade': colaborador.escolaridade,
         'tamanho_camisa': colaborador.tamanho_camisa,
@@ -613,6 +619,8 @@ def colaborador_json_view(request, pk):
         'data_admissao_bloqueada': data_admissao_oficial_bloqueada(colaborador),
         'tipo_contrato': colaborador.tipo_contrato,
         'salario': colaborador.salario,
+        'vale_transporte_valor': colaborador.vale_transporte_valor,
+        'indicacao': colaborador.indicacao,
         'deslocamento_origem': colaborador.deslocamento_origem,
         'deslocamento_destino': colaborador.deslocamento_destino,
         'observacoes_requisicao': colaborador.observacoes_requisicao,
@@ -708,6 +716,7 @@ def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
         'pis': colaborador.pis,
         'endereco': colaborador.endereco,
         'dados_bancarios': colaborador.dados_bancarios,
+        'pix': colaborador.pix,
         'escolaridade': colaborador.escolaridade,
         'tamanho_camisa': colaborador.tamanho_camisa,
         'tamanho_bota': colaborador.tamanho_bota,
@@ -718,6 +727,8 @@ def _requisicao_edicao_payload(colaborador: Colaborador) -> dict:
         'aprovadores': list(colaborador.aprovadores_requisicao.values_list('pk', flat=True)),
         'tipo_contrato': colaborador.tipo_contrato,
         'salario': colaborador.salario,
+        'vale_transporte_valor': colaborador.vale_transporte_valor,
+        'indicacao': colaborador.indicacao,
         'deslocamento_origem': colaborador.deslocamento_origem,
         'deslocamento_destino': colaborador.deslocamento_destino,
         'reembolsos': colaborador.reembolsos or [],
@@ -1648,6 +1659,18 @@ def cargo_catalogo_create_view(request):
     if len(nome) < 2:
         return JsonResponse({'ok': False, 'error': 'Informe o nome do cargo.'}, status=400)
     obj, created = CargoCatalogo.objects.get_or_create(nome=nome)
+    return JsonResponse({'ok': True, 'id': obj.pk, 'nome': obj.nome, 'created': created})
+
+
+@login_required
+@require_rh
+def empresa_quick_create_view(request):
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+    nome = (request.POST.get('nome') or '').strip()
+    if len(nome) < 2:
+        return JsonResponse({'ok': False, 'error': 'Informe o nome da empresa.'}, status=400)
+    obj, created = EmpresaResponsavel.objects.get_or_create(nome=nome)
     return JsonResponse({'ok': True, 'id': obj.pk, 'nome': obj.nome, 'created': created})
 
 

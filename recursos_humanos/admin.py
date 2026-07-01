@@ -8,6 +8,7 @@ from .models import (
     ContratoAdmissao,
     DecisaoPrazoContrato,
     DocumentoColaborador,
+    EmpresaResponsavel,
     NotificacaoEnviada,
     ObraLocal,
     PapelFluxoAdmissao,
@@ -23,6 +24,11 @@ class ObraLocalAdmin(admin.ModelAdmin):
 
 @admin.register(CargoRH)
 class CargoRHAdmin(admin.ModelAdmin):
+    search_fields = ('nome',)
+
+
+@admin.register(EmpresaResponsavel)
+class EmpresaResponsavelAdmin(admin.ModelAdmin):
     search_fields = ('nome',)
 
 

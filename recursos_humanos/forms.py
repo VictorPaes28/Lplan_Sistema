@@ -26,7 +26,7 @@ def validar_data_emissao(value):
         return 'A data de emissão não pode ser uma data futura.'
     return None
 
-from .models import CargoRH, Colaborador, DocumentoColaborador, ObraLocal, PapelFluxoAdmissao, PrazoContrato, TipoDocumento
+from .models import CargoRH, Colaborador, DocumentoColaborador, EmpresaResponsavel, ObraLocal, PapelFluxoAdmissao, PrazoContrato, TipoDocumento
 from .services.admissao import formatar_salario_br
 from .services.admissao_actions import obras_reais_queryset
 
@@ -114,6 +114,7 @@ class NovaRequisicaoForm(forms.Form):
     pis = forms.CharField(max_length=20, required=False, label='PIS')
     endereco = forms.CharField(max_length=300, required=False, label='Endereço')
     dados_bancarios = forms.CharField(max_length=200, required=False, label='Conta bancária')
+    pix = forms.CharField(max_length=140, required=False, label='Chave PIX')
     escolaridade = forms.ChoiceField(
         choices=ESCOLARIDADE_CHOICES,
         required=False,
@@ -145,6 +146,16 @@ class NovaRequisicaoForm(forms.Form):
         initial='CLT',
     )
     salario = forms.CharField(max_length=40, label='Salário')
+    vale_transporte_valor = forms.CharField(
+        max_length=40,
+        required=False,
+        label='Valor do vale-transporte',
+    )
+    indicacao = forms.CharField(
+        max_length=200,
+        required=False,
+        label='Indicação (quem indicou, se houver)',
+    )
     deslocamento_origem = forms.CharField(
         max_length=120,
         required=False,
@@ -242,6 +253,12 @@ class NovaRequisicaoForm(forms.Form):
 
     def clean_salario(self):
         return formatar_salario_br(self.cleaned_data.get('salario'))
+
+    def clean_vale_transporte_valor(self):
+        valor = (self.cleaned_data.get('vale_transporte_valor') or '').strip()
+        if not valor:
+            return ''
+        return formatar_salario_br(valor)
 
     def clean_obra(self):
         obras = self.cleaned_data.get('obra')
@@ -433,8 +450,9 @@ class ColaboradorBasicoForm(forms.ModelForm):
         model = Colaborador
         fields = (
             'nome', 'cpf', 'email', 'telefone', 'rg', 'cargo', 'cargo_rh', 'empresa', 'endereco', 'dados_bancarios',
-            'pis', 'escolaridade', 'tamanho_camisa', 'tamanho_bota', 'data_nascimento',
-            'tipo_contrato', 'salario', 'deslocamento_origem', 'deslocamento_destino',
+            'pix', 'pis', 'escolaridade', 'tamanho_camisa', 'tamanho_bota', 'data_nascimento',
+            'tipo_contrato', 'salario', 'vale_transporte_valor', 'indicacao',
+            'deslocamento_origem', 'deslocamento_destino',
             'data_admissao', 'status', 'observacoes_requisicao', 'obras',
         )
         widgets = {
@@ -465,6 +483,15 @@ class ColaboradorBasicoForm(forms.ModelForm):
             attrs={'class': 'rh-select'},
         )
         self.fields['status'].choices = Colaborador.Status.choices
+        empresas = list(EmpresaResponsavel.objects.values_list('nome', flat=True))
+        atual = (self.instance.empresa or '').strip() if self.instance else ''
+        if atual and atual not in empresas:
+            empresas.append(atual)
+        self.fields['empresa'].widget = forms.Select(
+            choices=[('', '— Selecione —')] + [(e, e) for e in empresas],
+            attrs={'class': 'rh-select'},
+        )
+        self.fields['empresa'].required = False
         if self.instance and self.instance.pk:
             if data_admissao_oficial_bloqueada(self.instance):
                 oficial = obter_data_admissao_oficial(self.instance)
@@ -603,6 +630,7 @@ class PortalCandidatoDadosForm(forms.ModelForm):
             'pis',
             'endereco',
             'dados_bancarios',
+            'pix',
             'escolaridade',
             'tamanho_camisa',
             'tamanho_bota',
@@ -618,6 +646,10 @@ class PortalCandidatoDadosForm(forms.ModelForm):
             'dados_bancarios': forms.TextInput(attrs={
                 'class': 'portal-input',
                 'placeholder': 'Banco, agência, conta e tipo',
+            }),
+            'pix': forms.TextInput(attrs={
+                'class': 'portal-input',
+                'placeholder': 'CPF, e-mail, telefone ou chave aleatória',
             }),
         }
 

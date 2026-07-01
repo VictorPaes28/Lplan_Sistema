@@ -45,5 +45,6 @@ urlpatterns = [
     path('papeis/', views.papeis_fluxo_view, name='papeis_fluxo'),
     path('cargos/catalogo/criar/', views.cargo_catalogo_create_view, name='cargo_catalogo_create'),
     path('cargos/rh/criar/', views.cargo_rh_quick_create_view, name='cargo_rh_quick_create'),
+    path('empresas/criar/', views.empresa_quick_create_view, name='empresa_quick_create'),
     path('cargos/<int:pk>/excluir/', views.cargo_excluir_view, name='cargo_excluir'),
 ]

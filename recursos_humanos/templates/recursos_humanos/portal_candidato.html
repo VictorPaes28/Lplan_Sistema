@@ -160,6 +160,16 @@
 
           </div>
 
+          <div class="portal-field portal-field--full">
+
+            <label for="{{ dados_form.pix.id_for_label }}">Chave PIX</label>
+
+            {{ dados_form.pix }}
+
+            {% if dados_form.pix.errors %}<p class="portal-field-error">{{ dados_form.pix.errors.0 }}</p>{% endif %}
+
+          </div>
+
           <div class="portal-field">
 
             <label for="{{ dados_form.tamanho_camisa.id_for_label }}">Tamanho da camisa <span class="portal-required">*</span></label>
@@ -189,7 +199,8 @@
         <div class="portal-field"><span class="portal-field-label">PIS/PASEP</span><span class="portal-field-value">{{ colaborador.pis|default:"—" }}</span></div>
         <div class="portal-field"><span class="portal-field-label">Escolaridade</span><span class="portal-field-value">{{ colaborador.escolaridade|default:"—" }}</span></div>
         <div class="portal-field portal-field--full"><span class="portal-field-label">Endereço</span><span class="portal-field-value">{{ colaborador.endereco|default:"—" }}</span></div>
-        <div class="portal-field portal-field--full"><span class="portal-field-label">Conta bancária</span><span class="portal-field-value">{{ colaborador.dados_bancarios|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Conta bancária</span><span class="portal-field-value">{{ colaborador.dados_bancarios|default:"—" }}</span></div>
+        <div class="portal-field"><span class="portal-field-label">Chave PIX</span><span class="portal-field-value">{{ colaborador.pix|default:"—" }}</span></div>
         <div class="portal-field"><span class="portal-field-label">Camisa</span><span class="portal-field-value">{{ colaborador.tamanho_camisa|default:"—" }}</span></div>
         <div class="portal-field"><span class="portal-field-label">Bota</span><span class="portal-field-value">{{ colaborador.tamanho_bota|default:"—" }}</span></div>
       </div>

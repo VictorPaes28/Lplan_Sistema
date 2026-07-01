@@ -95,16 +95,33 @@
                   <input type="text" name="pis" id="req-pis" class="rh-input" maxlength="20" placeholder="Ex: 123.45678.90-1">
                 </div>
                 <div class="rh-form-field">
-                  <label for="req-empresa">Empresa responsável</label>
-                  <input type="text" name="empresa" id="req-empresa" class="rh-input" maxlength="200" placeholder="Ex: LPLAN Engenharia">
+                  <label for="req-empresa-select">Empresa responsável</label>
+                  <div class="rh-cargo-picker">
+                    <input type="hidden" name="empresa" id="req-empresa">
+                    <select id="req-empresa-select" class="rh-select">
+                      <option value="">Selecione a empresa</option>
+                      {% for e in rh_empresas_responsaveis %}
+                      <option value="{{ e.nome }}">{{ e.nome }}</option>
+                      {% endfor %}
+                      <option value="__novo__">+ Cadastrar nova empresa...</option>
+                    </select>
+                    <div class="rh-cargo-novo-wrap" id="req-empresa-novo-wrap" hidden>
+                      <input type="text" id="req-empresa-novo" class="rh-input" maxlength="200" placeholder="Nome da empresa">
+                      <button type="button" class="rh-btn rh-btn-outline rh-btn-sm" id="req-empresa-salvar">Salvar empresa</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="rh-form-field rh-wizard-field-full">
                   <label for="req-endereco">Endereço</label>
                   <input type="text" name="endereco" id="req-endereco" class="rh-input" maxlength="300" placeholder="Rua, número, bairro, cidade/UF">
                 </div>
-                <div class="rh-form-field rh-wizard-field-full">
+                <div class="rh-form-field">
                   <label for="req-dados-bancarios">Conta bancária</label>
-                  <input type="text" name="dados_bancarios" id="req-dados-bancarios" class="rh-input" maxlength="200" placeholder="Banco, agência, conta, PIX...">
+                  <input type="text" name="dados_bancarios" id="req-dados-bancarios" class="rh-input" maxlength="200" placeholder="Banco, agência, conta e tipo">
+                </div>
+                <div class="rh-form-field">
+                  <label for="req-pix">Chave PIX</label>
+                  <input type="text" name="pix" id="req-pix" class="rh-input" maxlength="140" placeholder="CPF, e-mail, telefone ou chave aleatória">
                 </div>
                 <div class="rh-form-field">
                   <label for="req-escolaridade">Escolaridade</label>
@@ -258,6 +275,15 @@
             <div class="rh-form-field">
               <label for="req-salario">Salário (R$) <span class="rh-required">*</span></label>
               <input type="text" name="salario" id="req-salario" class="rh-input" maxlength="40" required placeholder="Ex: 3.500,00">
+            </div>
+            <div class="rh-form-field">
+              <label for="req-vale-transporte">Valor do vale-transporte (R$)</label>
+              <input type="text" name="vale_transporte_valor" id="req-vale-transporte" class="rh-input" maxlength="40" placeholder="Ex: 220,00">
+              <p class="rh-field-hint">Deixe em branco se não houver vale-transporte.</p>
+            </div>
+            <div class="rh-form-field rh-wizard-field-full">
+              <label for="req-indicacao">Houve indicação? Se sim, quem indicou?</label>
+              <input type="text" name="indicacao" id="req-indicacao" class="rh-input" maxlength="200" placeholder="Nome de quem indicou (deixe em branco se não houve)">
             </div>
             <div class="rh-wizard-fields-row rh-wizard-field-full">
               <div class="rh-form-field">
@@ -637,6 +663,7 @@
   }
 
   var cargoRhCreateUrl = '{% url "recursos_humanos:cargo_rh_quick_create" %}';
+  var empresaCreateUrl = '{% url "recursos_humanos:empresa_quick_create" %}';
   var csrfInput = form ? form.querySelector('[name=csrfmiddlewaretoken]') : null;
 
   function getWizardCsrf() {
@@ -766,6 +793,7 @@
 
   setupCargoPicker('req-cargo-select', 'req-cargo', 'req-cargo-novo-wrap', 'req-cargo-novo', 'req-cargo-salvar', cargoCatalogoUrl);
   setupCargoPicker('req-cargo-rh', null, 'req-cargo-rh-novo-wrap', 'req-cargo-rh-novo', 'req-cargo-rh-salvar', cargoRhCreateUrl);
+  setupCargoPicker('req-empresa-select', 'req-empresa', 'req-empresa-novo-wrap', 'req-empresa-novo', 'req-empresa-salvar', empresaCreateUrl);
 
   var draftEl = document.getElementById('rh-requisicao-draft-data');
   var edicaoEl = document.getElementById('rh-requisicao-edicao-data');
@@ -830,14 +858,15 @@
     if (enderecoEl) enderecoEl.value = d.endereco || '';
     var bancoEl = document.getElementById('req-dados-bancarios');
     if (bancoEl) bancoEl.value = d.dados_bancarios || '';
+    var pixEl = document.getElementById('req-pix');
+    if (pixEl) pixEl.value = d.pix || '';
     var escEl = document.getElementById('req-escolaridade');
     if (escEl) escEl.value = d.escolaridade || '';
     var camisaEl = document.getElementById('req-tamanho-camisa');
     if (camisaEl) camisaEl.value = d.tamanho_camisa || '';
     var botaEl = document.getElementById('req-tamanho-bota');
     if (botaEl) botaEl.value = d.tamanho_bota || '';
-    var empresaEl = document.getElementById('req-empresa');
-    if (empresaEl) empresaEl.value = d.empresa || '';
+    setCargoSelectValue('req-empresa-select', 'req-empresa', d.empresa || '');
     setCargoSelectValue('req-cargo-select', 'req-cargo', d.cargo || '');
     var cargoRh = document.getElementById('req-cargo-rh');
     if (cargoRh && d.cargo_rh) cargoRh.value = d.cargo_rh;
@@ -855,6 +884,10 @@
     if (inicio) inicio.value = d.data_inicio || '';
     var salario = document.getElementById('req-salario');
     if (salario) salario.value = d.salario || '';
+    var valeTransp = document.getElementById('req-vale-transporte');
+    if (valeTransp) valeTransp.value = d.vale_transporte_valor || '';
+    var indicacaoEl = document.getElementById('req-indicacao');
+    if (indicacaoEl) indicacaoEl.value = d.indicacao || '';
     var origem = document.getElementById('req-deslocamento-origem');
     if (origem) origem.value = d.deslocamento_origem || '';
     var destino = document.getElementById('req-deslocamento-destino');
@@ -865,7 +898,7 @@
     var prazoDias = document.getElementById('id_prazo_duracao_dias');
     if (prazoDias) prazoDias.value = d.prazo_duracao_dias || '';
     atualizarDuracao();
-    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
+    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap', 'req-empresa-novo-wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.hidden = true;
     });
@@ -878,7 +911,7 @@
 
   function openModalBase() {
     window.RhMotion.openRhModal(modal);
-    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap'].forEach(function (id) {
+    ['req-cargo-novo-wrap', 'req-cargo-rh-novo-wrap', 'req-empresa-novo-wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.hidden = true;
     });
